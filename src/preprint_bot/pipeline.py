@@ -65,13 +65,14 @@ async def store_fetched_papers(
     entries: List[PaperEntry],
     skip_download: bool = False,
     skip_parse: bool = False,
-) -> tuple[int, set[int], int]:
+) -> tuple[int, set[int], set[int], int]:
     """Create a corpus and store fetched papers in the database.
 
-    Returns ``(corpus_id, paper_ids, stored_count)`` where ``paper_ids``
-    is the full set of database IDs for all fetched papers (both newly
-    stored and already existing) and ``stored_count`` is how many were
-    newly created.
+    Returns ``(corpus_id, paper_ids, new_paper_ids, stored_count)`` where
+    ``paper_ids`` is the full set of database IDs for all fetched papers
+    (both newly stored and already existing), ``new_paper_ids`` is the
+    subset that were newly created, and ``stored_count`` is how many
+    were newly created.
     """
     user = await api_client.get_or_create_user(SYSTEM_USER_EMAIL, SYSTEM_USER_NAME)
     print(f"Using system user: {user['email']}")
@@ -85,10 +86,11 @@ async def store_fetched_papers(
 
     if not entries:
         print("No papers to store")
-        return corpus['id'], set(), 0
+        return corpus['id'], set(), set(), 0
 
     stored_count = 0
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
+    new_paper_ids: set[int] = set()  # only newly created papers
     for paper in entries:
         existing = await api_client.get_paper_by_arxiv_id(paper.source_id)
         if existing:
@@ -130,6 +132,7 @@ async def store_fetched_papers(
                 submitted_date=submitted_date,
             )
             paper_ids.add(created['id'])
+            new_paper_ids.add(created['id'])
             stored_count += 1
         except Exception as e:
             print(f"Failed to store {paper.source_id}: {e}")
@@ -155,7 +158,7 @@ async def store_fetched_papers(
         print("\nParsing PDFs with GROBID...")
         await _parse_and_store_sections(api_client, corpus['id'], entries)
 
-    return corpus['id'], paper_ids, stored_count
+    return corpus['id'], paper_ids, new_paper_ids, stored_count
 
 
 async def _parse_and_store_sections(
@@ -466,7 +469,7 @@ async def run_pipeline(args):
         else:
             print(f"Fetched {len(entries)} papers")
 
-            corpus_id, paper_ids, stored_count = await store_fetched_papers(
+            corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
                 entries,
                 skip_download=args.skip_download,
@@ -481,7 +484,7 @@ async def run_pipeline(args):
                     api_client,
                     corpus_id=corpus_id,
                     model_name=args.model,
-                    paper_ids=paper_ids,
+                    paper_ids=new_paper_ids,  # only embed newly created papers
                 )
             elif stored_count == 0:
                 print("No new papers — skipping.")
