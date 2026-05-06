@@ -1,26 +1,8 @@
-import os
 import requests
 from lxml import etree
-from pathlib import Path
-
-# Optional spaCy sentence tokenizer
-try:
-    import spacy
-    NLP = spacy.load("en_core_web_sm")
-except ImportError:
-    NLP = None
 
 GROBID_URL = "http://localhost:8070/api/processFulltextDocument"
 NS = {"tei": "http://www.tei-c.org/ns/1.0"}
-
-
-def spacy_tokenize(text: str):
-    """
-    Tokenize text into sentences with spaCy if available, else split on blank lines.
-    """
-    if NLP:
-        return [sent.text.strip() for sent in NLP(text).sents]
-    return [s.strip() for s in text.split("\n\n") if s.strip()]
 
 
 def extract_grobid_sections(src):
@@ -125,43 +107,3 @@ def extract_grobid_sections(src):
         "pub_date": publication_date,
         "sections": sections,
     }
-
-
-# Back-compat alias
-extract_grobid_sections_from_bytes = extract_grobid_sections
-
-
-def process_folder(folder_path, output_folder):
-    """
-    Run GROBID extraction on every PDF inside folder_path and write
-    *_output.txt files to output_folder.
-    """
-    folder_path = Path(folder_path)
-    output_folder = Path(output_folder)
-    output_folder.mkdir(parents=True, exist_ok=True)
-
-    pdf_paths = list(folder_path.glob("*.pdf"))
-    print(f"Found {len(pdf_paths)} PDFs in {folder_path}")
-
-    for pdf in pdf_paths:
-        try:
-            print(f"Processing {pdf.name}...")
-            info = extract_grobid_sections(pdf)
-            out_file = output_folder / f"{pdf.stem}_output.txt"
-
-            with out_file.open("w", encoding="utf-8") as fh:
-                # Write title
-                fh.write(f"{info['title']}\n\n")
-                
-                # Write abstract
-                fh.write(f"{info['abstract']}\n\n")
-                
-                # Write sections with markdown headers
-                for sec in info["sections"]:
-                    fh.write(f"### {sec['header']}\n")
-                    fh.write(f"{sec['text']}\n\n")
-            
-            print(f"  Saved to {out_file.name}")
-
-        except Exception as exc:
-            print(f"  Failed to process {pdf.name}: {exc}")

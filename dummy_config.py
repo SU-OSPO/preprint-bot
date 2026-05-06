@@ -50,12 +50,10 @@ DATA_DIR = Path("pdf_data")  # TODO: change to an absolute path if needed
 
 # Subdirectories - these are derived from DATA_DIR, no need to change
 PDF_DIR = DATA_DIR / "pdfs"
-PROCESSED_TEXT_DIR = DATA_DIR / "processed_texts"
-USER_PDF_DIR = DATA_DIR / "user_pdfs"
-USER_PROCESSED_DIR = DATA_DIR / "user_processed"
+PAPER_STORAGE_DIR = DATA_DIR / "papers"  # hash-based deduplicated storage
 
 # Create all necessary directories on startup
-for directory in [DATA_DIR, PDF_DIR, PROCESSED_TEXT_DIR, USER_PDF_DIR, USER_PROCESSED_DIR]:
+for directory in [DATA_DIR, PDF_DIR, PAPER_STORAGE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # ==================== API SETTINGS ====================
@@ -119,33 +117,3 @@ def get_settings():
 
 settings = get_settings()
 
-
-# ==================== HELPER FUNCTIONS ====================
-# No changes needed below this line
-
-def get_user_profile_structure(base_dir=USER_PDF_DIR):
-    """
-    Scan user_pdfs directory and return structure:
-    {
-        1: [1, 2],  # user_id: [profile_ids]
-        2: [3, 4],
-        3: [5, 6]
-    }
-    """
-    structure = {}
-    base_path = Path(base_dir)
-    
-    if not base_path.exists():
-        return structure
-    
-    for user_dir in sorted(base_path.glob("[0-9]*")):
-        if user_dir.is_dir():
-            user_id = int(user_dir.name)
-            profile_ids = []
-            for profile_dir in sorted(user_dir.glob("[0-9]*")):
-                if profile_dir.is_dir():
-                    profile_ids.append(int(profile_dir.name))
-            if profile_ids:
-                structure[user_id] = profile_ids
-    
-    return structure

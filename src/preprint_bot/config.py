@@ -34,15 +34,11 @@ DATA_DIR = Path("pdf_data")
 
 # Subdirectories for different file types
 PDF_DIR = DATA_DIR / "pdfs"
-PROCESSED_TEXT_DIR = DATA_DIR / "processed_texts"
-
-USER_PDF_DIR = DATA_DIR / "user_pdfs"      # legacy — Django now uses PAPER_STORAGE_DIR
-USER_PROCESSED_DIR = DATA_DIR / "user_processed"
 PAPER_STORAGE_DIR = DATA_DIR / "papers"    # hash-based deduplicated storage
 
 
 # Create all necessary directories
-for directory in [DATA_DIR, PDF_DIR, PROCESSED_TEXT_DIR, USER_PDF_DIR, USER_PROCESSED_DIR, PAPER_STORAGE_DIR]:
+for directory in [DATA_DIR, PDF_DIR, PAPER_STORAGE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 
