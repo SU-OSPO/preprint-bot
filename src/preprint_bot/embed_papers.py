@@ -22,15 +22,14 @@ async def embed_single_paper(
     paper: Dict,
     model: SentenceTransformer,
     model_name: str,
-) -> int:
+) -> tuple[int, int]:
     """Generate and store embeddings for a single paper from DB content.
 
     Creates an abstract embedding (title + abstract) and section
     embeddings for each substantial section (>20 words).
 
-    Returns the number of embeddings stored.
+    Returns ``(abstract_stored, sections_stored)``.
     """
-    stored = 0
 
     # Abstract embedding from title + abstract (fall back to sections if too short)
     title = paper.get('title', '')
@@ -53,9 +52,12 @@ async def embed_single_paper(
             type='abstract',
             model_name=model_name,
         )
-        stored += 1
+        abstract_stored = 1
+    else:
+        abstract_stored = 0
 
     # Section embeddings — batch encode for efficiency
+    sections_stored = 0
     eligible_sections = [
         s for s in sections if len(s.get('text', '').split()) > 20
     ]
@@ -70,9 +72,9 @@ async def embed_single_paper(
                 type='section',
                 model_name=model_name,
             )
-            stored += 1
+            sections_stored += 1
 
-    return stored
+    return abstract_stored, sections_stored
 
 
 async def embed_and_store_papers(
@@ -108,11 +110,10 @@ async def embed_and_store_papers(
 
     for i, paper in enumerate(papers, 1):
         try:
-            stored = await embed_single_paper(api_client, paper, model, model_name)
-            if stored > 0:
-                # First embedding is always abstract, rest are sections
-                abstract_count += 1
-                section_count += max(0, stored - 1)
+            abs_stored, sec_stored = await embed_single_paper(api_client, paper, model, model_name)
+            if abs_stored + sec_stored > 0:
+                abstract_count += abs_stored
+                section_count += sec_stored
                 if i % 25 == 0:
                     print(f"  Embedded {i}/{len(papers)} papers...")
             else:

@@ -99,9 +99,10 @@ async def process_unprocessed_papers(
 
             for paper in papers:
                 try:
-                    stored = await embed_single_paper(
+                    abs_stored, sec_stored = await embed_single_paper(
                         api_client, paper, model, DEFAULT_MODEL_NAME
                     )
+                    stored = abs_stored + sec_stored
                     if stored > 0:
                         embed_count += 1
                         print(f"  Embedded: {paper['title'][:60]}... ({stored} vectors)")
