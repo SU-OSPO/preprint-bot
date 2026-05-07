@@ -9,3 +9,6 @@ pgvector>=0.3.6
 # Only needed if you want the paper-add-from-arXiv feature to work
 requests>=2.31.0
 arxiv>=2.1.0
+
+# PDF text layer validation on upload
+pypdf>=4.0.0

@@ -123,6 +123,34 @@ def _link_paper_to_corpus(paper, corpus):
     paper.corpora.add(corpus)
 
 
+def _pdf_has_text_layer(uploaded_file, min_chars=50, max_pages=3):
+    """Check whether a PDF has extractable text.
+
+    Reads up to *max_pages* pages and returns True if at least
+    *min_chars* characters of text (after stripping leading/trailing
+    whitespace) can be extracted.
+    Returns True (allow upload) if pypdf is not installed or the
+    PDF cannot be parsed, so we never block uploads due to a
+    library issue.
+    """
+    try:
+        from pypdf import PdfReader
+
+        uploaded_file.seek(0)
+        reader = PdfReader(uploaded_file)
+        text = ""
+        for page in reader.pages[:max_pages]:
+            text += page.extract_text() or ""
+            if len(text.strip()) >= min_chars:
+                uploaded_file.seek(0)
+                return True
+        uploaded_file.seek(0)
+        return len(text.strip()) >= min_chars
+    except Exception:
+        uploaded_file.seek(0)
+        return True  # don't block uploads if the check itself fails
+
+
 # ── Decorator ──────────────────────────────────────────────────────────────
 
 def pbuser_required(view_func):
@@ -770,6 +798,16 @@ def paper_upload_view(request, profile_id):
         f.seek(0)
         if b"%PDF-" not in header:
             messages.warning(request, f"Skipped {safe_name}: not a valid PDF file.")
+            skipped += 1
+            continue
+
+        # Check for extractable text layer (reject scanned/image-only PDFs)
+        if not _pdf_has_text_layer(f):
+            messages.warning(
+                request,
+                f"Skipped {safe_name}: no extractable text found. "
+                f"Please upload a PDF with a text layer (not a scanned image).",
+            )
             skipped += 1
             continue
 
