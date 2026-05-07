@@ -309,11 +309,15 @@ class Recommendation(models.Model):
     score = models.FloatField()
     rank = models.IntegerField()
     summary = models.TextField(blank=True, null=True)
+    sent_in_email = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "recommendations"
         unique_together = [("run", "paper")]
+        indexes = [
+            models.Index(fields=["sent_in_email"], name="recommendations_sent_idx"),
+        ]
 
 
 # ── Profile ↔ Recommendation junction ─────────────────────────────────────

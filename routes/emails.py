@@ -19,7 +19,6 @@ class DigestRequest(BaseModel):
 async def send_digest(req: DigestRequest):
     pool = await get_db_pool()
     run_date = req.run_date or str(date.today())
-    run_date_obj = datetime.strptime(run_date, "%Y-%m-%d").date()
 
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -29,7 +28,7 @@ async def send_digest(req: DigestRequest):
             raise HTTPException(status_code=404, detail="User not found")
 
         profile = await conn.fetchrow(
-            "SELECT id, name, email_notify, top_x FROM profiles WHERE id = $1 AND user_id = $2",
+            "SELECT id, name, email_notify, top_x, frequency FROM profiles WHERE id = $1 AND user_id = $2",
             req.profile_id, req.user_id
         )
         if not profile:
@@ -40,26 +39,32 @@ async def send_digest(req: DigestRequest):
 
         top_x = profile["top_x"] or 10
 
+        # Fetch all unsent recommendations for this profile
         rows = await conn.fetch(
             """
-            SELECT p.arxiv_id, p.title, p.abstract, r.score, r.summary, s.summary_text
-            FROM profile_recommendations pr
-            JOIN recommendations r ON r.id = pr.recommendation_id
+            SELECT r.id AS recommendation_id,
+                   p.arxiv_id, p.title, p.abstract,
+                   r.score, r.summary, s.summary_text
+            FROM recommendations r
             JOIN recommendation_runs rr ON rr.id = r.run_id
             JOIN papers p ON p.id = r.paper_id
-            LEFT JOIN summaries s ON s.paper_id = p.id
-            WHERE pr.profile_id = $1
-            AND rr.target_date = $2
+            LEFT JOIN summaries s ON s.paper_id = p.id AND s.mode = 'abstract'
+            WHERE rr.profile_id = $1
+              AND r.sent_in_email = false
             ORDER BY r.score DESC
-            LIMIT $3
+            LIMIT $2
             """,
-            req.profile_id, run_date_obj, top_x
+            req.profile_id, top_x
         )
 
         if not rows:
-            return {"status": "skipped", "reason": "no recommendations found for this date"}
+            return {"status": "skipped", "reason": "no unsent recommendations found"}
 
+        # Collect recommendation IDs for marking as sent
+        rec_ids = [row["recommendation_id"] for row in rows]
         papers = [dict(r) for r in rows]
+
+    frequency = profile["frequency"] or "daily"
 
     success, subject, html_body = await run_in_threadpool(
         send_recommendations_digest,
@@ -67,6 +72,7 @@ async def send_digest(req: DigestRequest):
         profile_name=profile["name"],
         papers=papers,
         run_date=run_date,
+        frequency=frequency,
     )
 
     status = "sent" if success else "failed"
@@ -79,6 +85,13 @@ async def send_digest(req: DigestRequest):
             """,
             req.user_id, req.profile_id, subject, html_body, status
         )
+
+        # Only mark recommendations as sent if the email actually succeeded
+        if success:
+            await conn.execute(
+                "UPDATE recommendations SET sent_in_email = true WHERE id = ANY($1)",
+                rec_ids,
+            )
 
     if not success:
         raise HTTPException(status_code=500, detail="Email sending failed")
