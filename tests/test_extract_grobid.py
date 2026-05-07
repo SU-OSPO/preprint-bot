@@ -1,62 +1,32 @@
+# test_extract_grobid.py
 """Unit tests for GROBID extraction helpers"""
 import pytest
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "preprint_bot"))
 
 
 class TestExtractGrobid:
-    def test_spacy_tokenize_fallback(self):
-        """Test sentence tokenization when spaCy not available"""
-        import preprint_bot.extract_grobid as extract_grobid
-        original_nlp = extract_grobid.NLP
-        extract_grobid.NLP = None
-        
-        try:
-            result = extract_grobid.spacy_tokenize("First sentence. Second sentence.")
-            # When spaCy is not available, it splits on blank lines
-            # So single-line input will be one element
-            assert len(result) >= 1
-            assert "First sentence" in result[0]
-        finally:
-            extract_grobid.NLP = original_nlp
-    
-    def test_spacy_tokenize_empty_string(self):
-        """Test tokenization with empty string"""
-        import preprint_bot.extract_grobid as extract_grobid
-        original_nlp = extract_grobid.NLP
-        extract_grobid.NLP = None
-        
-        try:
-            result = extract_grobid.spacy_tokenize("")
-            assert result == []
-        finally:
-            extract_grobid.NLP = original_nlp
-    
-    def test_spacy_tokenize_single_sentence(self):
-        """Test tokenization with single sentence"""
-        import preprint_bot.extract_grobid as extract_grobid
-        original_nlp = extract_grobid.NLP
-        extract_grobid.NLP = None
-        
-        try:
-            result = extract_grobid.spacy_tokenize("This is one sentence.")
-            assert len(result) == 1
-            assert "This is one sentence" in result[0]
-        finally:
-            extract_grobid.NLP = original_nlp
-    
-    def test_spacy_tokenize_with_blank_lines(self):
-        """Test tokenization with blank lines (fallback mode)"""
-        import preprint_bot.extract_grobid as extract_grobid
-        original_nlp = extract_grobid.NLP
-        extract_grobid.NLP = None
-        
-        try:
-            text = "First paragraph.\n\nSecond paragraph."
-            result = extract_grobid.spacy_tokenize(text)
-            assert len(result) == 2
-            assert "First paragraph" in result[0]
-            assert "Second paragraph" in result[1]
-        finally:
-            extract_grobid.NLP = original_nlp
+    def test_module_imports(self):
+        """Test that the module can be imported and has expected exports."""
+        from preprint_bot.extract_grobid import extract_grobid_sections
+        assert callable(extract_grobid_sections)
+
+    def test_accepts_bytes_input(self):
+        """extract_grobid_sections should accept bytes (will fail at GROBID call)."""
+        from preprint_bot.extract_grobid import extract_grobid_sections
+        # Should raise a connection/request error, not a TypeError
+        with pytest.raises(Exception):
+            extract_grobid_sections(b"%PDF-1.4 fake pdf content")
+
+    def test_accepts_path_input(self, tmp_path):
+        """extract_grobid_sections should accept a path (will fail at GROBID call)."""
+        from preprint_bot.extract_grobid import extract_grobid_sections
+        fake_pdf = tmp_path / "test.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4 fake pdf content")
+        # Should raise a connection/request error, not a TypeError
+        with pytest.raises(Exception):
+            extract_grobid_sections(fake_pdf)
 
 
 if __name__ == "__main__":

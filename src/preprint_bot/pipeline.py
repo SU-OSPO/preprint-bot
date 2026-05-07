@@ -13,13 +13,13 @@ import requests
 
 from .config import (
     API_BASE_URL, DATA_DIR, DEFAULT_MODEL_NAME,
-    PDF_DIR, PROCESSED_TEXT_DIR,
+    PDF_DIR,
     SYSTEM_USER_EMAIL, SYSTEM_USER_NAME, ARXIV_CORPUS_NAME,
 )
 from .api_client import APIClient
 from .download_arxiv_pdfs import download_arxiv_pdfs
 from .embed_papers import embed_and_store_papers
-from .extract_grobid import process_folder as grobid_process_folder
+from .extract_grobid import extract_grobid_sections
 from .summarization_script import TransformerSummarizer, LlamaSummarizer
 from .user_mode_processor import process_unprocessed_papers
 from .db_similarity_matcher import run_similarity_matching
@@ -65,13 +65,14 @@ async def store_fetched_papers(
     entries: List[PaperEntry],
     skip_download: bool = False,
     skip_parse: bool = False,
-) -> tuple[int, set[int], int]:
+) -> tuple[int, set[int], set[int], int]:
     """Create a corpus and store fetched papers in the database.
 
-    Returns ``(corpus_id, paper_ids, stored_count)`` where ``paper_ids``
-    is the full set of database IDs for all fetched papers (both newly
-    stored and already existing) and ``stored_count`` is how many were
-    newly created.
+    Returns ``(corpus_id, paper_ids, new_paper_ids, stored_count)`` where
+    ``paper_ids`` is the full set of database IDs for all fetched papers
+    (both newly stored and already existing), ``new_paper_ids`` is the
+    subset that were newly created, and ``stored_count`` is how many
+    were newly created.
     """
     user = await api_client.get_or_create_user(SYSTEM_USER_EMAIL, SYSTEM_USER_NAME)
     print(f"Using system user: {user['email']}")
@@ -85,10 +86,11 @@ async def store_fetched_papers(
 
     if not entries:
         print("No papers to store")
-        return corpus['id'], set(), 0
+        return corpus['id'], set(), set(), 0
 
     stored_count = 0
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
+    new_paper_ids: set[int] = set()  # only newly created papers
     for paper in entries:
         existing = await api_client.get_paper_by_arxiv_id(paper.source_id)
         if existing:
@@ -127,12 +129,10 @@ async def store_fetched_papers(
                 },
                 source=paper.source,
                 pdf_path=str(PDF_DIR / f"{paper.source_id}.pdf"),
-                processed_text_path=str(
-                    PROCESSED_TEXT_DIR / f"{paper.source_id}_output.txt"
-                ),
                 submitted_date=submitted_date,
             )
             paper_ids.add(created['id'])
+            new_paper_ids.add(created['id'])
             stored_count += 1
         except Exception as e:
             print(f"Failed to store {paper.source_id}: {e}")
@@ -156,61 +156,52 @@ async def store_fetched_papers(
 
     if not skip_parse and stored_count > 0:
         print("\nParsing PDFs with GROBID...")
-        grobid_process_folder(PDF_DIR, PROCESSED_TEXT_DIR)
-        await store_sections(api_client, corpus['id'], entries)
+        await _parse_and_store_sections(api_client, corpus['id'], entries)
 
-    return corpus['id'], paper_ids, stored_count
+    return corpus['id'], paper_ids, new_paper_ids, stored_count
 
 
-async def store_sections(
+async def _parse_and_store_sections(
     api_client: APIClient, corpus_id: int, entries: List[PaperEntry]
 ):
-    print(f"Extracting sections from papers in corpus {corpus_id}...")
+    """Run GROBID on each paper's PDF and store sections directly to DB.
+
+    Unlike the old process_folder → _output.txt → store_sections flow,
+    this goes straight from GROBID's structured output to the database.
+    """
     papers = await api_client.get_papers_by_corpus(corpus_id)
     entry_ids = {e.source_id for e in entries}
     papers = [p for p in papers if p.get('arxiv_id') in entry_ids]
 
-    sections_stored = 0
+    parsed = 0
     for paper in papers:
-        processed_path = paper.get('processed_text_path')
-        if not processed_path:
+        pdf_path = paper.get('pdf_path')
+        if not pdf_path or not Path(pdf_path).exists():
             continue
-        processed_file = Path(processed_path)
-        if not processed_file.exists():
-            continue
+
         try:
-            with open(processed_file, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-        except Exception:
-            continue
+            info = extract_grobid_sections(Path(pdf_path))
 
-        sections = []
-        current_header = None
-        current_text = []
-        for line in lines[2:]:
-            line = line.strip()
-            if line.startswith("### "):
-                if current_header and current_text:
-                    sections.append((current_header, ' '.join(current_text)))
-                current_header = line[4:].strip()
-                current_text = []
-            elif line:
-                current_text.append(line)
-        if current_header and current_text:
-            sections.append((current_header, ' '.join(current_text)))
+            sections_stored = 0
+            for sec in info.get('sections', []):
+                try:
+                    await api_client.create_section(
+                        paper_id=paper['id'],
+                        header=sec['header'],
+                        text=sec['text'],
+                    )
+                    sections_stored += 1
+                except Exception:
+                    pass
 
-        paper_sections = 0
-        for header, text in sections:
-            try:
-                await api_client.create_section(paper_id=paper['id'], header=header, text=text)
-                paper_sections += 1
-                sections_stored += 1
-            except Exception:
-                pass
-        if paper_sections > 0:
-            print(f"  Stored {paper_sections} sections for: {paper['title'][:50]}...")
+            parsed += 1
+            if sections_stored > 0:
+                print(f"  {paper['arxiv_id']}: {sections_stored} sections")
 
-    print(f"Stored {sections_stored} total sections")
+        except Exception as e:
+            print(f"  Failed to process {paper.get('arxiv_id', paper['id'])}: {e}")
+
+    print(f"Parsed {parsed} papers, stored sections to database")
 
 
 async def summarize_papers(
@@ -368,7 +359,7 @@ def _preflight_checks(args):
     errors = []
 
     # ── Writable directories ───────────────────────────────────────────
-    for d in [DATA_DIR, PDF_DIR, PROCESSED_TEXT_DIR]:
+    for d in [DATA_DIR, PDF_DIR]:
         d.mkdir(parents=True, exist_ok=True)
         test_file = d / ".write_test"
         try:
@@ -478,7 +469,7 @@ async def run_pipeline(args):
         else:
             print(f"Fetched {len(entries)} papers")
 
-            corpus_id, paper_ids, stored_count = await store_fetched_papers(
+            corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
                 entries,
                 skip_download=args.skip_download,
@@ -492,9 +483,8 @@ async def run_pipeline(args):
                 await embed_and_store_papers(
                     api_client,
                     corpus_id=corpus_id,
-                    processed_folder=str(PROCESSED_TEXT_DIR),
                     model_name=args.model,
-                    store_sections=True
+                    paper_ids=new_paper_ids,  # only embed newly created papers
                 )
             elif stored_count == 0:
                 print("No new papers — skipping.")
@@ -556,17 +546,13 @@ async def run_pipeline(args):
         print("\n" + "="*60)
         print("STEP 8: Cleanup")
         print("="*60)
-        print("Cleaning up temporary arXiv files...")
+        print("Cleaning up temporary arXiv PDF files...")
         try:
             deleted_pdfs = 0
-            deleted_txts = 0
             for pdf in PDF_DIR.glob("*.pdf"):
                 pdf.unlink()
                 deleted_pdfs += 1
-            for txt in PROCESSED_TEXT_DIR.glob("*_output.txt"):
-                txt.unlink()
-                deleted_txts += 1
-            print(f"  ✓ Deleted {deleted_pdfs} PDFs and {deleted_txts} processed texts")
+            print(f"  ✓ Deleted {deleted_pdfs} PDFs")
             print(f"  ✓ User paper files are safe (hash-based storage)")
         except Exception as e:
             print(f"  Warning: Cleanup failed: {e}")

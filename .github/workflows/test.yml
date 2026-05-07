@@ -26,11 +26,10 @@ jobs:
           # Clean any cached packages
           pip cache purge || true
           # Uninstall any existing conflicting packages
-          pip uninstall -y spacy pydantic pydantic-core pydantic-settings || true
+          pip uninstall -y pydantic pydantic-core pydantic-settings || true
           # Install in correct order to avoid conflicts
           pip install "numpy<2.0"
           pip install "pydantic>=2.5.3,<3.0.0"
-          pip install "spacy>=3.8.0"
           # Install remaining requirements
           pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
           # Install package without reinstalling dependencies
@@ -38,14 +37,9 @@ jobs:
           # Download NLTK data (needed for tests)
           python -m nltk.downloader punkt punkt_tab
 
-      - name: Download spaCy model
-        run: |
-          python -m spacy download en_core_web_sm
-
       - name: Verify installation
         run: |
           python --version
-          python -c "import spacy; print(f' spaCy: {spacy.__version__}')"
           python -c "import pydantic; print(f' Pydantic: {pydantic.__version__}')"
           python -c "from preprint_bot import config; print(' Package imports successfully')"
 

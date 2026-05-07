@@ -7,7 +7,6 @@ embeddings.  This avoids redundant processing when the same paper is
 linked to multiple profiles.
 """
 from pathlib import Path
-from typing import Dict
 
 from .config import DEFAULT_MODEL_NAME
 from .api_client import APIClient
@@ -94,15 +93,16 @@ async def process_unprocessed_papers(
         print(f'\nFound {len(papers)} paper(s) needing embeddings')
 
         if papers:
-            from .embed_papers import load_model
+            from .embed_papers import load_model, embed_single_paper
 
             model = load_model(DEFAULT_MODEL_NAME)
 
             for paper in papers:
                 try:
-                    stored = await _embed_single_paper(
+                    abs_stored, sec_stored = await embed_single_paper(
                         api_client, paper, model, DEFAULT_MODEL_NAME
                     )
+                    stored = abs_stored + sec_stored
                     if stored > 0:
                         embed_count += 1
                         print(f"  Embedded: {paper['title'][:60]}... ({stored} vectors)")
@@ -112,61 +112,3 @@ async def process_unprocessed_papers(
             print(f'  Embedding complete: {embed_count} paper(s)')
 
     return {'parsed': parse_count, 'embedded': embed_count}
-
-
-async def _embed_single_paper(
-    api_client: APIClient,
-    paper: Dict,
-    model,
-    model_name: str,
-) -> int:
-    """Generate and store embeddings for a single paper from DB content.
-
-    Creates an abstract embedding (title + abstract) and section
-    embeddings for each substantial section (>20 words).
-
-    Returns the number of embeddings stored.
-    """
-    stored = 0
-
-    # Abstract embedding from title + abstract (fall back to sections if too short)
-    title = paper.get('title', '')
-    abstract = paper.get('abstract', '')
-    abstract_text = f'{title}. {abstract}'.strip()
-
-    # If title+abstract is too short, supplement with early section text
-    sections = await api_client.get_sections_by_paper(paper['id'])
-    if len(abstract_text.split()) <= 5 and sections:
-        section_text = ' '.join(
-            s.get('text', '') for s in sections[:3]  # first 3 sections
-        ).strip()
-        abstract_text = f'{abstract_text} {section_text}'.strip()
-
-    if len(abstract_text.split()) > 5:  # need some content to embed
-        emb = model.encode([abstract_text], normalize_embeddings=True)[0]
-        await api_client.create_embedding(
-            paper_id=paper['id'],
-            embedding=emb.tolist(),
-            type='abstract',
-            model_name=model_name,
-        )
-        stored += 1
-
-    # Section embeddings — batch encode for efficiency
-    eligible_sections = [
-        s for s in sections if len(s.get('text', '').split()) > 20
-    ]
-    if eligible_sections:
-        texts = [s['text'] for s in eligible_sections]
-        embeddings = model.encode(texts, normalize_embeddings=True)
-        for section, emb in zip(eligible_sections, embeddings):
-            await api_client.create_embedding(
-                paper_id=paper['id'],
-                section_id=section['id'],
-                embedding=emb.tolist(),
-                type='section',
-                model_name=model_name,
-            )
-            stored += 1
-
-    return stored

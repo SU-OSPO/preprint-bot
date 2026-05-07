@@ -29,7 +29,6 @@ For GPU support (RTX 5070 Ti), install PyTorch with CUDA first, then manually in
     pip install -e ".[all]"
  
 Post-installation steps:
-    python -m spacy download en_core_web_sm
     python -c "import nltk; nltk.download('punkt')"
 """
 
@@ -121,7 +120,6 @@ setup(
         "transformers>=4.41.0,<5.0.0",
         "torch>=2.5.0",
         "nltk>=3.9",
-        "spacy>=3.8.0",
         
         # Similarity Search (CPU version - works everywhere)
         "faiss-cpu>=1.7.4",

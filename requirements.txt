@@ -20,9 +20,6 @@ torch==2.5.1  # Add +cu121 manually: pip install torch==2.5.1+cu121 --index-url 
 
 # Tokenization & classical NLP
 nltk>=3.9
-# CRITICAL: Use spaCy 3.8+ which is compatible with Pydantic v2
-spacy>=3.8.0
-# After install, run: python -m spacy download en_core_web_sm
 
 # Similarity search
 faiss-cpu>=1.7.4

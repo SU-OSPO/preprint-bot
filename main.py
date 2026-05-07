@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from database import get_db_pool, close_db_pool
 
-from routes import users, papers, corpora, sections, embeddings, auth, uploads
+from routes import users, papers, corpora, sections, embeddings, auth
 from routes import profiles, profile_corpora, summaries, profile_recommendations, email_logs, emails
 from routes import recommendation_runs
 import routes.recommendations as recommendations
@@ -51,7 +51,6 @@ app.include_router(profile_recommendations.router)
 app.include_router(email_logs.router)
 app.include_router(emails.router)
 app.include_router(auth.router)
-app.include_router(uploads.router)
 
 
 @app.get("/")
