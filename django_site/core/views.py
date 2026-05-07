@@ -1177,6 +1177,9 @@ def recommendations_view(request):
         "recs_json": json.dumps(recs),
         "categories_json": json.dumps(profile_categories),
         "code_to_label_json": json.dumps(ARXIV_CODE_TO_LABEL),
+        "profiles_json": json.dumps([
+            {"id": p.pk, "name": p.name} for p in profiles
+        ]),
     })
 
 
@@ -1203,6 +1206,16 @@ def _query_profile_recommendations(pb_user, profile=None):
 
     # Get runs that used any of these corpora
     runs = RecommendationRun.objects.filter(user_corpus__in=user_corpora)
+
+    # Build a mapping from corpus ID to profile ID by parsing corpus names
+    corpus_to_profile = {}
+    profile_prefix = f"user_{pb_user.pk}_profile_"
+    for c in user_corpora:
+        if c.name.startswith(profile_prefix):
+            profile_id_str = c.name[len(profile_prefix):]
+            if profile_id_str.isdigit():
+                corpus_to_profile[c.pk] = int(profile_id_str)
+
     recs_list = list(
         Recommendation.objects.filter(run__in=runs)
         .select_related("paper", "run")
@@ -1217,6 +1230,16 @@ def _query_profile_recommendations(pb_user, profile=None):
         for s in Summary.objects.filter(paper_id__in=paper_ids, mode="abstract")
     }
 
+    # Check which recommended papers are already in each profile's corpus
+    # (restricted to paper_ids in this batch for efficiency)
+    profile_paper_ids = {}  # {profile_id: set of paper_ids}
+    for paper_pk, corpus_pk in Paper.objects.filter(
+        pk__in=paper_ids, corpora__in=user_corpora
+    ).values_list("pk", "corpora__pk"):
+        pid = corpus_to_profile.get(corpus_pk)
+        if pid:
+            profile_paper_ids.setdefault(pid, set()).add(paper_pk)
+
     # Deduplicate by arxiv_id keeping highest score
     seen = {}
     for rec in recs_list:
@@ -1230,6 +1253,12 @@ def _query_profile_recommendations(pb_user, profile=None):
         date_str = dt.strftime("%d %B %Y") if dt else "Unknown Date"
 
         seen[aid] = {
+            "paper_id": paper.pk,
+            "profile_id": corpus_to_profile.get(rec.run.user_corpus_id),
+            "in_corpus": [
+                prof_id for prof_id, paper_set in profile_paper_ids.items()
+                if paper.pk in paper_set
+            ],
             "title": paper.title,
             "score": rec.score,
             "rank": rec.rank,
@@ -1243,6 +1272,43 @@ def _query_profile_recommendations(pb_user, profile=None):
         }
 
     return list(seen.values())
+
+
+@pbuser_required
+@require_POST
+def recommendation_add_to_profile_view(request, profile_id, paper_id):
+    """Add a recommended paper to a profile's corpus (AJAX).
+
+    Unlike paper_add_arxiv_view, this doesn't download anything — the paper
+    already exists in the DB from the pipeline.
+    """
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
+    paper = get_object_or_404(Paper, pk=paper_id)
+
+    # Verify the paper was actually recommended to this user
+    was_recommended = Recommendation.objects.filter(
+        paper=paper, run__user=pb_user
+    ).exists()
+    if not was_recommended:
+        return JsonResponse({"ok": False, "error": "Paper not found."}, status=404)
+
+    corpus = _get_or_create_user_corpus(pb_user, profile)
+
+    already_linked = paper.corpora.filter(pk=corpus.pk).exists()
+    if already_linked:
+        return JsonResponse({"ok": True, "already_linked": True})
+
+    _link_paper_to_corpus(paper, corpus)
+    return JsonResponse({
+        "ok": True,
+        "already_linked": False,
+        "paper": {
+            "id": paper.pk,
+            "title": paper.title,
+            "arxiv_id": paper.arxiv_id,
+        },
+    })
 
 
 # ── Settings ───────────────────────────────────────────────────────────────
