@@ -8,6 +8,9 @@
 {% if form.non_field_errors %}
   <div class="alert alert-error">{{ form.non_field_errors.0 }}</div>
 {% endif %}
+{% if form.threshold.errors %}
+  <div class="alert alert-error">Threshold: {{ form.threshold.errors.0 }}</div>
+{% endif %}
 
 <form method="post" id="profile-form">
   {% csrf_token %}

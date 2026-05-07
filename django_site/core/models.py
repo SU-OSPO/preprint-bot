@@ -91,7 +91,7 @@ class Profile(models.Model):
     keywords = ArrayField(models.TextField(), default=list, blank=True)
     categories = ArrayField(models.TextField(), default=list, blank=True)
     email_notify = models.BooleanField(default=True)
-    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default="weekly")
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default="daily")
     threshold = models.FloatField(default=0.6)
     top_x = models.IntegerField(default=999)
     created_at = models.DateTimeField(auto_now_add=True)

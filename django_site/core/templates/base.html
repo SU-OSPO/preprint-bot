@@ -55,7 +55,7 @@
   {# ── Beta banner (dismissable, localStorage remembers) ── #}
   {% if SHOW_BETA_BANNER %}
   <div class="beta-banner" id="beta-banner">
-    <span>This site is in beta — feedback welcome at
+    <span>This site is in beta — feedback welcome via
       <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a>
     </span>
     <button type="button" class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
@@ -86,11 +86,23 @@
   <footer class="site-footer">
     <span>{{ SITE_NAME }}</span>
     <span class="footer-sep">·</span>
-    <span>Questions or feedback? <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a></span>
+    <span>Questions or feedback? Email <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a></span>
     <span class="footer-sep">·</span>
     <a href="{% url 'help' %}">Help</a>
   </footer>
 
+  <script>
+  // Prevent scroll-wheel from changing focused number inputs while page scrolls
+  document.addEventListener('wheel', function(e) {
+    if (
+      e.target instanceof Element &&
+      e.target.matches('input[type=number]') &&
+      document.activeElement === e.target
+    ) {
+      e.target.blur();
+    }
+  }, {passive: true});
+  </script>
   {% block extra_scripts %}{% endblock %}
 </body>
 </html>

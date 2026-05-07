@@ -714,7 +714,7 @@ def profile_edit_view(request, profile_id):
         form = ProfileForm(initial={
             "name": profile.name,
             "frequency": profile.frequency,
-            "threshold": profile.threshold if profile.threshold is not None else 0.6,
+            "threshold": max(0.40, min(0.75, profile.threshold if profile.threshold is not None else 0.6)),
             "top_x": profile.top_x or 10,
             "categories": ",".join(profile.categories or []),
         })
@@ -885,7 +885,13 @@ def paper_add_arxiv_view(request, profile_id):
         if failed:
             return JsonResponse({"ok": False, "error": f"Failed to download {aid}."}, status=400)
         # Look up the paper to return its info for the DOM
-        paper = Paper.objects.filter(arxiv_id=aid).first()
+        paper = Paper.objects.filter(arxiv_id=aid).order_by("-id").first()
+        if not paper:
+            # Legacy data may have version suffix (e.g., 2507.08778v1);
+            # prefer the newest matching row deterministically.
+            paper = Paper.objects.filter(arxiv_id__startswith=aid + 'v').order_by("-id").first()
+        if not paper:
+            return JsonResponse({"ok": False, "error": f"Paper stored but could not be retrieved for arXiv ID {aid}."}, status=500)
         return JsonResponse({
             "ok": True,
             "paper": {
@@ -893,7 +899,7 @@ def paper_add_arxiv_view(request, profile_id):
                 "title": paper.title,
                 "arxiv_id": paper.arxiv_id,
                 "source": paper.source,
-            } if paper else None,
+            },
         })
 
     success, failed = _download_arxiv_pdfs(pb_user, profile, arxiv_ids)
