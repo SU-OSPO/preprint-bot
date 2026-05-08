@@ -37,6 +37,14 @@ async def create_recommendation(rec: RecommendationCreate):
                     rec.run_id, rec.paper_id, rec.score, rec.rank, rec.summary
                 )
                 if not row:
+                    # profile_recommendations already existed (ON CONFLICT DO NOTHING
+                    # returned nothing) — fetch the upserted recommendation directly
+                    row = await conn.fetchrow(
+                        """SELECT id, run_id, paper_id, score, rank, summary, created_at
+                           FROM recommendations WHERE run_id = $1 AND paper_id = $2""",
+                        rec.run_id, rec.paper_id
+                    )
+                if not row:
                     raise HTTPException(status_code=400, detail="Insert failed — profile_id may be missing on run")
                 return dict(row)
     except HTTPException:
