@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Preprint Bot API",
     description="API for managing academic paper recommendations with vector search",
-    version="2.0.0",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -57,7 +57,7 @@ app.include_router(auth.router)
 async def root():
     return {
         "message": "Preprint Bot - Academic Paper Recommendation System",
-        "version": "2.0.0",
+        "version": "1.0.0",
         "docs": "/docs",
         "redoc": "/redoc",
         "status": "operational",
