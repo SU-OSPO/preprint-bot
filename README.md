@@ -2,7 +2,7 @@
 
 ## Overview
 
-Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with keywords and categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
+Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with arXiv categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
 
 ## Key Features
 
@@ -22,7 +22,7 @@ Preprint Bot addresses the challenge of information discovery in academic resear
 ### User Features
 - **Profile Management**: Create profiles with categories, frequency, and thresholds
 - **Paper Upload**: Upload personal papers (PDFs) organized by profile
-- **Smart Filtering**: Filter recommendations by date, score, keywords, and categories
+- **Smart Filtering**: Filter recommendations by date, score, and categories
 - **Email Digests**: Automated email notifications with top recommendations
 
 ## System Architecture
@@ -52,7 +52,7 @@ preprint-bot/
 │   └── manage.py
 ├── .env                           # FastAPI + pipeline runtime settings (not committed)
 ├── config.py                      # FastAPI + pipeline constants (not committed; copy from dummy_config.py)
-├── routes/                        # FastAPI route modules
+├── routes/                        # FastAPI route modules
 │   ├── users.py                   # User management
 │   ├── profiles.py                # Research profiles
 │   ├── corpora.py                 # Paper collections
@@ -61,6 +61,9 @@ preprint-bot/
 │   ├── embeddings.py              # Vector embeddings
 │   ├── recommendations.py         # Recommendation results
 │   ├── recommendation_runs.py     # Recommendation run tracking
+│   ├── profile_corpora.py         # Profile-corpus relationships
+│   ├── profile_recommendations.py # Profile-recommendation relationships
+│   ├── email_logs.py              # Email delivery log
 │   ├── summaries.py               # Paper summaries
 │   └── emails.py                  # Email digest sending
 ├── services/
@@ -102,7 +105,7 @@ The system uses a 15-table PostgreSQL schema managed entirely via Django migrati
 
 **Core Tables:**
 - `users`: User accounts with email-based authentication and optional ORCID linking (extends Django's `AbstractBaseUser`)
-- `profiles`: Research profiles with preferences; keywords and arXiv categories are stored as `ArrayField` columns (no separate junction tables)
+- `profiles`: Research profiles with preferences; arXiv categories are stored as an `ArrayField` column
 - `corpora`: Paper collections (arXiv corpus or user-uploaded)
 - `papers`: Paper metadata, arXiv IDs, SHA-256 content hashes, and file paths
 - `sections`: Extracted paper sections from GROBID
@@ -116,7 +119,7 @@ The system uses a 15-table PostgreSQL schema managed entirely via Django migrati
 
 **Supporting Tables:**
 - `profile_corpora`: Junction table linking profiles to corpora
-- `auth_tokens`: SHA-256-hashed tokens for password reset and session management
+- `auth_tokens`: SHA-256-hashed bearer tokens for FastAPI API legacy authentication
 - `email_logs`: Email delivery tracking
 - `processing_runs`: Pipeline run status and error tracking
 - `arxiv_daily_stats`: Per-category paper counts by submission date
@@ -351,7 +354,6 @@ POST /profiles/
 Body: {
   "user_id": 1,
   "name": "AI Research",
-  "keywords": ["machine learning", "neural networks"],
   "categories": ["cs.LG", "cs.AI"],
   "frequency": "weekly",
   "threshold": 0.7,
@@ -427,7 +429,7 @@ Complete API documentation available at http://localhost:8000/docs
 The project uses four configuration files:
 
 **Root `.env`** (FastAPI + pipeline runtime settings):
-Database credentials, API URL, system user email, and User-Agent string. Loaded by `pydantic_settings` when FastAPI and the pipeline start. Never commit this file.
+Database credentials, API URL, system user email, and User-Agent string. These are read as environment variables by `pydantic_settings` — either export them in your shell, set them in your systemd service file, or add `env_file = ".env"` to the `Settings` class in `config.py` if you prefer a `.env`-based workflow. Never commit sensitive values.
 
 **`config.py`** (copied from `dummy_config.py`; FastAPI + pipeline constants):
 Hardcoded settings that change infrequently — arXiv categories, similarity thresholds, model name, file paths, and email settings. Fill in all fields marked `TODO`. Never commit this file.
@@ -450,13 +452,10 @@ DEFAULT_THRESHOLD = 0.6
 
 # Similarity thresholds by name
 SIMILARITY_THRESHOLDS = {
-    "low": 0.5,
-    "medium": 0.7,
-    "high": 0.9
+    "low": 0.4,
+    "medium": 0.6,
+    "high": 0.75
 }
-
-# Maximum number of results to retrieve per arXiv query
-MAX_RESULTS = 30
 
 # Embedding model
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -547,13 +546,13 @@ The web interface is a Django application located in `django_site/`. It reads an
 - Quick access to latest papers
 
 **Profiles:**
-- Create/edit profiles with keywords, arXiv categories, frequency, threshold, and max recommendations
+- Create/edit profiles with arXiv categories, frequency, threshold, and max recommendations
 - Upload PDFs directly through the web interface
 - View uploaded papers with file size
 - Delete individual papers or entire profiles
 
 **Recommendations:**
-- Filter by profile, date range, score, keywords, and categories
+- Filter by profile, date range, score, and categories
 - Quick filters: Today, Last 7 days, Last 30 days, All time
 - Adjustable paper limit per profile
 - Date-grouped display with expandable paper cards

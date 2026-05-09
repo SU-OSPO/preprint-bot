@@ -18,13 +18,10 @@ ARXIV_CATEGORIES = [
 DEFAULT_THRESHOLD = 0.6
 
 SIMILARITY_THRESHOLDS = {
-    "low": 0.5,
-    "medium": 0.7,
-    "high": 0.9
+    "low": 0.4,
+    "medium": 0.6,
+    "high": 0.75
 }
-
-# Maximum number of results to retrieve per query from arXiv
-MAX_RESULTS = 30
 
 # Default SentenceTransformer model used for embedding abstracts and sections
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
