@@ -956,19 +956,7 @@ mypy src/
 
 ### Production Deployment
 
-**Using Docker:**
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY . .
-
-RUN pip install ".[production]"
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-**Using systemd:**
+**Deploying API using systemd:**
 ```ini
 [Unit]
 Description=Preprint Bot API
@@ -1008,28 +996,47 @@ preprint-bot.yourdomain.edu {
 ```
 
 ### Automated Scheduling
+**Using systemd Timer:**
 
-**Daily Pipeline Run (cron):**
-```bash
-# Edit crontab
-crontab -e
+Create two unit files:
 
-# Run daily at 9 PM EST (after arXiv publication, Sun-Thu)
-0 21 * * 0-4 cd /opt/preprint-bot && /opt/preprint-bot/venv/bin/preprint_bot >> /var/log/preprint-bot/pipeline.log 2>&1
+`/etc/systemd/system/preprint-bot-pipeline.service`:
+```ini
+[Unit]
+Description=Preprint Bot Pipeline
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=preprint-bot
+WorkingDirectory=/opt/preprint-bot
+Environment="PATH=/opt/preprint-bot/venv/bin"
+ExecStart=/opt/preprint-bot/daily_pipeline.sh
 ```
 
-**Using APScheduler:**
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+`/etc/systemd/system/preprint-bot-pipeline.timer`:
+```ini
+[Unit]
+Description=Preprint Bot Pipeline Timer
 
-scheduler = AsyncIOScheduler()
+[Timer]
+OnCalendar=*-*-* 01:30:00
+Persistent=true
 
-@scheduler.scheduled_job('cron', hour=21, day_of_week='sun-thu')
-async def daily_pipeline():
-    # Run the full pipeline
-    pass
+[Install]
+WantedBy=timers.target
+```
 
-scheduler.start()
+Enable and start the timer:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now preprint-bot-pipeline.timer
+
+# Check status
+sudo systemctl status preprint-bot-pipeline.timer
+
+# Run pipeline manually
+sudo systemctl start --no-block preprint-bot-pipeline
 ```
 
 ## Monitoring
