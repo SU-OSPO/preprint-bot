@@ -26,6 +26,9 @@ Preprint Bot addresses the challenge of information discovery in academic resear
 - **Email Digests**: Automated email notifications with top recommendations
 
 ## System Architecture
+
+> **Note:** Only actively maintained files are listed. Some legacy files scheduled for removal are present in the repository but omitted here.
+
 ```
 preprint-bot/
 ├── django_site/                   # Django web application
@@ -152,7 +155,7 @@ Download and install PostgreSQL from https://www.postgresql.org/download/windows
 ### 2. Install pgvector Extension
 ```bash
 cd /tmp
-git clone https://github.com/pgvector/pgvector.git
+git clone --branch v0.8.2 https://github.com/pgvector/pgvector.git
 cd pgvector
 make
 sudo make install
@@ -214,51 +217,90 @@ pip install ".[dev,test]"      # Development and testing
 pip install ".[llama]"         # LLaMA summarization
 ```
 
-### 6. Configuration
+### 6. Download LLaMA Model (default summarizer)
 
-Create `.env` file in project root:
+The pipeline uses LLaMA for summarization by default. Download the model and place it at the expected path:
+```bash
+mkdir -p models
+# Download from Hugging Face (requires huggingface-cli)
+pip install huggingface_hub
+huggingface-cli download bartowski/Llama-3.2-3B-Instruct-GGUF \
+    Llama-3.2-3B-Instruct-Q4_K_M.gguf \
+    --local-dir models \
+    --local-dir-use-symlinks False
+mv models/Llama-3.2-3B-Instruct-Q4_K_M.gguf models/llama-3.2-3b-instruct-q4_k_m.gguf
+```
+
+Alternatively, skip LLaMA entirely and use the transformer-based summarizer instead:
+```bash
+preprint_bot --summarizer transformer
+```
+
+### 7. Configuration
+
+The project uses two separate `.env` files — one for the FastAPI backend and pipeline, one for Django — plus `config.py` for hardcoded constants.
+
+**Copy and configure `config.py`** (from `dummy_config.py`):
+```bash
+cp dummy_config.py config.py
+```
+Edit `config.py` and fill in all fields marked `TODO` (arXiv categories, email settings, paths). Never commit `config.py`.
+
+**Create root `.env`** (FastAPI + pipeline runtime settings):
 ```env
-# Database
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=preprint_bot
 DATABASE_USER=preprint_user
-DATABASE_PASSWORD=secure_password
-
-# API
+DATABASE_PASSWORD=your_db_password
 API_BASE_URL=http://127.0.0.1:8000
 SYSTEM_USER_EMAIL=system@yourdomain.edu
 USER_AGENT=PreprintBot/1.0 (contact@yourdomain.edu)
-
-# Email (optional)
-EMAIL_HOST=smtp.office365.com
-EMAIL_PORT=587
-EMAIL_USER=your_email@university.edu
-EMAIL_PASS=your_password
-EMAIL_FROM_NAME=Preprint Bot
-EMAIL_FROM_ADDRESS=your_email@university.edu
 ```
 
-Add `.env` to `.gitignore`:
+**Create `django_site/.env`** (Django runtime settings):
+```env
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=preprint_bot
+DATABASE_USER=preprint_user
+DATABASE_PASSWORD=your_db_password
+DJANGO_SECRET_KEY=your-secret-key-here
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=yourdomain.edu
+API_BASE_URL=http://127.0.0.1:8000
+PDF_DATA_DIR=/srv/preprint-bot/pdf_data
+```
+
+**Create `django_site/preprint_bot_web/local_settings.py`** (from the example):
+```bash
+cp django_site/preprint_bot_web/local_settings.py.example django_site/preprint_bot_web/local_settings.py
+```
+Edit `local_settings.py` and fill in your ORCID credentials, branding, CSRF trusted origins, and deployment-specific paths.
+
+Add all config files to `.gitignore`:
 ```bash
 echo ".env" >> .gitignore
+echo "django_site/.env" >> .gitignore
+echo "django_site/preprint_bot_web/local_settings.py" >> .gitignore
+echo "config.py" >> .gitignore
 ```
 
 ## Usage
 
 ### Starting Services
 
-**Terminal 1 - GROBID:**
+**GROBID:**
 ```bash
 docker run -t --rm -p 8070:8070 lfoppiano/grobid:0.8.0
 ```
 
-**Terminal 2 - FastAPI Backend:**
+**FastAPI Backend:**
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Terminal 3 - Django Web App (optional):**
+**Django Web App:**
 ```bash
 cd django_site
 python manage.py runserver 8001
@@ -269,7 +311,7 @@ Access points:
 - API Docs: http://localhost:8000/docs
 - Web UI: http://localhost:8001
 
-### Basic Workflow
+### Pipeline Workflow
 
 The pipeline is a single unified command. It automatically reads arXiv categories from all user profiles, fetches new papers, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests.
 
@@ -306,19 +348,6 @@ preprint_bot --summarizer llama \
 ```
 
 ## API Reference
-
-### Authentication
-```bash
-# Register
-curl -X POST http://localhost:8000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secure123", "name": "Dr. User"}'
-
-# Login
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secure123"}'
-```
 
 ### Users
 ```bash
@@ -414,9 +443,23 @@ Complete API documentation available at http://localhost:8000/docs
 
 ## Configuration
 
-### Global Settings
+The project uses four configuration files:
 
-**File:** `src/preprint_bot/config.py`
+**Root `.env`** (FastAPI + pipeline runtime settings):
+Database credentials, API URL, system user email, and User-Agent string. Loaded by `pydantic_settings` when FastAPI and the pipeline start. Never commit this file.
+
+**`config.py`** (copied from `dummy_config.py`; FastAPI + pipeline constants):
+Hardcoded settings that change infrequently — arXiv categories, similarity thresholds, model name, file paths, and email settings. Fill in all fields marked `TODO`. Never commit this file.
+
+**`django_site/.env`** (Django runtime settings):
+Database credentials, Django secret key, allowed hosts, debug flag, API URL, and PDF data directory. Never commit this file.
+
+**`django_site/preprint_bot_web/local_settings.py`** (Django deployment overrides):
+Deployment-specific Django settings — script prefix, static/media URLs, CSRF trusted origins, ORCID credentials, branding (site name, accent/nav colours, support email), registration control, and SSL proxy header. Copy from `local_settings.py.example` and fill in your values. Never commit this file.
+
+### FastAPI + Pipeline Settings
+
+**File:** `config.py`
 ```python
 # arXiv categories to query
 ARXIV_CATEGORIES = ["cs.LG"]
@@ -445,13 +488,13 @@ PAPER_STORAGE_DIR = DATA_DIR / "papers"  # hash-based deduplicated storage
 
 ### Database Settings
 
-**File:** `django_site/preprint_bot_web/settings.py` or `.env`
-```python
-DATABASE_HOST = "localhost"
-DATABASE_PORT = 5432
-DATABASE_NAME = "preprint_bot"
-DATABASE_USER = "preprint_user"
-DATABASE_PASSWORD = "secure_password"
+Both `.env` files share the same database connection variables:
+```env
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=preprint_bot
+DATABASE_USER=preprint_user
+DATABASE_PASSWORD=your_db_password
 ```
 
 ### Email Settings
@@ -513,7 +556,7 @@ preprint_bot --summarizer llama --llm-model models/llama-3.2-3b-instruct-q4_k_m.
 
 ## Web Interface
 
-The web interface is a Django application located in `django_site/`. It communicates with the FastAPI backend for all pipeline data.
+The web interface is a Django application located in `django_site/`. It reads and writes directly to the shared PostgreSQL database via Django ORM. The FastAPI backend is used separately by the pipeline and is not called over HTTP by the Django app.
 
 ### Features
 
@@ -581,7 +624,7 @@ pytest -vv --tb=long
 
 ### Django Tests
 
-The Django app has its own test suite in `django_site/core/tests.py`, covering pure functions and form validation. Run these with Django's test runner from the `django_site/` directory:
+The Django app has its own test suite in `django_site/core/tests.py`, covering arXiv ID parsing, SHA-256 hashing, form validation, auth flows (registration, login, logout, email verification, access control), profile CRUD and ownership, ORCID OAuth2 flows, and paper upload deduplication. Run these with Django's test runner from the `django_site/` directory:
 
 ```bash
 cd django_site
@@ -1105,7 +1148,7 @@ safety check
   author={Syracuse University OSPO},
   year={2026},
   url={https://github.com/SU-OSPO/preprint-bot},
-  note={FastAPI + PostgreSQL + pgvector implementation}
+  note={FastAPI + PostgreSQL + pgvector + Django implementation}
 }
 ```
 
