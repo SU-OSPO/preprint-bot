@@ -32,6 +32,7 @@ Preprint Bot addresses the challenge of information discovery in academic resear
 ```
 preprint-bot/
 ├── django_site/                   # Django web application
+│   ├── .env                       # Django runtime settings (not committed)
 │   ├── core/                      # Main Django app
 │   │   ├── models.py              # ORM models
 │   │   ├── views.py               # Request handlers
@@ -45,12 +46,13 @@ preprint-bot/
 │   │   └── migrations/            # Database migrations
 │   ├── preprint_bot_web/          # Django project settings
 │   │   ├── settings.py
-│   │   ├── local_settings.py      # Local overrides (not committed)
+│   │   ├── local_settings.py      # Local overrides (not committed, copy from local_settings.py.example)
 │   │   ├── urls.py
 │   │   └── wsgi.py
 │   └── manage.py
-├── routes/                        # FastAPI route modules
-│   ├── auth.py                    # Authentication and password reset
+├── .env                           # FastAPI + pipeline runtime settings (not committed)
+├── config.py                      # FastAPI + pipeline constants (not committed; copy from dummy_config.py)
+├── routes/                        # FastAPI route modules
 │   ├── users.py                   # User management
 │   ├── profiles.py                # Research profiles
 │   ├── corpora.py                 # Paper collections
@@ -313,7 +315,7 @@ Access points:
 
 ### Pipeline Workflow
 
-The pipeline is a single unified command. It automatically reads arXiv categories from all user profiles, fetches new papers, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests.
+The pipeline is a single unified command. It automatically reads arXiv categories from all user profiles, fetches new papers, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests. See the [Command Line Interface](#command-line-interface) section for the full argument reference.
 
 ```bash
 # Run the full pipeline (fetches the latest arXiv announcement)
@@ -324,27 +326,6 @@ preprint_bot --date 2026-05-01
 
 # Skip slow steps during development or testing
 preprint_bot --skip-download --skip-parse --skip-summarize
-```
-
-### Advanced Usage
-
-#### GPU Acceleration
-```bash
-# Enable GPU for embeddings (10-20x speedup)
-# In embed_papers.py, remove: os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-# Check GPU usage
-nvidia-smi
-```
-
-#### Custom Summarization
-```bash
-# Transformer-based (faster, lower quality)
-preprint_bot --summarizer transformer
-
-# LLaMA-based (slower, higher quality)
-preprint_bot --summarizer llama \
-    --llm-model models/llama-3.2-3b-instruct-q4_k_m.gguf
 ```
 
 ## API Reference
@@ -504,7 +485,7 @@ Required for automated digest emails:
 EMAIL_HOST=smtp.office365.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@university.edu
-EMAIL_PASS=your_password
+EMAIL_PASSWORD=your_password
 EMAIL_FROM_NAME=Preprint Bot
 EMAIL_FROM_ADDRESS=your_email@university.edu
 ```
@@ -582,17 +563,6 @@ The web interface is a Django application located in `django_site/`. It reads an
 - User registration and login
 - ORCID account linking and unlinking
 - Password reset via email
-
-### Starting the Web Interface
-```bash
-# Ensure FastAPI backend is running first (see Starting Services above)
-
-# Start Django development server
-cd django_site
-python manage.py runserver 8001
-```
-
-Access at http://localhost:8001
 
 ## Testing
 
@@ -683,9 +653,6 @@ REINDEX INDEX idx_embeddings_vector;
 
 ### Embedding Generation
 ```python
-# Enable GPU (10-20x speedup)
-# In embed_papers.py, remove: os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
 # Batch processing
 model.encode(texts, batch_size=32, show_progress_bar=True)
 
@@ -705,13 +672,6 @@ DEFAULT_MODEL_NAME = "all-mpnet-base-v2"  # Slower, 768 dims
 
 # For 200 papers: ~10 minutes
 # For 1000 papers: ~50 minutes with automatic batching
-```
-
-### GROBID Processing
-```python
-# Increase timeout for large PDFs
-# In extract_grobid.py
-timeout=300  # 5 minutes instead of 60 seconds
 ```
 
 ## arXiv Integration
@@ -738,11 +698,8 @@ arXiv publishes new papers:
 - **No announcements:** Friday and Saturday
 
 **Recommended Pipeline Schedule:**
-```bash
-# systemd timer: Run daily at 1:30 AM EST (after midnight RSS feed update)
-# See /etc/systemd/system/preprint-bot.timer
-OnCalendar=*-*-* 01:30:00
-```
+
+Run the pipeline daily at 1:30 AM after the arXiv RSS feed updates. See the systemd timer configuration in the [Deployment](#deployment) section.
 
 The pipeline uses arXiv RSS feeds (primary) for daily runs and falls
 back to the arXiv search API with submission-window calculation for
@@ -844,8 +801,8 @@ CREATE EXTENSION vector;
 
 **Import Errors:**
 ```bash
-# Reinstall in development mode
-pip install -e .
+# Reinstall package
+pip install .
 
 # Check Python path
 python -c "import sys; print('\n'.join(sys.path))"
@@ -889,34 +846,6 @@ Rate limited (HTTP 403/429/503)
 Solution: System automatically handles this with exponential backoff. If persistent, reduce `requests_per_hour` or increase `min_delay`.
 
 ## Development
-
-### Project Structure
-```python
-# Pipeline modules
-pipeline.py                # Orchestrates the full corpus/user workflow
-api_client.py              # Async API client for the FastAPI backend
-sources/arxiv.py           # arXiv RSS fetching + API fallback
-sources/base.py            # PreprintSource ABC + PaperEntry dataclass
-embed_papers.py            # Sentence transformer embedding generation
-db_similarity_matcher.py   # FAISS / cosine similarity matching
-
-# Processing modules
-download_arxiv_pdfs.py     # PDF downloading with rate limiting
-extract_grobid.py          # GROBID text extraction
-summarization_script.py    # Transformer and LLaMA summarization
-user_mode_processor.py     # User paper processing
-
-# FastAPI modules (repo root)
-main.py                    # FastAPI application entry point
-routes/                    # Endpoint definitions
-schemas.py                 # Request/response models
-database.py                # AsyncPG connection management
-
-# Django web app
-django_site/core/views.py  # Request handlers
-django_site/core/models.py # ORM models
-django_site/core/orcid.py  # ORCID OAuth integration
-```
 
 ### Adding New Features
 
