@@ -26,6 +26,13 @@ class Migration(migrations.Migration):
             model_name="recommendation",
             name="sent_in_email",
             field=models.BooleanField(default=False),
+            preserve_default=False,
+        ),
+        # Ensure the database-level DEFAULT is set so non-Django inserts
+        # (e.g. the FastAPI pipeline) don't fail with NOT NULL violations
+        migrations.RunSQL(
+            sql="ALTER TABLE recommendations ALTER COLUMN sent_in_email SET DEFAULT false;",
+            reverse_sql="ALTER TABLE recommendations ALTER COLUMN sent_in_email DROP DEFAULT;",
         ),
         # Backfill existing recommendations as already sent
         migrations.RunPython(backfill_sent_in_email, migrations.RunPython.noop),
