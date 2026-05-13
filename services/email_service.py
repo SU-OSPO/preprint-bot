@@ -7,9 +7,9 @@ from email.mime.text import MIMEText
 from typing import List, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME
+from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME, SITE_URL
 
-DASHBOARD_URL = "https://preprint-bot.syr.edu/"
+DASHBOARD_URL = SITE_URL
 SU_ORANGE = "#F76900"
 SU_NAVY = "#002147"
 

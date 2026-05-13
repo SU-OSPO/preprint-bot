@@ -56,6 +56,11 @@ PAPER_STORAGE_DIR = DATA_DIR / "papers"  # hash-based deduplicated storage
 for directory in [DATA_DIR, PDF_DIR, PAPER_STORAGE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
+# ==================== SITE SETTINGS ====================
+
+# Public-facing URL for the web interface (used in email digests)
+SITE_URL = "https://preprint-bot.yourdomain.edu/"  # TODO: set to your deployment URL
+
 # ==================== API SETTINGS ====================
 
 # Base URL for the FastAPI backend
