@@ -305,6 +305,10 @@ class Recommendation(models.Model):
     run = models.ForeignKey(
         RecommendationRun, on_delete=models.CASCADE, related_name="recommendations"
     )
+    # Denormalized from run.profile to enforce a DB-level uniqueness
+    # constraint of one recommendation per (profile, paper). Backfilled in
+    # migration 0011; always equals self.run.profile by construction.
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="recommendations")
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="recommendations")
     score = models.FloatField()
     rank = models.IntegerField()
@@ -314,7 +318,11 @@ class Recommendation(models.Model):
 
     class Meta:
         db_table = "recommendations"
-        unique_together = [("run", "paper")]
+        # (profile, paper) is the primary invariant: one recommendation per
+        # paper per profile, ever. (run, paper) is kept as a redundant
+        # intra-run invariant — implied by (profile, paper) since each run
+        # has one profile, but explicit and cheap.
+        unique_together = [("run", "paper"), ("profile", "paper")]
         indexes = [
             models.Index(fields=["sent_in_email"], name="recommendations_sent_idx"),
         ]

@@ -13,39 +13,63 @@ async def create_recommendation(rec: RecommendationCreate):
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
+                # Resolve the run's profile_id up front. Every recommendation
+                # must belong to a profile under the (profile, paper)
+                # uniqueness model; a run without one can't produce valid
+                # recommendations.
+                run_row = await conn.fetchrow(
+                    "SELECT profile_id FROM recommendation_runs WHERE id = $1",
+                    rec.run_id,
+                )
+                if not run_row:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"recommendation_run {rec.run_id} not found",
+                    )
+                if run_row["profile_id"] is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Run has no profile_id; cannot create recommendation",
+                    )
+                profile_id = run_row["profile_id"]
+
+                # Insert the recommendation. On conflict with an existing
+                # (profile, paper) row, do nothing — the original row (and
+                # its sent_in_email flag) stays as-is. This is what prevents
+                # the same paper from being re-emailed across re-runs.
                 row = await conn.fetchrow(
                     """
                     WITH ins AS (
-                        INSERT INTO recommendations (run_id, paper_id, score, rank, summary)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (run_id, paper_id) DO UPDATE
-                            SET score = EXCLUDED.score,
-                                rank = EXCLUDED.rank,
-                                summary = EXCLUDED.summary
+                        INSERT INTO recommendations
+                            (run_id, profile_id, paper_id, score, rank, summary)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (profile_id, paper_id) DO NOTHING
                         RETURNING id, run_id, paper_id, score, rank, summary, created_at
                     )
                     INSERT INTO profile_recommendations (profile_id, recommendation_id)
-                    SELECT rr.profile_id, ins.id
-                    FROM recommendation_runs rr, ins
-                    WHERE rr.id = $1
+                    SELECT $2, ins.id FROM ins
                     ON CONFLICT DO NOTHING
                     RETURNING (SELECT id FROM ins), (SELECT run_id FROM ins),
                               (SELECT paper_id FROM ins), (SELECT score FROM ins),
                               (SELECT rank FROM ins), (SELECT summary FROM ins),
                               (SELECT created_at FROM ins)
                     """,
-                    rec.run_id, rec.paper_id, rec.score, rec.rank, rec.summary
+                    rec.run_id, profile_id, rec.paper_id,
+                    rec.score, rec.rank, rec.summary,
                 )
                 if not row:
-                    # profile_recommendations already existed (ON CONFLICT DO NOTHING
-                    # returned nothing) — fetch the upserted recommendation directly
+                    # Either the recommendation already existed (conflict on
+                    # profile_id, paper_id) and DO NOTHING returned no row,
+                    # or the profile_recommendations row already existed.
+                    # Fetch the surviving recommendation by its real key.
                     row = await conn.fetchrow(
                         """SELECT id, run_id, paper_id, score, rank, summary, created_at
-                           FROM recommendations WHERE run_id = $1 AND paper_id = $2""",
-                        rec.run_id, rec.paper_id
+                           FROM recommendations
+                           WHERE profile_id = $1 AND paper_id = $2""",
+                        profile_id, rec.paper_id,
                     )
                 if not row:
-                    raise HTTPException(status_code=400, detail="Insert failed — profile_id may be missing on run")
+                    raise HTTPException(status_code=400, detail="Insert failed")
                 return dict(row)
     except HTTPException:
         raise
