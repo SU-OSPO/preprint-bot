@@ -32,6 +32,17 @@ def backfill_profile_and_dedupe(apps, schema_editor):
 
         # 2. Drop orphans: recommendations whose run has no profile.
         # These can't satisfy the new (profile, paper) constraint.
+        # Django's on_delete=CASCADE is enforced by the ORM, not at the DB
+        # layer, so the underlying FK from profile_recommendations is
+        # NO ACTION — we have to delete junction rows ourselves first.
+        cur.execute(
+            """
+            DELETE FROM profile_recommendations
+            WHERE recommendation_id IN (
+                SELECT id FROM recommendations WHERE profile_id IS NULL
+            )
+            """
+        )
         cur.execute(
             "DELETE FROM recommendations WHERE profile_id IS NULL"
         )
@@ -59,8 +70,24 @@ def backfill_profile_and_dedupe(apps, schema_editor):
         )
 
         # 4. Delete the duplicate losers (everything except the highest run_id
-        # row in each (profile, paper) group). profile_recommendations rows
-        # cascade automatically via the FK.
+        # row in each (profile, paper) group). Junction rows in
+        # profile_recommendations don't cascade at the DB level (see note
+        # above), so remove them first by the same loser-selection rule.
+        cur.execute(
+            """
+            DELETE FROM profile_recommendations pr
+            USING recommendations r,
+                  (
+                      SELECT profile_id, paper_id, MAX(run_id) AS keep_run_id
+                      FROM recommendations
+                      GROUP BY profile_id, paper_id
+                  ) keepers
+            WHERE pr.recommendation_id = r.id
+              AND r.profile_id = keepers.profile_id
+              AND r.paper_id   = keepers.paper_id
+              AND r.run_id    <> keepers.keep_run_id
+            """
+        )
         cur.execute(
             """
             DELETE FROM recommendations r
@@ -74,11 +101,6 @@ def backfill_profile_and_dedupe(apps, schema_editor):
               AND r.run_id    <> keepers.keep_run_id
             """
         )
-
-
-def reverse_backfill(apps, schema_editor):
-    """Cannot reverse — deduped duplicates and orphans are gone for good."""
-    pass
 
 
 class Migration(migrations.Migration):
@@ -102,7 +124,13 @@ class Migration(migrations.Migration):
             ),
         ),
         # Step 2: backfill, drop orphans, and dedupe.
-        migrations.RunPython(backfill_profile_and_dedupe, reverse_backfill),
+        # Reverse is RunPython.noop: the schema rollback (DROP COLUMN etc.)
+        # via the surrounding operations is fine, but the deleted duplicate
+        # and orphan rows are gone for good and won't be restored.
+        migrations.RunPython(
+            backfill_profile_and_dedupe,
+            migrations.RunPython.noop,
+        ),
         # Step 3: every surviving row has a profile, so make the FK required.
         migrations.AlterField(
             model_name="recommendation",
