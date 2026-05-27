@@ -1,5 +1,7 @@
 # Preprint Bot - Academic Paper Recommendation System
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20415805.svg)](https://doi.org/10.5281/zenodo.20415805)
+
 ## Overview
 
 Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with arXiv categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
@@ -1089,6 +1091,8 @@ safety check
 
 ## Support
 
+Developed and maintained by [Open Source Program Office](https://opensource.syracuse.edu/) at Syracuse University. Reach out for feedback and suggested improvements.
+
 - GitHub Issues: https://github.com/SU-OSPO/preprint-bot/issues
 - API Documentation: http://localhost:8000/docs
 - Email: ospo@syr.edu
@@ -1101,3 +1105,5 @@ safety check
 - pgvector for efficient vector similarity search in PostgreSQL
 - FastAPI for modern async web framework
 - Django for the web application framework
+
+This project was supported as part of a grant (#[G2023-20946](https://sloan.org/grant-detail/G-2023-20946)) from the Alfred P. Sloan Foundation.
