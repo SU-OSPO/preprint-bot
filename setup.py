@@ -96,7 +96,7 @@ extras_require['all'] = list(all_extras)
 
 setup(
     name="preprint_bot",
-    version="1.0.0",
+    version="1.1.0.dev0",
     description="A database-integrated preprint recommendation bot with FastAPI backend and PostgreSQL storage",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
