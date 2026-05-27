@@ -1091,7 +1091,7 @@ safety check
 
 ## Support
 
-Developed and maintained by [Open Source Program Office](https://opensource.syracuse.edu/) at Syracuse University. Reach out for feedback and suggested improvements.
+Developed and maintained by the [Open Source Program Office](https://opensource.syracuse.edu/) at Syracuse University. Reach out for feedback and suggested improvements.
 
 - GitHub Issues: https://github.com/SU-OSPO/preprint-bot/issues
 - API Documentation: http://localhost:8000/docs
