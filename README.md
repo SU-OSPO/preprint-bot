@@ -2,119 +2,127 @@
 
 ## Overview
 
-Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with keywords and categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
+Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with arXiv categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
 
 ## Key Features
 
 ### Core Functionality
-- **Automated arXiv Integration**: Fetch papers by category, date range, or submission window
-- **Multi-Profile Support**: Create multiple research profiles with different interests per user
+- **Automated arXiv Integration**: Fetch new papers daily, aligned to arXiv's announcement schedule
+- **Multi-Profile Support**: Create multiple research profiles with different categories and papers per user
 - **Semantic Search**: Vector similarity matching using sentence transformer embeddings
 - **PDF Processing**: GROBID-based text extraction with section-level granularity
-- **Dual Processing Modes**: Corpus mode for arXiv papers, user mode for personal collections
 - **LLM Summarization**: Generate concise summaries using transformer or LLaMA models
 
 ### Technical Infrastructure
 - **FastAPI Backend**: RESTful API with automatic OpenAPI documentation
 - **PostgreSQL with pgvector**: Efficient vector similarity search at scale
-- **Streamlit Frontend**: Web interface for profile management and recommendation browsing
-- **Async Processing**: Background task processing with progress tracking
-- **Comprehensive Testing**: 64+ unit tests with pytest
+- **Django Web Application**: Full-featured web interface for profile management and recommendation browsing
+- **Nightly Automated Pipeline**: Background preprint processing
 
 ### User Features
-- **Profile Management**: Create profiles with keywords, categories, frequency, and thresholds
+- **Profile Management**: Create profiles with categories, frequency, and thresholds
 - **Paper Upload**: Upload personal papers (PDFs) organized by profile
-- **Smart Filtering**: Filter recommendations by date, score, keywords, and categories
+- **Smart Filtering**: Filter recommendations by date, score, and categories
 - **Email Digests**: Automated email notifications with top recommendations
-- **Session Persistence**: URL-based session management across browser refreshes
 
 ## System Architecture
+
+> **Note:** Only actively maintained files are listed. Some legacy files scheduled for removal are present in the repository but omitted here.
+
 ```
 preprint-bot/
-├── backend/
-│   ├── main.py                    # FastAPI application entry point
-│   ├── database.py                # AsyncPG connection pooling
-│   ├── schemas.py                 # Pydantic models and enums
-│   ├── config.py                  # Configuration and settings
-│   ├── database_schema.sql        # Complete PostgreSQL schema
-│   ├── routes/                    # API route modules
-│   │   ├── auth.py               # Authentication and password reset
-│   │   ├── users.py              # User management
-│   │   ├── profiles.py           # Research profiles
-│   │   ├── corpora.py            # Paper collections
-│   │   ├── papers.py             # Paper metadata
-│   │   ├── sections.py           # Paper sections
-│   │   ├── embeddings.py         # Vector embeddings
-│   │   ├── recommendations.py    # Recommendation runs and results
-│   │   ├── summaries.py          # Paper summaries
-│   │   ├── uploads.py            # File upload and processing
-│   │   └── emails.py             # Email digest sending
-│   └── services/
-│       └── email_service.py      # SMTP email handling
-├── src/preprint_bot/
-│   ├── pipeline.py               # Main orchestration pipeline
-│   ├── api_client.py             # Async API client
-│   ├── config.py                 # Global configuration constants
-│   ├── sources/                  # Preprint server adapters
-│   │   ├── base.py               # PaperEntry dataclass + PreprintSource ABC
-│   │   └── arxiv.py              # arXiv source (RSS + API fallback)
-│   ├── query_arxiv.py            # arXiv API integration (legacy)
-│   ├── download_arxiv_pdfs.py    # PDF downloading with rate limiting
-│   ├── download_s3_bulk.py       # S3 bulk download (for historical papers)
-│   ├── extract_grobid.py         # GROBID text extraction
-│   ├── embed_papers.py           # Sentence transformer embeddings
-│   ├── summarization_script.py   # Transformer and LLaMA summarization
-│   ├── db_similarity_matcher.py  # Database-integrated similarity matching
-│   └── user_mode_processor.py    # User paper processing
-├── website/
-│   ├── app.py                    # Streamlit web interface
-│   └── api_client/
-│       ├── client.py             # Async HTTP client
-│       └── sync_client.py        # Synchronous wrapper for Streamlit
-├── tests/                        # Pytest test suite (64 tests)
-│   ├── conftest.py              # Shared fixtures
-│   ├── test_config.py           # Configuration tests
-│   ├── test_embed_papers.py     # Embedding tests
-│   ├── test_extract_grobid.py   # Text extraction tests
-│   ├── test_query_arxiv.py      # arXiv API tests
-│   ├── test_schemas.py          # Schema validation tests
+├── django_site/                   # Django web application
+│   ├── .env                       # Django runtime settings (not committed)
+│   ├── core/                      # Main Django app
+│   │   ├── models.py              # ORM models
+│   │   ├── views.py               # Request handlers
+│   │   ├── urls.py                # URL routing
+│   │   ├── forms.py               # Form definitions
+│   │   ├── orcid.py               # ORCID OAuth integration
+│   │   ├── auth_backend.py        # Custom authentication backend
+│   │   ├── tests.py               # Django test suite
+│   │   ├── templates/             # HTML templates
+│   │   ├── static/                # CSS, JS, images
+│   │   └── migrations/            # Database migrations
+│   ├── preprint_bot_web/          # Django project settings
+│   │   ├── settings.py
+│   │   ├── local_settings.py      # Local overrides (not committed, copy from local_settings.py.example)
+│   │   ├── urls.py
+│   │   └── wsgi.py
+│   └── manage.py
+├── .env                           # FastAPI + pipeline runtime settings (not committed)
+├── config.py                      # FastAPI + pipeline constants (not committed; copy from dummy_config.py)
+├── routes/                        # FastAPI route modules
+│   ├── users.py                   # User management
+│   ├── profiles.py                # Research profiles
+│   ├── corpora.py                 # Paper collections
+│   ├── papers.py                  # Paper metadata
+│   ├── sections.py                # Paper sections
+│   ├── embeddings.py              # Vector embeddings
+│   ├── recommendations.py         # Recommendation results
+│   ├── recommendation_runs.py     # Recommendation run tracking
+│   ├── profile_corpora.py         # Profile-corpus relationships
+│   ├── profile_recommendations.py # Profile-recommendation relationships
+│   ├── email_logs.py              # Email delivery log
+│   ├── summaries.py               # Paper summaries
+│   └── emails.py                  # Email digest sending
+├── services/
+│   └── email_service.py           # SMTP email handling
+├── src/preprint_bot/              # Pipeline package
+│   ├── pipeline.py                # Main orchestration pipeline
+│   ├── api_client.py              # Async API client
+│   ├── config.py                  # Global configuration constants
+│   ├── sources/                   # Preprint server adapters
+│   │   ├── base.py                # PaperEntry dataclass + PreprintSource ABC
+│   │   └── arxiv.py               # arXiv RSS source (+ API fallback)
+│   ├── download_arxiv_pdfs.py     # PDF downloading with rate limiting
+│   ├── extract_grobid.py          # GROBID text extraction
+│   ├── embed_papers.py            # Sentence transformer embeddings
+│   ├── summarization_script.py    # Transformer and LLaMA summarization
+│   ├── db_similarity_matcher.py   # Database-integrated similarity matching
+│   └── user_mode_processor.py     # User paper processing
+├── tests/                         # Pytest test suite
+│   ├── conftest.py                # Shared fixtures
+│   ├── test_config.py             # Configuration tests
+│   ├── test_embed_papers.py       # Embedding tests
+│   ├── test_extract_grobid.py     # Text extraction tests
+│   ├── test_query_arxiv.py        # arXiv query tests
+│   ├── test_schemas.py            # Schema validation tests
 │   ├── test_similarity_matcher.py # Similarity computation tests
-│   └── test_summarizer.py       # Text processing tests
-├── setup.py                     # Package configuration
-├── requirements.txt             # Python dependencies
-├── pytest.ini                   # Pytest configuration
+│   └── test_summarizer.py         # Text processing tests
+├── main.py                        # FastAPI application entry point
+├── database.py                    # AsyncPG connection pooling
+├── schemas.py                     # Pydantic models and enums
+├── setup.py                       # Package configuration
+├── requirements.txt               # Python dependencies
+├── pytest.ini                     # Pytest configuration
 └── README.md
 ```
 
 ## Database Schema
 
-The system uses a 17-table PostgreSQL schema with pgvector extension:
+The system uses a 15-table PostgreSQL schema managed entirely via Django migrations (`django_site/core/migrations/`). Run `python manage.py migrate` to apply the schema.
 
 **Core Tables:**
-- `users`: User accounts with authentication
-- `profiles`: Research profiles with preferences
-- `corpora`: Paper collections (arXiv or user-uploaded)
-- `papers`: Paper metadata and references
-- `sections`: Extracted paper sections
-- `embeddings`: Vector embeddings (384-dimensional)
+- `users`: User accounts with email-based authentication and optional ORCID linking (extends Django's `AbstractBaseUser`)
+- `profiles`: Research profiles with preferences; arXiv categories are stored as an `ArrayField` column
+- `corpora`: Paper collections (arXiv corpus or user-uploaded)
+- `papers`: Paper metadata, arXiv IDs, SHA-256 content hashes, and file paths
+- `sections`: Extracted paper sections from GROBID
+- `embeddings`: Vector embeddings (384-dimensional); linked to paper or section
 - `summaries`: Generated paper summaries
 
 **Recommendation Tables:**
 - `recommendation_runs`: Tracking of recommendation computations
-- `recommendations`: Scored paper recommendations
-- `profile_recommendations`: Profile-specific recommendation links
+- `recommendations`: Scored and ranked paper recommendations
+- `profile_recommendations`: Junction table linking profiles to recommendations
 
 **Supporting Tables:**
-- `profile_keywords`: Many-to-many keywords
-- `profile_categories`: Many-to-many arXiv categories
-- `profile_corpora`: Profile to corpus mapping
+- `profile_corpora`: Junction table linking profiles to corpora
+- `auth_tokens`: SHA-256-hashed bearer tokens for FastAPI API legacy authentication
 - `email_logs`: Email delivery tracking
-- `password_resets`: Password reset tokens
-
-**Key Indexes:**
-- B-tree indexes on foreign keys and frequently queried fields
-- IVFFlat vector index for similarity search
-- Composite indexes for common query patterns
+- `processing_runs`: Pipeline run status and error tracking
+- `arxiv_daily_stats`: Per-category paper counts by submission date
 
 ## Prerequisites
 
@@ -128,7 +136,6 @@ The system uses a 17-table PostgreSQL schema with pgvector extension:
 ### Optional
 - CUDA-capable GPU (for faster embedding generation)
 - SMTP server (for email digests)
-- AWS account (for S3 bulk downloads of historical papers)
 
 ## Installation
 
@@ -153,7 +160,7 @@ Download and install PostgreSQL from https://www.postgresql.org/download/windows
 ### 2. Install pgvector Extension
 ```bash
 cd /tmp
-git clone --branch v0.5.0 https://github.com/pgvector/pgvector.git
+git clone --branch v0.8.2 https://github.com/pgvector/pgvector.git
 cd pgvector
 make
 sudo make install
@@ -171,8 +178,9 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE preprint_bot TO prepr
 # Connect and enable pgvector
 sudo -u postgres psql preprint_bot -c "CREATE EXTENSION vector;"
 
-# Load complete schema
-psql -U preprint_user -d preprint_bot -f backend/database_schema.sql
+# Apply database schema via Django migrations
+cd django_site
+python manage.py migrate
 ```
 
 ### 4. GROBID Setup
@@ -196,7 +204,7 @@ Verify: `curl http://localhost:8070/api/isalive` should return `true`
 ### 5. Python Package Installation
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/preprint-bot.git
+git clone https://github.com/SU-OSPO/preprint-bot.git
 cd preprint-bot
 
 # Create virtual environment
@@ -204,179 +212,126 @@ python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install core dependencies
-pip install -e .
+pip install .
 
 # Or install with all optional features
-pip install -e ".[all]"
+pip install ".[all]"
 
 # Install specific extras
-pip install -e ".[dev,test]"      # Development and testing
-pip install -e ".[llama]"         # LLaMA summarization
-pip install -e ".[qdrant]"        # Qdrant vector search
+pip install ".[dev,test]"      # Development and testing
+pip install ".[llama]"         # LLaMA summarization
 ```
 
-### 6. Download spaCy Model
+### 6. Download LLaMA Model (default summarizer)
+
+The pipeline uses LLaMA for summarization by default. Download the model and place it at the expected path:
 ```bash
-python -m spacy download en_core_web_sm
+mkdir -p models
+# Download from Hugging Face (requires huggingface-cli)
+pip install huggingface_hub
+huggingface-cli download bartowski/Llama-3.2-3B-Instruct-GGUF \
+    Llama-3.2-3B-Instruct-Q4_K_M.gguf \
+    --local-dir models \
+    --local-dir-use-symlinks False
+mv models/Llama-3.2-3B-Instruct-Q4_K_M.gguf models/llama-3.2-3b-instruct-q4_k_m.gguf
+```
+
+Alternatively, skip LLaMA entirely and use the transformer-based summarizer instead:
+```bash
+preprint_bot --summarizer transformer
 ```
 
 ### 7. Configuration
 
-Create `.env` file in project root:
+The project uses two separate `.env` files — one for the FastAPI backend and pipeline, one for Django — plus `config.py` for hardcoded constants.
+
+**Copy and configure `config.py`** (from `dummy_config.py`):
+```bash
+cp dummy_config.py config.py
+```
+Edit `config.py` and fill in all fields marked `TODO` (arXiv categories, email settings, paths). Never commit `config.py`.
+
+**Create root `.env`** (FastAPI + pipeline runtime settings):
 ```env
-# Database
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=preprint_bot
 DATABASE_USER=preprint_user
-DATABASE_PASSWORD=secure_password
-
-# API
+DATABASE_PASSWORD=your_db_password
 API_BASE_URL=http://127.0.0.1:8000
 SYSTEM_USER_EMAIL=system@yourdomain.edu
 USER_AGENT=PreprintBot/1.0 (contact@yourdomain.edu)
-
-# Email (optional)
-EMAIL_HOST=smtp.office365.com
-EMAIL_PORT=587
-EMAIL_USER=your_email@university.edu
-EMAIL_PASS=your_password
-EMAIL_FROM_NAME=Preprint Bot
-EMAIL_FROM_ADDRESS=your_email@university.edu
 ```
 
-Add `.env` to `.gitignore`:
+**Create `django_site/.env`** (Django runtime settings):
+```env
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=preprint_bot
+DATABASE_USER=preprint_user
+DATABASE_PASSWORD=your_db_password
+DJANGO_SECRET_KEY=your-secret-key-here
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=yourdomain.edu
+API_BASE_URL=http://127.0.0.1:8000
+PDF_DATA_DIR=/srv/preprint-bot/pdf_data
+```
+
+**Create `django_site/preprint_bot_web/local_settings.py`** (from the example):
+```bash
+cp django_site/preprint_bot_web/local_settings.py.example django_site/preprint_bot_web/local_settings.py
+```
+Edit `local_settings.py` and fill in your ORCID credentials, branding, CSRF trusted origins, and deployment-specific paths.
+
+Add all config files to `.gitignore`:
 ```bash
 echo ".env" >> .gitignore
+echo "django_site/.env" >> .gitignore
+echo "django_site/preprint_bot_web/local_settings.py" >> .gitignore
+echo "config.py" >> .gitignore
 ```
 
 ## Usage
 
 ### Starting Services
 
-**Terminal 1 - GROBID:**
+**GROBID:**
 ```bash
 docker run -t --rm -p 8070:8070 lfoppiano/grobid:0.8.0
 ```
 
-**Terminal 2 - FastAPI Backend:**
+**FastAPI Backend:**
 ```bash
-cd backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Terminal 3 - Streamlit Frontend (optional):**
+**Django Web App:**
 ```bash
-streamlit run website/app.py
+cd django_site
+python manage.py runserver 8001
 ```
 
 Access points:
 - API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
-- Web UI: http://localhost:8501
+- Web UI: http://localhost:8001
 
-### Basic Workflow
+### Pipeline Workflow
 
-#### 1. Fetch arXiv Papers (Corpus Mode)
+The pipeline is a single unified command. It automatically reads arXiv categories from all user profiles, fetches new papers, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests. See the [Command Line Interface](#command-line-interface) section for the full argument reference.
+
 ```bash
-# Fetch recent papers from specific categories
-preprint_bot --mode corpus --category cs.LG cs.AI --max-per-category 50
+# Run the full pipeline (fetches the latest arXiv announcement)
+preprint_bot
 
-# Auto-fetch from user profile categories
-preprint_bot --mode corpus --max-per-category 50
+# Backfill a specific historical date
+preprint_bot --date 2026-05-01
 
-# Daily submission window (yesterday 2PM to today 2PM EST)
-preprint_bot --mode corpus --daily-window
-
-# Skip steps for faster testing
-preprint_bot --mode corpus --skip-download --skip-parse --skip-embed
-```
-
-#### 2. Process User Papers (User Mode)
-
-**Directory Structure:**
-```
-pdf_data/user_pdfs/
-└── {user_id}/
-    └── {profile_id}/
-        ├── paper1.pdf
-        ├── paper2.pdf
-        └── paper3.pdf
-```
-
-**Process papers:**
-```bash
-# Process all users and profiles
-preprint_bot --mode user
-
-# Process specific user
-preprint_bot --mode user --uid 1
-
-# Skip already processed steps
-preprint_bot --mode user --skip-parse --skip-embed
-```
-
-#### 3. Generate Recommendations
-```bash
-# Generate recommendations with default settings
-preprint_bot --mode user --threshold medium --method faiss
-
-# Use section-level embeddings (more accurate)
-preprint_bot --mode user --use-sections --threshold high
-
-# Adjust number of recommendations
-preprint_bot --mode user --top-x 20
-```
-
-### Advanced Usage
-
-#### Custom Date Ranges
-```bash
-# Fetch papers from specific date range
-# Implementation in query_arxiv.py:get_arxiv_entries_date_range()
-```
-
-#### Parallel Processing
-
-The system uses parallel downloads (respecting arXiv rate limits):
-```bash
-# Downloads run at 20 papers/minute with 3-second delays
-# Automatic batching for >100 papers to avoid long sleeps
-```
-
-#### GPU Acceleration
-```bash
-# Enable GPU for embeddings (10-20x speedup)
-# Remove CUDA_VISIBLE_DEVICES='' from embed_papers.py
-
-# Check GPU usage
-nvidia-smi
-```
-
-#### Custom Summarization
-```bash
-# Transformer-based (default)
-preprint_bot --mode corpus --summarizer transformer
-
-# LLaMA-based (higher quality)
-preprint_bot --mode corpus --summarizer llama \
-    --llm-model models/llama-3.2-3b-instruct-q4_k_m.gguf
+# Skip slow steps during development or testing
+preprint_bot --skip-download --skip-parse --skip-summarize
 ```
 
 ## API Reference
-
-### Authentication
-```bash
-# Register
-curl -X POST http://localhost:8000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secure123", "name": "Dr. User"}'
-
-# Login
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "secure123"}'
-```
 
 ### Users
 ```bash
@@ -399,10 +354,9 @@ POST /profiles/
 Body: {
   "user_id": 1,
   "name": "AI Research",
-  "keywords": ["machine learning", "neural networks"],
   "categories": ["cs.LG", "cs.AI"],
   "frequency": "weekly",
-  "threshold": "medium",
+  "threshold": 0.7,
   "top_x": 10
 }
 
@@ -453,23 +407,9 @@ Body: {
   "profile_id": 1,
   "user_corpus_id": 2,
   "ref_corpus_id": 1,
-  "threshold": "medium",
+  "threshold": 0.7,
   "method": "faiss"
 }
-```
-
-### File Upload
-```bash
-# Upload paper
-POST /uploads/paper/{user_id}/{profile_id}
-Content-Type: multipart/form-data
-File: paper.pdf
-
-# Trigger processing
-POST /uploads/process/{user_id}/{profile_id}
-
-# Check progress
-GET /uploads/progress/{user_id}/{profile_id}
 ```
 
 ### Email
@@ -486,22 +426,36 @@ Complete API documentation available at http://localhost:8000/docs
 
 ## Configuration
 
-### Global Settings
+The project uses four configuration files:
 
-**File:** `src/preprint_bot/config.py`
+**Root `.env`** (FastAPI + pipeline runtime settings):
+Database credentials, API URL, system user email, and User-Agent string. These are read as environment variables by `pydantic_settings` — either export them in your shell, set them in your systemd service file, or add `env_file = ".env"` to the `Settings` class in `config.py` if you prefer a `.env`-based workflow. Never commit sensitive values.
+
+**`config.py`** (copied from `dummy_config.py`; FastAPI + pipeline constants):
+Hardcoded settings that change infrequently — arXiv categories, similarity thresholds, model name, file paths, and email settings. Fill in all fields marked `TODO`. Never commit this file.
+
+**`django_site/.env`** (Django runtime settings):
+Database credentials, Django secret key, allowed hosts, debug flag, API URL, and PDF data directory. Never commit this file.
+
+**`django_site/preprint_bot_web/local_settings.py`** (Django deployment overrides):
+Deployment-specific Django settings — script prefix, static/media URLs, CSRF trusted origins, ORCID credentials, branding (site name, accent/nav colours, support email), registration control, and SSL proxy header. Copy from `local_settings.py.example` and fill in your values. Never commit this file.
+
+### FastAPI + Pipeline Settings
+
+**File:** `config.py`
 ```python
 # arXiv categories to query
 ARXIV_CATEGORIES = ["cs.LG"]
 
-# Similarity thresholds
+# Default similarity threshold
+DEFAULT_THRESHOLD = 0.6
+
+# Similarity thresholds by name
 SIMILARITY_THRESHOLDS = {
-    "low": 0.5,
+    "low": 0.4,
     "medium": 0.6,
     "high": 0.75
 }
-
-# Default papers per query
-MAX_RESULTS = 10
 
 # Embedding model
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -509,20 +463,18 @@ DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 # File storage paths
 DATA_DIR = Path("pdf_data")
 PDF_DIR = DATA_DIR / "pdfs"
-PROCESSED_TEXT_DIR = DATA_DIR / "processed_texts"
-USER_PDF_DIR = DATA_DIR / "user_pdfs"
-USER_PROCESSED_DIR = DATA_DIR / "user_processed"
+PAPER_STORAGE_DIR = DATA_DIR / "papers"  # hash-based deduplicated storage
 ```
 
 ### Database Settings
 
-**File:** `backend/config.py` or `.env`
-```python
-DATABASE_HOST = "localhost"
-DATABASE_PORT = 5432
-DATABASE_NAME = "preprint_bot"
-DATABASE_USER = "preprint_user"
-DATABASE_PASSWORD = "secure_password"
+Both `.env` files share the same database connection variables:
+```env
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=preprint_bot
+DATABASE_USER=preprint_user
+DATABASE_PASSWORD=your_db_password
 ```
 
 ### Email Settings
@@ -532,73 +484,59 @@ Required for automated digest emails:
 EMAIL_HOST=smtp.office365.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@university.edu
-EMAIL_PASS=your_password
+EMAIL_PASSWORD=your_password
 EMAIL_FROM_NAME=Preprint Bot
 EMAIL_FROM_ADDRESS=your_email@university.edu
 ```
 
 ## Command Line Interface
 
-### Corpus Mode
+The pipeline is invoked as a single unified `preprint_bot` command. arXiv categories are read automatically from user profiles — there is no need to specify them on the command line.
+
+### Running the Pipeline
 ```bash
-# Fetch from specific categories
-preprint_bot --mode corpus --category cs.LG cs.AI --max-per-category 50
+# Fetch and process the latest arXiv announcement (default)
+preprint_bot
 
-# Auto-detect categories from user profiles
-preprint_bot --mode corpus --max-per-category 50
-
-# Daily submission window (recommended for automated runs)
-preprint_bot --mode corpus --daily-window
-
-# With summarization
-preprint_bot --mode corpus --category cs.LG \
-    --summarizer llama \
-    --llm-model models/llama-3.2-3b-instruct-q4_k_m.gguf
-
-# Skip specific pipeline steps
-preprint_bot --mode corpus --skip-download    # Skip PDF download
-preprint_bot --mode corpus --skip-parse       # Skip GROBID parsing
-preprint_bot --mode corpus --skip-embed       # Skip embedding generation
-preprint_bot --mode corpus --skip-summarize   # Skip summarization
+# Backfill a specific historical date
+preprint_bot --date 2026-01-15
 ```
 
-### User Mode
+### Skipping Steps
 ```bash
-# Process all users and generate recommendations
-preprint_bot --mode user
-
-# Process specific user
-preprint_bot --mode user --uid 1
-
-# Adjust recommendation parameters
-preprint_bot --mode user --threshold high --method faiss --use-sections
-
-# Skip recommendation generation
-preprint_bot --mode user --skip-recommendations
+preprint_bot --skip-download    # Skip PDF download
+preprint_bot --skip-parse       # Skip GROBID section parsing
+preprint_bot --skip-embed       # Skip embedding generation
+preprint_bot --skip-summarize   # Skip summarization
 ```
 
-### Available Arguments
+### Summarization
+```bash
+# Transformer-based
+preprint_bot --summarizer transformer
+
+# LLaMA-based with a custom model path
+preprint_bot --summarizer llama --llm-model models/llama-3.2-3b-instruct-q4_k_m.gguf
 ```
---mode {corpus,user}           Operating mode
---category [CAT ...]          arXiv categories (e.g., cs.LG cs.AI)
---max-per-category INT        Max papers per category (default: 20)
---daily-window               Fetch yesterday 2PM to today 2PM EST
---combined-query             Single query for all categories
---threshold {low,medium,high} Similarity threshold
---model MODEL                Embedding model name
---method {faiss,cosine}      Similarity method
---summarizer {transformer,llama} Summarization method
---llm-model PATH            Path to LLaMA model
---uid INT                   Process specific user ID
---use-sections              Use section embeddings (more accurate)
---skip-download             Skip PDF download
---skip-parse                Skip GROBID parsing
---skip-embed                Skip embedding generation
---skip-summarize            Skip summarization
---skip-recommendations      Skip recommendation generation
+
+### All Arguments
+```
+--date DATE                   Fetch papers for a specific historical date
+                              (YYYY-MM-DD); omit to fetch the latest announcement
+--model MODEL                 Sentence transformer model name
+                              (default: all-MiniLM-L6-v2)
+--summarizer {transformer,llama}
+                              Summarization backend (default: llama)
+--llm-model PATH              Path to LLaMA model file
+--skip-download               Skip PDF download
+--skip-parse                  Skip GROBID section parsing
+--skip-embed                  Skip embedding generation
+--skip-summarize              Skip summarization
 ```
 
 ## Web Interface
+
+The web interface is a Django application located in `django_site/`. It reads and writes directly to the shared PostgreSQL database via Django ORM. The FastAPI backend is used separately by the pipeline and is not called over HTTP by the Django app.
 
 ### Features
 
@@ -608,54 +546,31 @@ preprint_bot --mode user --skip-recommendations
 - Quick access to latest papers
 
 **Profiles:**
-- Create/edit profiles with keywords, categories, frequency, threshold, and max papers
-- Upload PDFs directly through web interface
+- Create/edit profiles with arXiv categories, frequency, threshold, and max recommendations
+- Upload PDFs directly through the web interface
 - View uploaded papers with file size
 - Delete individual papers or entire profiles
-- Profile confirmation before creation
 
 **Recommendations:**
-- Filter by profile, date range, score, keywords, and categories
+- Filter by profile, date range, score, and categories
 - Quick filters: Today, Last 7 days, Last 30 days, All time
-- Adjustable paper limit slider per profile
+- Adjustable paper limit per profile
 - Date-grouped display with expandable paper cards
 - Direct links to arXiv
 
-**Settings:**
-- Update user profile information
-- View system information and account details
-
-### Starting the Web Interface
-```bash
-# Ensure backend is running first
-cd backend
-uvicorn main:app --reload
-
-# Start Streamlit in another terminal
-cd website
-streamlit run app.py
-```
-
-Access at http://localhost:8501
+**Account:**
+- User registration and login
+- ORCID account linking and unlinking
+- Password reset via email
 
 ## Testing
 
-### Test Suite Overview
+### Pipeline Tests (pytest)
 
-64 unit tests covering:
-- Configuration and constants validation
-- arXiv ID normalization
-- Text extraction and cleaning
-- Section parsing with exclusions
-- Embedding grouping by paper
-- Cosine similarity computations
-- Paper-to-paper similarity scoring
-- Schema enum validation
-- Text chunking for summarization
+The `tests/` directory contains unit tests for the pipeline package, run with pytest from the repo root.
 
-### Running Tests
 ```bash
-# All tests
+# All pipeline tests
 pytest -v
 
 # Specific module
@@ -674,6 +589,15 @@ pytest -x
 
 # Verbose output with full tracebacks
 pytest -vv --tb=long
+```
+
+### Django Tests
+
+The Django app has its own test suite in `django_site/core/tests.py`, covering arXiv ID parsing, SHA-256 hashing, form validation, auth flows (registration, login, logout, email verification, access control), profile CRUD and ownership, ORCID OAuth2 flows, and paper upload deduplication. Run these with Django's test runner from the `django_site/` directory:
+
+```bash
+cd django_site
+python manage.py test core
 ```
 
 ### Writing New Tests
@@ -728,9 +652,6 @@ REINDEX INDEX idx_embeddings_vector;
 
 ### Embedding Generation
 ```python
-# Enable GPU (10-20x speedup)
-# In embed_papers.py, remove: os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
 # Batch processing
 model.encode(texts, batch_size=32, show_progress_bar=True)
 
@@ -750,17 +671,6 @@ DEFAULT_MODEL_NAME = "all-mpnet-base-v2"  # Slower, 768 dims
 
 # For 200 papers: ~10 minutes
 # For 1000 papers: ~50 minutes with automatic batching
-```
-
-### GROBID Processing
-```python
-# Increase timeout for large PDFs
-# In extract_grobid.py
-timeout=300  # 5 minutes instead of 60 seconds
-
-# Process in batches to manage memory
-for batch in chunks(pdf_files, 50):
-    process_folder(batch, output_dir)
 ```
 
 ## arXiv Integration
@@ -786,35 +696,14 @@ arXiv publishes new papers:
 - **Days:** Sunday through Thursday
 - **No announcements:** Friday and Saturday
 
-**Submission Deadline:**
-- Papers submitted before 2:00 PM EST appear same day at 8:00 PM
-- Papers submitted after 2:00 PM EST appear next business day
-
 **Recommended Pipeline Schedule:**
-```bash
-# systemd timer: Run daily at 1:30 AM EST (after midnight RSS feed update)
-# See /etc/systemd/system/preprint-bot.timer
-OnCalendar=*-*-* 01:30:00
-```
+
+Run the pipeline daily at 1:30 AM after the arXiv RSS feed updates. See the systemd timer configuration in the [Deployment](#deployment) section.
 
 The pipeline uses arXiv RSS feeds (primary) for daily runs and falls
 back to the arXiv search API with submission-window calculation for
 backfilling historical dates. The RSS approach automatically handles
 weekend gaps and holiday deferrals.
-
-### Bulk Downloads
-
-**S3 Access (for historical papers):**
-```bash
-# arXiv provides S3 bucket for bulk access
-# Bucket: s3://arxiv/
-# Path: pdf/YYMM/YYMM.NNNNN.pdf
-
-# Enabled via --use-s3 flag (works for papers >48 hours old)
-preprint_bot --mode corpus --category cs.LG --use-s3
-```
-
-**Note:** S3 has 12-48 hour lag, use HTTP for recent papers.
 
 ## Database Operations
 
@@ -911,8 +800,8 @@ CREATE EXTENSION vector;
 
 **Import Errors:**
 ```bash
-# Reinstall in development mode
-pip install -e .
+# Reinstall package
+pip install .
 
 # Check Python path
 python -c "import sys; print('\n'.join(sys.path))"
@@ -957,32 +846,10 @@ Solution: System automatically handles this with exponential backoff. If persist
 
 ## Development
 
-### Project Structure
-```python
-# Core modules
-pipeline.py          # Orchestrates entire workflow
-api_client.py        # Database API client
-query_arxiv.py       # arXiv API integration
-embed_papers.py      # Embedding generation
-db_similarity_matcher.py  # Similarity computation
-
-# Processing modules
-download_arxiv_pdfs.py    # PDF downloading
-extract_grobid.py         # Text extraction
-summarization_script.py   # Summarization
-user_mode_processor.py    # User paper processing
-
-# API modules
-main.py              # FastAPI application
-routes/              # Endpoint definitions
-schemas.py           # Request/response models
-database.py          # Connection management
-```
-
 ### Adding New Features
 
 1. **New API Endpoint:**
-   - Add route in `backend/routes/`
+   - Add route in `routes/`
    - Define schemas in `schemas.py`
    - Update `main.py` to include router
    - Add tests in `tests/`
@@ -995,7 +862,6 @@ database.py          # Connection management
 
 3. **New Similarity Method:**
    - Implement in `db_similarity_matcher.py`
-   - Add to CLI choices
    - Update `run_similarity_matching()`
 
 ### Code Style
@@ -1018,19 +884,7 @@ mypy src/
 
 ### Production Deployment
 
-**Using Docker:**
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY . .
-
-RUN pip install -e ".[production]"
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-**Using systemd:**
+**Deploying API using systemd:**
 ```ini
 [Unit]
 Description=Preprint Bot API
@@ -1039,7 +893,7 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/opt/preprint-bot/backend
+WorkingDirectory=/opt/preprint-bot
 Environment="PATH=/opt/preprint-bot/venv/bin"
 ExecStart=/opt/preprint-bot/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
@@ -1048,46 +902,69 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-**Nginx Reverse Proxy:**
-```nginx
-server {
-    listen 80;
-    server_name preprint-bot.yourdomain.edu;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+**Caddy Reverse Proxy:**
+```
+preprint-bot.yourdomain.edu {
+    handle /docs* {
+        reverse_proxy localhost:8000
+    }
+    handle /redoc* {
+        reverse_proxy localhost:8000
+    }
+    handle /openapi.json {
+        reverse_proxy localhost:8000
+    }
+    handle /api/* {
+        reverse_proxy localhost:8000
+    }
+    handle {
+        reverse_proxy localhost:8001
     }
 }
 ```
 
 ### Automated Scheduling
+**Using systemd Timer:**
 
-**Daily Pipeline Run (cron):**
-```bash
-# Edit crontab
-crontab -e
+Create two unit files:
 
-# Add daily run at 9 PM EST (after arXiv publication)
-0 21 * * 0-4 cd /opt/preprint-bot && /opt/preprint-bot/venv/bin/preprint_bot --mode corpus --daily-window >> /var/log/preprint-bot/corpus.log 2>&1
+`/etc/systemd/system/preprint-bot-pipeline.service`:
+```ini
+[Unit]
+Description=Preprint Bot Pipeline
+After=network.target postgresql.service
 
-# Weekly user processing
-0 2 * * 1 cd /opt/preprint-bot && /opt/preprint-bot/venv/bin/preprint_bot --mode user >> /var/log/preprint-bot/user.log 2>&1
+[Service]
+Type=oneshot
+User=preprint-bot
+WorkingDirectory=/opt/preprint-bot
+Environment="PATH=/opt/preprint-bot/venv/bin"
+ExecStart=/opt/preprint-bot/daily_pipeline.sh
 ```
 
-**Using APScheduler:**
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+`/etc/systemd/system/preprint-bot-pipeline.timer`:
+```ini
+[Unit]
+Description=Preprint Bot Pipeline Timer
 
-scheduler = AsyncIOScheduler()
+[Timer]
+OnCalendar=*-*-* 01:30:00
+Persistent=true
 
-@scheduler.scheduled_job('cron', hour=21, day_of_week='sun-thu')
-async def daily_fetch():
-    # Run corpus mode
-    pass
+[Install]
+WantedBy=timers.target
+```
 
-scheduler.start()
+Enable and start the timer:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now preprint-bot-pipeline.timer
+
+# Check status
+sudo systemctl status preprint-bot-pipeline.timer
+
+# Run pipeline manually
+sudo systemctl start --no-block preprint-bot-pipeline
 ```
 
 ## Monitoring
@@ -1114,9 +991,6 @@ curl http://localhost:8000/stats
 
 # Monitor API health
 curl http://localhost:8000/health
-
-# Check processing progress
-curl http://localhost:8000/uploads/progress/1/1
 ```
 
 ### Database Monitoring
@@ -1143,7 +1017,7 @@ ORDER BY idx_scan;
 ### Development Setup
 ```bash
 # Install with development dependencies
-pip install -e ".[dev,test]"
+pip install ".[dev,test]"
 
 # Install pre-commit hooks (optional)
 pip install pre-commit
@@ -1155,7 +1029,7 @@ pre-commit install
 1. Fork the repository
 2. Create feature branch: `git checkout -b feature/new-feature`
 3. Make changes and add tests
-4. Run test suite: `pytest -v`
+4. Run test suites: `pytest -v` and `cd django_site && python manage.py test core`
 5. Format code: `black src/ tests/`
 6. Commit changes: `git commit -m "Add new feature"`
 7. Push to branch: `git push origin feature/new-feature`
@@ -1202,32 +1076,20 @@ pip install safety
 safety check
 ```
 
-## License
-
-MIT License
-
-Copyright (c) 2024 Syracuse University
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 ## Citation
 ```bibtex
-@software{preprint_bot_2024,
+@software{preprint_bot_2026,
   title={Preprint Bot: Database-Integrated Academic Paper Recommendation System},
-  author={Syracuse University},
-  year={2024},
-  url={https://github.com/SyracuseUniversity/preprint-bot},
-  note={FastAPI + PostgreSQL + pgvector implementation}
+  author={Syracuse University OSPO},
+  year={2026},
+  url={https://github.com/SU-OSPO/preprint-bot},
+  note={FastAPI + PostgreSQL + pgvector + Django implementation}
 }
 ```
 
 ## Support
 
-- GitHub Issues: https://github.com/yourusername/preprint-bot/issues
+- GitHub Issues: https://github.com/SU-OSPO/preprint-bot/issues
 - API Documentation: http://localhost:8000/docs
 - Email: ospo@syr.edu
 
@@ -1238,4 +1100,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - Sentence Transformers for state-of-the-art embeddings
 - pgvector for efficient vector similarity search in PostgreSQL
 - FastAPI for modern async web framework
-- Streamlit for rapid web interface development
+- Django for the web application framework

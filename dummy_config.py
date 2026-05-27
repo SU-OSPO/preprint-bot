@@ -27,13 +27,10 @@ ARXIV_CATEGORIES = [
 # medium: balanced (recommended starting point)
 # high: fewer results, more precise
 SIMILARITY_THRESHOLDS = {
-    "low": 0.5,
+    "low": 0.4,
     "medium": 0.6,
     "high": 0.75
 }
-
-# Maximum number of papers to fetch per category per run
-MAX_RESULTS = 10  # TODO: increase for production use
 
 # ==================== MODEL SETTINGS ====================
 
