@@ -197,21 +197,23 @@ def _clean_html(text: str) -> str:
 def _parse_rss_authors(item) -> List[str]:
     """Extract author list from an RSS item.
 
-    The RSS feed uses ``<dc:creator>`` which feedparser exposes as
-    ``item.author`` (a comma-separated string) or ``item.authors``.
+    arXiv's RSS puts all authors in a single ``<dc:creator>`` element
+    as one comma-separated string.
     """
-    # feedparser may expose a list of author dicts
+    # Gather raw name strings from whichever field feedparser populated
+    raw: List[str] = []
     if hasattr(item, "authors") and item.authors:
-        names = [a.get("name", "") for a in item.authors if a.get("name")]
-        if names:
-            return names
+        raw = [a.get("name", "") for a in item.authors if a.get("name")]
+    if not raw:
+        author_str = getattr(item, "author", "")
+        if author_str:
+            raw = [author_str]
 
-    # Fall back to the comma-separated dc:creator string
-    author_str = getattr(item, "author", "")
-    if author_str:
-        return [a.strip() for a in author_str.split(",") if a.strip()]
-
-    return []
+    # Split any comma-joined entries into individual authors
+    names: List[str] = []
+    for entry in raw:
+        names.extend(a.strip() for a in entry.split(",") if a.strip())
+    return names
 
 
 def _parse_rss_categories(item) -> List[str]:
