@@ -51,10 +51,10 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         <tr>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;width:30px;color:#888;">{i}</td>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;">
-                <a href="{arxiv_url}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{title}</a>{authors_html}
+                <a href="{html.escape(arxiv_url)}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{html.escape(title)}</a>{authors_html}
                 <br>
                 <span style="font-size:12px;color:#888;">Score: {score:.3f}</span>
-                <p style="margin:8px 0 0;font-size:13px;color:#444;">{truncated_summary}{read_more}</p>
+                <p style="margin:8px 0 0;font-size:13px;color:#444;">{html.escape(truncated_summary)}{read_more}</p>
             </td>
         </tr>
         """
@@ -68,10 +68,10 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
     <div style="max-width:700px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
         <div style="background:{SU_NAVY};padding:24px 32px;">
             <h1 style="margin:0;font-size:22px;"><a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
-            <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {run_date}</p>
+            <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {html.escape(run_date)}</p>
         </div>
         <div style="padding:24px 32px;">
-            <p style="font-size:15px;color:#333;">Here are your top recommendations for profile <strong>{profile_name}</strong>:</p>
+            <p style="font-size:15px;color:#333;">Here are your top recommendations for profile <strong>{html.escape(profile_name)}</strong>:</p>
             <p style="font-size:13px;color:#888;margin-top:-8px;">{count_line}</p>
             <table style="width:100%;border-collapse:collapse;">
                 {rows}
