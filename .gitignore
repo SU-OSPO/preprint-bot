@@ -193,3 +193,5 @@ models
 config.py
 pdf_data
 src/preprint_bot/config.py
+/deployment
+/scripts
