@@ -1306,6 +1306,7 @@ def _query_profile_recommendations(pb_user, profile=None):
             "date_obj": date_obj,
             "date_str": date_str,
             "categories": paper.categories_list,
+            "authors": paper.authors_list,
             "total_papers_fetched": rec.run.total_papers_fetched,
         }
 

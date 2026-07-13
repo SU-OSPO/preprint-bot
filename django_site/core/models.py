@@ -199,6 +199,12 @@ class Paper(models.Model):
             return self.metadata.get("categories", [])
         return []
 
+    @property
+    def authors_list(self):
+        if self.metadata and isinstance(self.metadata, dict):
+            return self.metadata.get("authors", [])
+        return []
+
 
 # ── Sections ───────────────────────────────────────────────────────────────
 

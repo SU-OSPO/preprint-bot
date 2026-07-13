@@ -3,6 +3,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime
+import json
 from database import get_db_pool
 from services.email_service import send_recommendations_digest, send_email
 
@@ -43,7 +44,7 @@ async def send_digest(req: DigestRequest):
         rows = await conn.fetch(
             """
             SELECT r.id AS recommendation_id,
-                   p.arxiv_id, p.title, p.abstract,
+                   p.arxiv_id, p.title, p.abstract, p.metadata,
                    r.score, r.summary, s.summary_text
             FROM recommendations r
             JOIN recommendation_runs rr ON rr.id = r.run_id
@@ -63,6 +64,16 @@ async def send_digest(req: DigestRequest):
         # Collect recommendation IDs for marking as sent
         rec_ids = [row["recommendation_id"] for row in rows]
         papers = [dict(r) for r in rows]
+
+    # Extract author lists from each paper's metadata
+    for paper in papers:
+        meta = paper.get("metadata")
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (ValueError, TypeError):
+                meta = {}
+        paper["authors"] = meta.get("authors", []) if isinstance(meta, dict) else []
 
     frequency = profile["frequency"] or "daily"
 

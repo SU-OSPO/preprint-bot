@@ -21,6 +21,15 @@ def truncate_to_sentences(text: str, n: int = 3) -> tuple[str, bool]:
     return ' '.join(sentences[:n]), True
 
 
+def format_authors(authors: List[str], cap: int = 25) -> str:
+    """Join author names, capping at *cap* names with 'et al.'."""
+    if not authors:
+        return ""
+    if len(authors) > cap:
+        return ", ".join(authors[:cap]) + " et al."
+    return ", ".join(authors)
+
+
 def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, shown: int, total: int, frequency: str = "daily") -> str:
     papers = papers[:10]
     rows = ""
@@ -28,17 +37,20 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         arxiv_id = paper.get("arxiv_id", "")
         title = paper.get("title", "No title")
         score = paper.get("score", 0)
+        authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
         arxiv_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else "#"
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
 
+        authors_html = f'<br><span style="font-size:12px;color:#666;">{authors}</span>' if authors else ''
+
         rows += f"""
         <tr>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;width:30px;color:#888;">{i}</td>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;">
-                <a href="{arxiv_url}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{title}</a>
+                <a href="{arxiv_url}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{title}</a>{authors_html}
                 <br>
                 <span style="font-size:12px;color:#888;">Score: {score:.3f}</span>
                 <p style="margin:8px 0 0;font-size:13px;color:#444;">{truncated_summary}{read_more}</p>
