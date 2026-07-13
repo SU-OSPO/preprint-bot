@@ -40,6 +40,10 @@ def split_author_lists(apps, schema_editor):
         metadata = paper.metadata
         if not isinstance(metadata, dict):
             continue
+        # Only touch RSS-ingested rows (they carry announce_type). API-path
+        # rows are left alone.
+        if "announce_type" not in metadata:
+            continue
         authors = metadata.get("authors")
         if not _needs_split(authors):
             continue

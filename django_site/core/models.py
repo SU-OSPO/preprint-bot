@@ -201,8 +201,19 @@ class Paper(models.Model):
 
     @property
     def authors_list(self):
-        if self.metadata and isinstance(self.metadata, dict):
-            return self.metadata.get("authors", [])
+        """Authors from metadata, always as a list of strings.
+
+        Legacy/malformed rows may store ``authors`` as a bare string
+        instead of a list; normalize so templates (Django ``join``) and
+        the recommendations JS (``slice``/``join``) always receive a list.
+        """
+        if not (self.metadata and isinstance(self.metadata, dict)):
+            return []
+        authors = self.metadata.get("authors", [])
+        if isinstance(authors, list):
+            return authors
+        if isinstance(authors, str) and authors.strip():
+            return [authors]
         return []
 
 

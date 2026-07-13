@@ -1,6 +1,7 @@
 import smtplib
 import re
 import sys
+import html
 from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -44,7 +45,7 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
 
-        authors_html = f'<br><span style="font-size:12px;color:#666;">{authors}</span>' if authors else ''
+        authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ''
 
         rows += f"""
         <tr>
