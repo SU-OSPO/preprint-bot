@@ -95,8 +95,7 @@ preprint-bot/
 ├── main.py                        # FastAPI application entry point
 ├── database.py                    # AsyncPG connection pooling
 ├── schemas.py                     # Pydantic models and enums
-├── setup.py                       # Package configuration
-├── requirements.txt               # Python dependencies
+├── setup.py                       # Package configuration and dependencies
 ├── pytest.ini                     # Pytest configuration
 └── README.md
 ```
@@ -1067,8 +1066,8 @@ pre-commit install
 
 ### Updating Dependencies
 ```bash
-# Update all packages
-pip install --upgrade -r requirements.txt
+# Reinstall with the latest compatible dependencies
+pip install --upgrade .
 
 # Update specific package
 pip install --upgrade sentence-transformers
