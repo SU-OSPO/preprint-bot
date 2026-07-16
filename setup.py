@@ -121,6 +121,9 @@ setup(
         "feedparser>=6.0.11",
         "lxml>=5.3.0",
         
+        # progress bars
+        "tqdm>=4.66.0",
+        
         # Machine Learning and Embeddings
         "numpy>=1.26.0,<2.0.0",
         "sentence-transformers>=2.6.0",
