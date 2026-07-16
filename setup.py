@@ -13,6 +13,7 @@ Install with specific extras:
     pip install -e ".[test]"         # Testing dependencies
     pip install -e ".[cuda]"         # GPU support (faiss-gpu)
     pip install -e ".[qdrant]"       # Qdrant vector database
+    pip install -e ".[s3]"           # arXiv S3 bulk download
     pip install -e ".[llama]"        # LLaMA summarization
     pip install -e ".[production]"   # Production deployment tools
 
@@ -64,6 +65,12 @@ extras_require = {
     # Alternative vector database
     "qdrant": [
         "qdrant-client>=1.12.1",
+    ],
+    
+    # arXiv S3 bulk download
+    "s3": [
+        "boto3>=1.34.0",
+        "botocore>=1.34.0",
     ],
     
     # LLM-based summarization

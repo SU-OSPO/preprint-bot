@@ -2,11 +2,24 @@
 Fast bulk PDF download using arXiv's S3 bucket
 No rate limits! ~200-300 papers per minute
 """
-import boto3
-from botocore import UNSIGNED
-from botocore.config import Config
 from pathlib import Path
 from tqdm import tqdm
+
+# boto3/botocore are an optional dependency (extras_require["s3"]). The S3 bulk
+# download path is opt-in (use_s3=True) and unused by the default pipeline, so
+# guard the import; download_from_s3_bulk() raises a clear error if called
+# without it.
+try:
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.config import Config
+    _BOTO3_AVAILABLE = True
+except ImportError:
+    boto3 = None
+    UNSIGNED = None
+    Config = None
+    _BOTO3_AVAILABLE = False
+
 
 def download_from_s3_bulk(paper_metadata, output_folder):
     """
@@ -25,6 +38,12 @@ def download_from_s3_bulk(paper_metadata, output_folder):
     Returns:
         dict: Download statistics
     """
+    if not _BOTO3_AVAILABLE:
+        raise ImportError(
+            "boto3 is required for S3 bulk download but is not installed. "
+            "Install it with: pip install '.[s3]', or use the default HTTP "
+            "downloader (use_s3=False)."
+        )
     output_path = Path(output_folder)
     output_path.mkdir(parents=True, exist_ok=True)
     
