@@ -5,7 +5,10 @@ import os
 Installation Commands:
 ----------------------
 
-Basic installation (core dependencies only):
+Standard installation (includes LLaMA, the default summarizer):
+    pip install -e ".[llama]"
+
+Minimal installation (core only; no LLaMA — for CI/dev or --summarizer transformer):
     pip install -e .
 
 Install with specific extras:
@@ -14,7 +17,7 @@ Install with specific extras:
     pip install -e ".[cuda]"         # GPU support (faiss-gpu)
     pip install -e ".[qdrant]"       # Qdrant vector database
     pip install -e ".[s3]"           # arXiv S3 bulk download
-    pip install -e ".[llama]"        # LLaMA summarization
+    pip install -e ".[llama]"        # LLaMA summarization (default summarizer)
     pip install -e ".[production]"   # Production deployment tools
 
 Install multiple extras:

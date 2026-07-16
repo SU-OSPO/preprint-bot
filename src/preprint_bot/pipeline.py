@@ -20,7 +20,7 @@ from .api_client import APIClient
 from .download_arxiv_pdfs import download_arxiv_pdfs
 from .embed_papers import embed_and_store_papers
 from .extract_grobid import extract_grobid_sections
-from .summarization_script import TransformerSummarizer, LlamaSummarizer
+from .summarization_script import TransformerSummarizer
 from .user_mode_processor import process_unprocessed_papers
 from .db_similarity_matcher import run_similarity_matching
 from .sources import ArxivSource, PaperEntry
@@ -400,8 +400,15 @@ def _preflight_checks(args):
         except Exception as e:
             errors.append(f"GROBID health check failed: {e}")
 
-    # ── LLM model exists (unless summarization is skipped) ────────────
+    # ── LLaMA summarizer available (unless summarization is skipped) ──
     if not args.skip_summarize and args.summarizer == "llama":
+        from .summarization_script import _LLAMA_AVAILABLE
+        if not _LLAMA_AVAILABLE:
+            errors.append(
+                "llama-cpp-python is not installed but --summarizer llama "
+                "was selected. Install it with: pip install '.[llama]', "
+                "or use --summarizer transformer / --skip-summarize."
+            )
         if not Path(args.llm_model).exists():
             errors.append(
                 f"LLM model not found at {args.llm_model} — "
@@ -497,6 +504,7 @@ async def run_pipeline(args):
                     if not Path(args.llm_model).exists():
                         print(f"Warning: LLM model not found at {args.llm_model}. Skipping summarization.")
                     else:
+                        from .summarization_script import LlamaSummarizer
                         summarizer = LlamaSummarizer(model_path=args.llm_model)
                         await summarize_papers(api_client, corpus_id, summarizer, entries, mode="abstract")
                 else:

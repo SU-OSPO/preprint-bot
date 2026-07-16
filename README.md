@@ -212,15 +212,20 @@ cd preprint-bot
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install core dependencies
+# Standard install — includes the LLaMA summarizer (the default backend)
+pip install ".[llama]"
+
+# Minimal install — core only, no LLaMA (for CI, development, or when using
+# --summarizer transformer). A default `preprint_bot` run will fail preflight
+# until llama-cpp-python is installed.
 pip install .
 
-# Or install with all optional features
+# All optional features
 pip install ".[all]"
 
-# Install specific extras
+# Other specific extras
 pip install ".[dev,test]"      # Development and testing
-pip install ".[llama]"         # LLaMA summarization
+pip install ".[s3]"            # arXiv S3 bulk download
 ```
 
 ### 6. Download LLaMA Model (default summarizer)
