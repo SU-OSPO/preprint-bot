@@ -8,7 +8,7 @@ import torch
 import json
 from tqdm import tqdm
 
-# llama-cpp-python is an optional dependency (extras_require["llama"]).
+# llama-cpp-python is an optional dependency (the [llama] extra).
 # Guard the import so the pipeline can run with --summarizer transformer
 # without it installed; LlamaSummarizer.__init__ raises if it's missing.
 try:

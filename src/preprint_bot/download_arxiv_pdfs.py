@@ -129,7 +129,7 @@ def download_arxiv_pdfs(
     
     # Try S3 first
     if use_s3:
-        # boto3/botocore are optional (extras_require["s3"]); import lazily so the
+        # boto3/botocore are optional (the [s3] extra); import lazily so the
         # default HTTP download path doesn't require them.
         from .download_s3_bulk import download_from_s3_bulk, _BOTO3_AVAILABLE
         if not _BOTO3_AVAILABLE:
@@ -146,8 +146,8 @@ def download_arxiv_pdfs(
                 
                 print(f"HTTP fallback for {len(failed_papers)} papers...")
                 paper_metadata = failed_papers
-            except:
-                pass
+            except Exception as e:
+                print(f"  S3 bulk download failed ({e}); falling back to HTTP.")
     
     total = len(paper_metadata)
     est_time = (total * min_delay) / 60

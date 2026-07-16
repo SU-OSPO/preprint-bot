@@ -5,7 +5,7 @@ No rate limits! ~200-300 papers per minute
 from pathlib import Path
 from tqdm import tqdm
 
-# boto3/botocore are an optional dependency (extras_require["s3"]). The S3 bulk
+# boto3/botocore are an optional dependency (the [s3] extra). The S3 bulk
 # download path is opt-in (use_s3=True) and unused by the default pipeline, so
 # guard the import; download_from_s3_bulk() raises a clear error if called
 # without it.
@@ -101,7 +101,7 @@ def download_from_s3_bulk(paper_metadata, output_folder):
                         stats['downloaded'] += 1
                         success = True
                         break
-                    except:
+                    except Exception:
                         continue
             
             if not success:
