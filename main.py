@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from preprint_bot import __version__
 from database import get_db_pool, close_db_pool
 
 from routes import users, papers, corpora, sections, embeddings, auth
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Preprint Bot API",
     description="API for managing academic paper recommendations with vector search",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
@@ -57,7 +58,7 @@ app.include_router(auth.router)
 async def root():
     return {
         "message": "Preprint Bot - Academic Paper Recommendation System",
-        "version": "1.0.0",
+        "version": __version__,
         "docs": "/docs",
         "redoc": "/redoc",
         "status": "operational",
