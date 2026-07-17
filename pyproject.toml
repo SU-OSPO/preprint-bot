@@ -1,0 +1,124 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "preprint_bot"
+version = "1.1.0.dev0"
+description = "A database-integrated preprint recommendation bot with FastAPI backend and PostgreSQL storage"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Syracuse University Open Source Program Office", email = "ospo@syr.edu" },
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core dependencies
+dependencies = [
+    # arXiv and PDF processing
+    "requests>=2.31.0",
+    "feedparser>=6.0.11",
+    "lxml>=5.3.0",
+
+    # progress bars
+    "tqdm>=4.66.0",
+
+    # Machine Learning and Embeddings
+    "numpy>=1.26.0,<2.0.0",
+    "sentence-transformers>=2.6.0",
+    "transformers>=4.41.0,<5.0.0",
+    "torch>=2.5.0",
+    "nltk>=3.9",
+
+    # Similarity Search (CPU version - works everywhere)
+    "faiss-cpu>=1.7.4",
+    "scikit-learn>=1.5.0",
+
+    # FastAPI and Web Server
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "httpx>=0.27.0",
+
+    # Database
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+
+    # Data Validation and Settings
+    "pydantic>=2.5.0,<3.0.0",
+    "pydantic-settings>=2.1.0",
+    "email-validator>=2.0.0",
+
+    # Environment and Configuration
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# Development tools
+dev = [
+    "setuptools>=65.0.0",
+    "wheel>=0.38.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "isort>=5.13.0",
+]
+
+# Alternative vector database
+qdrant = [
+    "qdrant-client>=1.12.1",
+]
+
+# arXiv S3 bulk download
+s3 = [
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
+]
+
+# LLM-based summarization (the default summarizer)
+llama = [
+    "llama-cpp-python>=0.1.83",
+]
+
+# Production deployment
+production = [
+    "gunicorn>=21.2.0",
+    "redis>=5.0.0",
+    "celery>=5.3.0",
+]
+
+# Testing
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "faker>=22.0.0",
+]
+
+# Everything except CUDA (install faiss-gpu manually). Self-referential extra.
+all = ["preprint_bot[dev,qdrant,s3,llama,production,test]"]
+
+[project.scripts]
+preprint_bot = "preprint_bot.pipeline:main"
+
+[project.urls]
+Homepage = "https://github.com/SU-OSPO/preprint-bot"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# `src` layout: put the package root on sys.path so `import preprint_bot`
+# resolves even without an editable install.
+pythonpath = ["src"]

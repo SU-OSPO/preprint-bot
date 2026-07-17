@@ -11,7 +11,6 @@ from pathlib import Path
 from datetime import datetime
 from collections import deque
 from .config import DATA_DIR, USER_AGENT
-from .download_s3_bulk import download_from_s3_bulk
 
 HEADERS = {
     "User-Agent": USER_AGENT
@@ -130,18 +129,25 @@ def download_arxiv_pdfs(
     
     # Try S3 first
     if use_s3:
-        try:
-            s3_stats = download_from_s3_bulk(paper_metadata, output_folder)
-            failed_papers = [p for p in paper_metadata 
-                           if not os.path.exists(os.path.join(output_folder, f"{p['arxiv_url'].split('/')[-1]}.pdf"))]
-            
-            if not failed_papers:
-                return s3_stats
-            
-            print(f"HTTP fallback for {len(failed_papers)} papers...")
-            paper_metadata = failed_papers
-        except:
-            pass
+        # boto3/botocore are optional (the [s3] extra); import lazily so the
+        # default HTTP download path doesn't require them.
+        from .download_s3_bulk import download_from_s3_bulk, _BOTO3_AVAILABLE
+        if not _BOTO3_AVAILABLE:
+            print("  use_s3=True but boto3 is not installed "
+                  "(pip install '.[s3]'); falling back to HTTP download.")
+        else:
+            try:
+                s3_stats = download_from_s3_bulk(paper_metadata, output_folder)
+                failed_papers = [p for p in paper_metadata 
+                               if not os.path.exists(os.path.join(output_folder, f"{p['arxiv_url'].split('/')[-1]}.pdf"))]
+                
+                if not failed_papers:
+                    return s3_stats
+                
+                print(f"HTTP fallback for {len(failed_papers)} papers...")
+                paper_metadata = failed_papers
+            except Exception as e:
+                print(f"  S3 bulk download failed ({e}); falling back to HTTP.")
     
     total = len(paper_metadata)
     est_time = (total * min_delay) / 60

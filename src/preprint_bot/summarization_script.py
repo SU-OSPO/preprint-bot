@@ -5,9 +5,18 @@ from nltk.tokenize import sent_tokenize
 from nltk import download
 from transformers import pipeline
 import torch
-from llama_cpp import Llama
 import json
 from tqdm import tqdm
+
+# llama-cpp-python is an optional dependency (the [llama] extra).
+# Guard the import so the pipeline can run with --summarizer transformer
+# without it installed; LlamaSummarizer.__init__ raises if it's missing.
+try:
+    from llama_cpp import Llama
+    _LLAMA_AVAILABLE = True
+except ImportError:
+    Llama = None
+    _LLAMA_AVAILABLE = False
 
 # NLTK setup
 try:
@@ -107,6 +116,12 @@ class TransformerSummarizer:
 # LLaMA summarizer with explicit GPU support
 class LlamaSummarizer:
     def __init__(self, model_path: str):
+        if not _LLAMA_AVAILABLE:
+            raise ImportError(
+                "llama-cpp-python is not installed. "
+                "Install it with: pip install '.[llama]', "
+                "or use --summarizer transformer."
+            )
         # Check if CUDA is available
         use_gpu = torch.cuda.is_available()
         

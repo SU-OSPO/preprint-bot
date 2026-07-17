@@ -30,10 +30,8 @@ jobs:
           # Install in correct order to avoid conflicts
           pip install "numpy<2.0"
           pip install "pydantic>=2.5.3,<3.0.0"
-          # Install remaining requirements
-          pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-          # Install package without reinstalling dependencies
-          pip install -e . --no-deps
+          # Install the package with test extras (dependencies come from pyproject.toml)
+          pip install -e ".[test]" --extra-index-url https://download.pytorch.org/whl/cpu
           # Download NLTK data (needed for tests)
           python -m nltk.downloader punkt punkt_tab
 
@@ -46,6 +44,38 @@ jobs:
       - name: Run tests
         run: |
           pytest tests/ -v --tb=short
+
+  # ── Import check (catches missing runtime dependencies) ─────────────────
+  import-check:
+    # Reproduces the production install path (`pip install .`, no extras) and
+    # imports the pipeline module. This catches packages that are imported at
+    # runtime but missing from the declared dependencies.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install package (core dependencies only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy<2.0"
+          # No extras: this must succeed with the core dependencies alone.
+          pip install . --extra-index-url https://download.pytorch.org/whl/cpu
+          # punkt is fetched at import time by summarization_script; pre-fetch
+          # so the import is deterministic and offline-safe.
+          python -m nltk.downloader punkt punkt_tab
+
+      - name: Import the pipeline
+        run: |
+          # Must succeed WITHOUT the [llama] extra installed — verifies the
+          # llama-cpp-python import is properly guarded.
+          python -c "import preprint_bot.pipeline; print('pipeline imports OK')"
 
   # ── Django tests ────────────────────────────────────────────────────────
   django-tests:

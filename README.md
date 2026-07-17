@@ -95,9 +95,7 @@ preprint-bot/
 ├── main.py                        # FastAPI application entry point
 ├── database.py                    # AsyncPG connection pooling
 ├── schemas.py                     # Pydantic models and enums
-├── setup.py                       # Package configuration
-├── requirements.txt               # Python dependencies
-├── pytest.ini                     # Pytest configuration
+├── pyproject.toml                 # Package metadata, dependencies, and tool config
 └── README.md
 ```
 
@@ -213,16 +211,28 @@ cd preprint-bot
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install core dependencies
+# Standard install — includes the LLaMA summarizer (the default backend)
+pip install ".[llama]"
+
+# Minimal install — core only, no LLaMA (for CI, development, or when using
+# --summarizer transformer). A default `preprint_bot` run will fail preflight
+# until llama-cpp-python is installed.
 pip install .
 
-# Or install with all optional features
+# All optional features
 pip install ".[all]"
 
-# Install specific extras
+# Other specific extras
 pip install ".[dev,test]"      # Development and testing
-pip install ".[llama]"         # LLaMA summarization
+pip install ".[s3]"            # arXiv S3 bulk download
 ```
+
+**GPU acceleration (optional):** the installs above use CPU builds, which work everywhere. If you have a CUDA-capable GPU, install a CUDA build of PyTorch that matches your CUDA toolkit to speed up embedding generation and summarization:
+```bash
+# Example for CUDA 12.4 — match the index URL to your installed toolkit
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+```
+`faiss-gpu` is not published on PyPI for all platforms, so it is intentionally not part of any extra; if you need a GPU build of FAISS, install it manually (conda is the most reliable source). The default `faiss-cpu` is sufficient for the pipeline's workload.
 
 ### 6. Download LLaMA Model (default summarizer)
 
@@ -1067,8 +1077,8 @@ pre-commit install
 
 ### Updating Dependencies
 ```bash
-# Update all packages
-pip install --upgrade -r requirements.txt
+# Reinstall with the latest compatible dependencies
+pip install --upgrade .
 
 # Update specific package
 pip install --upgrade sentence-transformers
