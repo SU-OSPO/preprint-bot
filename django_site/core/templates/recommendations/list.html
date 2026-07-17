@@ -160,6 +160,13 @@ function catLabel(code) {
   return CODE_TO_LABEL[code] || code;
 }
 
+/* ── Format author list (match profile search: cap at 25 + et al.) ─ */
+function formatAuthors(authors) {
+  if (!authors || !authors.length) return '';
+  if (authors.length > 25) return authors.slice(0, 25).join(', ') + ' et al.';
+  return authors.join(', ');
+}
+
 /* ── Build category pill filters ──────────────────── */
 function buildCatFilters() {
   const container = document.getElementById('cat-pills');
@@ -287,6 +294,11 @@ function renderCard(r, showDate) {
     html += '<div style="margin-bottom:.35rem;">';
     r.categories.forEach(c => { html += '<span class="tag">' + esc(catLabel(c)) + '</span>'; });
     html += '</div>';
+  }
+
+  const authorsStr = formatAuthors(r.authors);
+  if (authorsStr) {
+    html += '<div class="text-sm text-dim" style="margin-bottom:.25rem;">' + esc(authorsStr) + '</div>';
   }
 
   if (showDate) {

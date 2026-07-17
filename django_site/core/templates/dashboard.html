@@ -32,6 +32,12 @@
       <span class="score-badge">{{ rec.score|floatformat:3 }}</span>
     </div>
 
+    {% if rec.authors %}
+      <div class="text-sm text-dim" style="margin-top:.25rem;">
+        {{ rec.authors|slice:":25"|join:", " }}{% if rec.authors|length > 25 %} et al.{% endif %}
+      </div>
+    {% endif %}
+
     {% if rec.arxiv_id %}
       <span class="text-sm text-dim text-mono">{{ rec.arxiv_id }}</span>
     {% endif %}

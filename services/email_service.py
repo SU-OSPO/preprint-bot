@@ -1,6 +1,7 @@
 import smtplib
 import re
 import sys
+import html
 from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -21,6 +22,15 @@ def truncate_to_sentences(text: str, n: int = 3) -> tuple[str, bool]:
     return ' '.join(sentences[:n]), True
 
 
+def format_authors(authors: List[str], cap: int = 25) -> str:
+    """Join author names, capping at *cap* names with 'et al.'."""
+    if not authors:
+        return ""
+    if len(authors) > cap:
+        return ", ".join(authors[:cap]) + " et al."
+    return ", ".join(authors)
+
+
 def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, shown: int, total: int, frequency: str = "daily") -> str:
     papers = papers[:10]
     rows = ""
@@ -28,20 +38,23 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         arxiv_id = paper.get("arxiv_id", "")
         title = paper.get("title", "No title")
         score = paper.get("score", 0)
+        authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
         arxiv_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else "#"
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
 
+        authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ''
+
         rows += f"""
         <tr>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;width:30px;color:#888;">{i}</td>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;">
-                <a href="{arxiv_url}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{title}</a>
+                <a href="{html.escape(arxiv_url)}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{html.escape(title)}</a>{authors_html}
                 <br>
                 <span style="font-size:12px;color:#888;">Score: {score:.3f}</span>
-                <p style="margin:8px 0 0;font-size:13px;color:#444;">{truncated_summary}{read_more}</p>
+                <p style="margin:8px 0 0;font-size:13px;color:#444;">{html.escape(truncated_summary)}{read_more}</p>
             </td>
         </tr>
         """
@@ -55,10 +68,10 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
     <div style="max-width:700px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
         <div style="background:{SU_NAVY};padding:24px 32px;">
             <h1 style="margin:0;font-size:22px;"><a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
-            <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {run_date}</p>
+            <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {html.escape(run_date)}</p>
         </div>
         <div style="padding:24px 32px;">
-            <p style="font-size:15px;color:#333;">Here are your top recommendations for profile <strong>{profile_name}</strong>:</p>
+            <p style="font-size:15px;color:#333;">Here are your top recommendations for profile <strong>{html.escape(profile_name)}</strong>:</p>
             <p style="font-size:13px;color:#888;margin-top:-8px;">{count_line}</p>
             <table style="width:100%;border-collapse:collapse;">
                 {rows}
