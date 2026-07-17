@@ -34,7 +34,7 @@ def decode_latex_authors(apps, schema_editor):
 
     fixed = 0
     # iterator() keeps memory flat over a large papers table.
-    for paper in Paper.objects.iterator():
+    for paper in Paper.objects.only("id", "metadata").iterator():
         metadata = paper.metadata
         if not isinstance(metadata, dict):
             continue
