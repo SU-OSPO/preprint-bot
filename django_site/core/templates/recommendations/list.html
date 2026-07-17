@@ -260,6 +260,11 @@ function applyFilters() {
 
   /* update URL */
   updateURL(f);
+
+  /* re-render any $…$ math in the freshly-built cards (titles, summaries, abstracts) */
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise([container]).catch(() => {});
+  }
 }
 
 /* ── Render grouped by date ───────────────────────── */

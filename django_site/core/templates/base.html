@@ -12,6 +12,21 @@
 
   <link rel="stylesheet" href="{% static 'core/style.css' %}">
 
+  {# ── MathJax: render $…$ / $$…$$ math in titles, abstracts, and summaries ── #}
+  {# NOTE: only handles math-mode LaTeX. Text-mode author-name accents (\'e etc.) #}
+  {# are converted to Unicode server-side, not here. #}
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+
   {% if ACCENT_COLOR or NAV_COLOR %}
   <style>
     :root {
