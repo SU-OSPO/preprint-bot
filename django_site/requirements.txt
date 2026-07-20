@@ -12,3 +12,6 @@ arxiv>=2.1.0
 
 # PDF text layer validation on upload
 pypdf>=4.0.0
+
+# WSGI server for production
+gunicorn>=21.2
