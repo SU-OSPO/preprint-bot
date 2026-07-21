@@ -1491,13 +1491,13 @@ def monitoring_dashboard_view(request):
             label = f"{int(hours // 24)} d ago"
         return label, hours
 
-    def _daily_series(base_qs, days, label_every=5):
+    def _daily_series(base_qs, days):
         """Dense oldest→newest daily counts for a vertical bar chart.
 
         Zero-fills missing days so the x-axis represents real time, tags each
-        day with a bar height % (nonzero days get at least 1%), and flags a
-        thinned subset of days to show an x-axis label (anchored to the most
-        recent day). Grouping and the window use the local date (USE_TZ).
+        day with a bar height % (nonzero days get at least 1%), and flags
+        Mondays for an x-axis label (once per week). Grouping and the window
+        use the local date (USE_TZ).
         """
         end = timezone.localdate()
         start = end - timedelta(days=days - 1)
@@ -1517,7 +1517,7 @@ def monitoring_dashboard_view(request):
                 "day": d,
                 "n": n,
                 "pct": max(1, round(n / peak * 100)) if n else 0,
-                "show_label": (days - 1 - i) % label_every == 0,
+                "show_label": d.weekday() == 0,  # Mondays (once per week)
             })
         return series
 

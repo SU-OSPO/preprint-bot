@@ -6,10 +6,14 @@
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; }
   .kpi-num { font-size:1.8rem; font-weight:700; line-height:1.1; }
   .kpi-label { font-size:.8rem; color:var(--text-dim); margin-top:.2rem; }
-  .kpi-sub { font-size:.75rem; margin-top:.15rem; }
   .status-ok { color:#1a7f37; font-weight:600; }
   .status-warn { color:#b35900; font-weight:600; }
-  .bar-row { display:flex; align-items:center; gap:.5rem; margin:.15rem 0; font-size:.8rem; }
+  .warn-tip { position:relative; cursor:help; }
+  .warn-tip .tip { position:absolute; top:100%; left:0; margin-top:4px; background:#1f2937; color:#fff;
+                   font-size:.7rem; font-weight:400; line-height:1.2; padding:.2rem .45rem; border-radius:3px;
+                   white-space:nowrap; opacity:0; visibility:hidden; pointer-events:none;
+                   transition:opacity .08s ease; z-index:5; }
+  .warn-tip:hover .tip { opacity:1; visibility:visible; }
   .vchart { display:flex; align-items:flex-end; gap:2px; height:120px; margin:.6rem 0 0; }
   .vchart .vcol { position:relative; flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; cursor:default; }
   .vchart .vcol:hover { background:rgba(0,0,0,.04); }
@@ -30,28 +34,20 @@
 {% block content %}
 <div class="flex-between mb-2">
   <div>
-    <h1>Monitoring</h1>
-    <p class="subtitle">Pipeline health, delivery, ingestion, and user activity.</p>
+    <h1>Monitoring Dashboard</h1>
   </div>
 </div>
 
-<div class="alert alert-info" style="font-size:.82rem;">
-  Pipeline freshness below is <strong>inferred</strong> from the timestamps of recent activity
-  (recommendation runs, ingested papers, sent emails). Per-stage run status and durations will
-  appear here once the pipeline records <code>ProcessingRun</code> rows.
-</div>
-
-{# ── Pipeline freshness (proxy) ── #}
+{# ── Recent activity (proxy) ── #}
 <div class="card">
-  <h3 style="margin-top:0;">Pipeline freshness</h3>
+  <h3 style="margin-top:0;">Recent activity</h3>
   <div class="kpi-grid">
     <div>
       <div class="kpi-num">
-        {% if pipeline_stale %}<span class="status-warn">{{ last_run_label|default:"never" }}</span>
+        {% if pipeline_stale %}<span class="status-warn warn-tip">{{ last_run_label|default:"never" }}<span class="tip">⚠ no run in 26h+ (normal on weekends/holidays)</span></span>
         {% else %}<span class="status-ok">{{ last_run_label }}</span>{% endif %}
       </div>
       <div class="kpi-label">Last recommendation run</div>
-      {% if pipeline_stale %}<div class="kpi-sub status-warn">⚠ older than expected (daily)</div>{% endif %}
     </div>
     <div>
       <div class="kpi-num">{{ last_paper_label|default:"never" }}</div>
@@ -107,13 +103,13 @@
   <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Papers ingested per day <span class="text-dim">· last {{ window_days }} days</span></p>
   {% if papers_window_total %}
   <div class="vchart">
-    {% for row in papers_per_day %}
-    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% for col in papers_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
     {% endfor %}
   </div>
   <div class="vaxis">
-    {% for row in papers_per_day %}
-    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% for col in papers_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
     {% endfor %}
   </div>
   {% else %}
@@ -132,13 +128,13 @@
   <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Recommendations sent per day <span class="text-dim">· last {{ window_days }} days</span></p>
   {% if recs_sent_window_total %}
   <div class="vchart">
-    {% for row in recs_sent_per_day %}
-    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% for col in recs_sent_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
     {% endfor %}
   </div>
   <div class="vaxis">
-    {% for row in recs_sent_per_day %}
-    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% for col in recs_sent_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
     {% endfor %}
   </div>
   {% else %}
@@ -160,13 +156,13 @@
   <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Signups per day <span class="text-dim">· last {{ window_days }} days</span></p>
   {% if signups_window_total %}
   <div class="vchart">
-    {% for row in signups_per_day %}
-    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% for col in signups_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
     {% endfor %}
   </div>
   <div class="vaxis">
-    {% for row in signups_per_day %}
-    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% for col in signups_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
     {% endfor %}
   </div>
   {% else %}
