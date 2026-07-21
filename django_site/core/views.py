@@ -1565,6 +1565,10 @@ def monitoring_dashboard_view(request):
     avg_fetched = RecommendationRun.objects.filter(
         created_at__gte=since
     ).aggregate(a=Avg("total_papers_fetched"))["a"]
+    recs_sent_per_day = _daily_series(
+        Recommendation.objects.filter(sent_in_email=True), window_days
+    )
+    recs_sent_window_total = sum(r["n"] for r in recs_sent_per_day)
 
     # ── User activity (real) ──
     user_total = PBUser.objects.count()
@@ -1600,6 +1604,8 @@ def monitoring_dashboard_view(request):
         "runs_in_window": runs_in_window,
         "recs_in_window": recs_in_window,
         "avg_fetched": round(avg_fetched, 1) if avg_fetched is not None else None,
+        "recs_sent_per_day": recs_sent_per_day,
+        "recs_sent_window_total": recs_sent_window_total,
         # users
         "user_total": user_total,
         "user_active": user_active,

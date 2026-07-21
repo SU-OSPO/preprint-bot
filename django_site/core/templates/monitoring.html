@@ -129,6 +129,21 @@
     <div><div class="kpi-num">{{ recs_in_window }}</div><div class="kpi-label">Recommendations created</div></div>
     <div><div class="kpi-num">{{ avg_fetched|default:"—" }}</div><div class="kpi-label">Avg papers fetched / run</div></div>
   </div>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Recommendations sent per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if recs_sent_window_total %}
+  <div class="vchart">
+    {% for row in recs_sent_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="vaxis">
+    {% for row in recs_sent_per_day %}
+    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dim text-sm">No recommendations sent in the last {{ window_days }} days.</p>
+  {% endif %}
 </div>
 
 {# ── Users & profiles ── #}
