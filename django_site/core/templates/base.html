@@ -39,6 +39,9 @@
         <a href="{% url 'profile_list' %}" class="{% if 'profile' in request.resolver_match.url_name %}active{% endif %}">Profiles</a>
         <a href="{% url 'recommendations' %}" class="{% if request.resolver_match.url_name == 'recommendations' %}active{% endif %}">Recommendations</a>
         <a href="{% url 'settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}active{% endif %}">Settings</a>
+        {% if request.user.is_staff %}
+        <a href="{% url 'monitoring' %}" class="{% if request.resolver_match.url_name == 'monitoring' %}active{% endif %}">Monitoring</a>
+        {% endif %}
       </div>
       <div class="user-area">
         <span>{{ request.user.name|default:request.user.email }}</span>

@@ -8,14 +8,19 @@ the custom user model (AUTH_USER_MODEL).
 import json
 import re
 import time
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 
 from django.conf import settings as django_settings
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.db.models import Avg, Count, Max, Q
+from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -36,6 +41,7 @@ from .forms import (
 )
 from .models import (
     Corpus,
+    EmailLog,
     PBUser,
     Paper,
     Profile,
@@ -1460,3 +1466,133 @@ def delete_account_view(request):
 
 def help_view(request):
     return render(request, "help.html")
+
+
+# ── Monitoring dashboard (staff only) ──────────────────────────────────────
+
+@staff_member_required
+def monitoring_dashboard_view(request):
+    """Operational dashboard: pipeline freshness, delivery, ingestion, users."""
+    now = timezone.now()
+    window_days = 30
+    since = now - timedelta(days=window_days)
+
+    def _age(ts):
+        """Return (human label, hours) for a timestamp, or (None, None)."""
+        if not ts:
+            return None, None
+        delta = now - ts
+        hours = delta.total_seconds() / 3600
+        if hours < 1:
+            label = f"{int(delta.total_seconds() // 60)} min ago"
+        elif hours < 48:
+            label = f"{int(hours)} h ago"
+        else:
+            label = f"{int(hours // 24)} d ago"
+        return label, hours
+
+    def _with_bars(rows, key="n"):
+        """Add a 'pct' width (peak → 100%) to each row for lightweight CSS bars."""
+        peak = max((r[key] for r in rows), default=0) or 1
+        for r in rows:
+            r["pct"] = round(r[key] / peak * 100)
+        return rows
+
+    # ── Pipeline freshness (proxy: derived from activity timestamps) ──
+    last_run = RecommendationRun.objects.aggregate(t=Max("created_at"))["t"]
+    last_paper = Paper.objects.aggregate(t=Max("created_at"))["t"]
+    last_email = EmailLog.objects.aggregate(t=Max("sent_at"))["t"]
+    last_run_label, last_run_hours = _age(last_run)
+    last_paper_label, _ = _age(last_paper)
+    last_email_label, _ = _age(last_email)
+    # Flag if the most recent run is older than ~26h (a daily pipeline missed a day)
+    pipeline_stale = last_run_hours is None or last_run_hours > 26
+
+    # ── Email delivery (real) ──
+    email_counts = EmailLog.objects.filter(sent_at__gte=since).aggregate(
+        sent=Count("id", filter=Q(status="sent")),
+        failed=Count("id", filter=Q(status="failed")),
+    )
+    email_sent = email_counts["sent"] or 0
+    email_failed = email_counts["failed"] or 0
+    email_total = email_sent + email_failed
+    email_failure_rate = (email_failed / email_total * 100) if email_total else 0
+    recent_email_failures = list(
+        EmailLog.objects.filter(status="failed")
+        .select_related("user")
+        .order_by("-sent_at")[:10]
+    )
+
+    # ── Ingestion (real; ArxivDailyStats is empty, so derive from Paper) ──
+    total_papers = Paper.objects.count()
+    papers_by_source = {
+        row["source"]: row["n"]
+        for row in Paper.objects.values("source").annotate(n=Count("id"))
+    }
+    papers_with_abstract_emb = (
+        Paper.objects.filter(embeddings__type="abstract").distinct().count()
+    )
+    papers_missing_embeddings = total_papers - papers_with_abstract_emb
+    papers_per_day = _with_bars(list(
+        Paper.objects.filter(created_at__gte=since)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(n=Count("id"))
+        .order_by("-day")
+    ))
+
+    # ── Recommendations (real) ──
+    runs_in_window = RecommendationRun.objects.filter(created_at__gte=since).count()
+    recs_in_window = Recommendation.objects.filter(created_at__gte=since).count()
+    avg_fetched = RecommendationRun.objects.filter(
+        created_at__gte=since
+    ).aggregate(a=Avg("total_papers_fetched"))["a"]
+
+    # ── User activity (real) ──
+    user_total = PBUser.objects.count()
+    user_active = PBUser.objects.filter(is_active=True).count()
+    user_verified = PBUser.objects.filter(email_verified=True).count()
+    user_with_orcid = (
+        PBUser.objects.exclude(orcid_id__isnull=True).exclude(orcid_id="").count()
+    )
+    signups_per_day = _with_bars(list(
+        PBUser.objects.filter(created_at__gte=since)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(n=Count("id"))
+        .order_by("-day")
+    ))
+    profiles_total = Profile.objects.count()
+    profiles_email_on = Profile.objects.filter(email_notify=True).count()
+
+    context = {
+        "window_days": window_days,
+        # freshness (proxy)
+        "last_run_label": last_run_label,
+        "last_paper_label": last_paper_label,
+        "last_email_label": last_email_label,
+        "pipeline_stale": pipeline_stale,
+        # email
+        "email_sent": email_sent,
+        "email_failed": email_failed,
+        "email_failure_rate": round(email_failure_rate, 1),
+        "recent_email_failures": recent_email_failures,
+        # ingestion
+        "total_papers": total_papers,
+        "papers_by_source": papers_by_source,
+        "papers_missing_embeddings": papers_missing_embeddings,
+        "papers_per_day": papers_per_day,
+        # recommendations
+        "runs_in_window": runs_in_window,
+        "recs_in_window": recs_in_window,
+        "avg_fetched": round(avg_fetched, 1) if avg_fetched is not None else None,
+        # users
+        "user_total": user_total,
+        "user_active": user_active,
+        "user_verified": user_verified,
+        "user_with_orcid": user_with_orcid,
+        "signups_per_day": signups_per_day,
+        "profiles_total": profiles_total,
+        "profiles_email_on": profiles_email_on,
+    }
+    return render(request, "monitoring.html", context)

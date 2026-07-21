@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Monitoring – Preprint Bot{% endblock %}
+
+{% block extra_head %}
+<style>
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; }
+  .kpi-num { font-size:1.8rem; font-weight:700; line-height:1.1; }
+  .kpi-label { font-size:.8rem; color:var(--text-dim); margin-top:.2rem; }
+  .kpi-sub { font-size:.75rem; margin-top:.15rem; }
+  .status-ok { color:#1a7f37; font-weight:600; }
+  .status-warn { color:#b35900; font-weight:600; }
+  .bar-row { display:flex; align-items:center; gap:.5rem; margin:.15rem 0; font-size:.8rem; }
+  .bar-row .lbl { width:5rem; color:var(--text-dim); flex:none; }
+  .bar-row .track { flex:1; background:#e5e7eb; border-radius:3px; height:.75rem; overflow:hidden; }
+  .bar-row .fill { display:block; background:var(--accent,#F76900); height:100%; border-radius:3px; }
+  .bar-row .val { width:2.5rem; text-align:right; flex:none; }
+  table.mini { width:100%; border-collapse:collapse; font-size:.82rem; margin-top:.3rem; }
+  table.mini th, table.mini td { text-align:left; padding:.3rem .4rem; border-bottom:1px solid #eee; }
+  table.mini th { color:var(--text-dim); font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <div>
+    <h1>Monitoring</h1>
+    <p class="subtitle">Pipeline health, delivery, ingestion, and user activity.</p>
+  </div>
+</div>
+
+<div class="alert alert-info" style="font-size:.82rem;">
+  Pipeline freshness below is <strong>inferred</strong> from the timestamps of recent activity
+  (recommendation runs, ingested papers, sent emails). Per-stage run status and durations will
+  appear here once the pipeline records <code>ProcessingRun</code> rows.
+</div>
+
+{# ── Pipeline freshness (proxy) ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Pipeline freshness</h3>
+  <div class="kpi-grid">
+    <div>
+      <div class="kpi-num">
+        {% if pipeline_stale %}<span class="status-warn">{{ last_run_label|default:"never" }}</span>
+        {% else %}<span class="status-ok">{{ last_run_label }}</span>{% endif %}
+      </div>
+      <div class="kpi-label">Last recommendation run</div>
+      {% if pipeline_stale %}<div class="kpi-sub status-warn">⚠ older than expected (daily)</div>{% endif %}
+    </div>
+    <div>
+      <div class="kpi-num">{{ last_paper_label|default:"never" }}</div>
+      <div class="kpi-label">Last paper ingested</div>
+    </div>
+    <div>
+      <div class="kpi-num">{{ last_email_label|default:"never" }}</div>
+      <div class="kpi-label">Last email sent</div>
+    </div>
+  </div>
+</div>
+
+{# ── Email delivery ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Email delivery <span class="text-sm text-dim">· last {{ window_days }} days</span></h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ email_sent }}</div><div class="kpi-label">Sent</div></div>
+    <div><div class="kpi-num">{{ email_failed }}</div><div class="kpi-label">Failed</div></div>
+    <div>
+      <div class="kpi-num {% if email_failure_rate > 10 %}status-warn{% endif %}">{{ email_failure_rate }}%</div>
+      <div class="kpi-label">Failure rate</div>
+    </div>
+  </div>
+  {% if recent_email_failures %}
+  <table class="mini">
+    <thead><tr><th>When</th><th>User</th><th>Subject</th></tr></thead>
+    <tbody>
+      {% for e in recent_email_failures %}
+      <tr>
+        <td>{{ e.sent_at|date:"M j, H:i" }}</td>
+        <td>{{ e.user.email }}</td>
+        <td>{{ e.subject|default:"—"|truncatechars:60 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{# ── Ingestion ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Ingestion</h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ total_papers }}</div><div class="kpi-label">Total papers</div></div>
+    <div>
+      <div class="kpi-num {% if papers_missing_embeddings %}status-warn{% endif %}">{{ papers_missing_embeddings }}</div>
+      <div class="kpi-label">Missing abstract embedding</div>
+    </div>
+    {% for src, n in papers_by_source.items %}
+    <div><div class="kpi-num">{{ n }}</div><div class="kpi-label">Source: {{ src }}</div></div>
+    {% endfor %}
+  </div>
+  {% if papers_per_day %}
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Papers ingested per day</p>
+  {% for row in papers_per_day %}
+  <div class="bar-row">
+    <span class="lbl">{{ row.day|date:"M j" }}</span>
+    <span class="track"><span class="fill" style="width:{{ row.pct }}%;"></span></span>
+    <span class="val">{{ row.n }}</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="text-dim text-sm">No papers ingested in the last {{ window_days }} days.</p>
+  {% endif %}
+</div>
+
+{# ── Recommendations ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Recommendations <span class="text-sm text-dim">· last {{ window_days }} days</span></h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ runs_in_window }}</div><div class="kpi-label">Runs</div></div>
+    <div><div class="kpi-num">{{ recs_in_window }}</div><div class="kpi-label">Recommendations created</div></div>
+    <div><div class="kpi-num">{{ avg_fetched|default:"—" }}</div><div class="kpi-label">Avg papers fetched / run</div></div>
+  </div>
+</div>
+
+{# ── Users & profiles ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Users &amp; profiles</h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ user_total }}</div><div class="kpi-label">Total users</div></div>
+    <div><div class="kpi-num">{{ user_active }}</div><div class="kpi-label">Active</div></div>
+    <div><div class="kpi-num">{{ user_verified }}</div><div class="kpi-label">Email verified</div></div>
+    <div><div class="kpi-num">{{ user_with_orcid }}</div><div class="kpi-label">ORCID linked</div></div>
+    <div><div class="kpi-num">{{ profiles_total }}</div><div class="kpi-label">Profiles</div></div>
+    <div><div class="kpi-num">{{ profiles_email_on }}</div><div class="kpi-label">Email-enabled profiles</div></div>
+  </div>
+  {% if signups_per_day %}
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Signups per day</p>
+  {% for row in signups_per_day %}
+  <div class="bar-row">
+    <span class="lbl">{{ row.day|date:"M j" }}</span>
+    <span class="track"><span class="fill" style="width:{{ row.pct }}%;"></span></span>
+    <span class="val">{{ row.n }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
