@@ -15,3 +15,6 @@ pypdf>=4.0.0
 
 # Decode LaTeX author names to Unicode (used by the 0013 backfill migration)
 pylatexenc>=2.10
+
+# WSGI server for production
+gunicorn>=21.2
