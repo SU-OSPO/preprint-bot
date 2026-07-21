@@ -209,7 +209,8 @@ def _latex_to_unicode(text: str) -> str:
         return text
     try:
         return _LATEX2TEXT.latex_to_text(text).strip()
-    except Exception:
+    except Exception as e:
+        print(f"Could not convert assumed LaTeX {text} to unicode")
         return text
 
 
