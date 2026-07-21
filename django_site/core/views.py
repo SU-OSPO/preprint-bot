@@ -44,6 +44,7 @@ from .models import (
     EmailLog,
     PBUser,
     Paper,
+    ProcessingRun,
     Profile,
     Recommendation,
     RecommendationRun,
@@ -1521,15 +1522,21 @@ def monitoring_dashboard_view(request):
             })
         return series
 
-    # ── Pipeline freshness (proxy: derived from activity timestamps) ──
-    last_run = RecommendationRun.objects.aggregate(t=Max("created_at"))["t"]
+    # ── Pipeline health ──
+    last_proc = ProcessingRun.objects.order_by("-started_at").first()
+    if last_proc:
+        last_run_label, last_run_hours = _age(last_proc.started_at)
+        last_run_status = last_proc.status
+    else:
+        last_run_label, last_run_hours, last_run_status = None, None, None
     last_paper = Paper.objects.aggregate(t=Max("created_at"))["t"]
     last_email = EmailLog.objects.aggregate(t=Max("sent_at"))["t"]
-    last_run_label, last_run_hours = _age(last_run)
     last_paper_label, _ = _age(last_paper)
     last_email_label, _ = _age(last_email)
-    # Flag if the most recent run is older than ~26h (a daily pipeline missed a day)
+    # The pipeline runs nightly, so a gap >26h or a failed last run is a real problem
     pipeline_stale = last_run_hours is None or last_run_hours > 26
+    pipeline_failed = last_run_status == "failed"
+    recent_processing_runs = list(ProcessingRun.objects.order_by("-started_at")[:10])
 
     # ── Email delivery (real) ──
     email_counts = EmailLog.objects.filter(sent_at__gte=since).aggregate(
@@ -1584,11 +1591,14 @@ def monitoring_dashboard_view(request):
 
     context = {
         "window_days": window_days,
-        # freshness (proxy)
+        # pipeline health
         "last_run_label": last_run_label,
+        "last_run_status": last_run_status,
         "last_paper_label": last_paper_label,
         "last_email_label": last_email_label,
         "pipeline_stale": pipeline_stale,
+        "pipeline_failed": pipeline_failed,
+        "recent_processing_runs": recent_processing_runs,
         # email
         "email_sent": email_sent,
         "email_failed": email_failed,

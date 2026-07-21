@@ -38,16 +38,16 @@
   </div>
 </div>
 
-{# ── Recent activity (proxy) ── #}
+{# ── Pipeline health ── #}
 <div class="card">
-  <h3 style="margin-top:0;">Recent activity</h3>
+  <h3 style="margin-top:0;">Pipeline health</h3>
   <div class="kpi-grid">
     <div>
       <div class="kpi-num">
-        {% if pipeline_stale %}<span class="status-warn warn-tip">{{ last_run_label|default:"never" }}<span class="tip">⚠ no run in 26h+ (normal on weekends/holidays)</span></span>
+        {% if pipeline_stale or pipeline_failed %}<span class="status-warn warn-tip">{{ last_run_label|default:"never" }}<span class="tip">{% if pipeline_failed %}⚠ last run failed{% else %}⚠ no run in 26h+{% endif %}</span></span>
         {% else %}<span class="status-ok">{{ last_run_label }}</span>{% endif %}
       </div>
-      <div class="kpi-label">Last recommendation run</div>
+      <div class="kpi-label">Last pipeline run{% if last_run_status %} · {{ last_run_status }}{% endif %}</div>
     </div>
     <div>
       <div class="kpi-num">{{ last_paper_label|default:"never" }}</div>
@@ -58,6 +58,24 @@
       <div class="kpi-label">Last email sent</div>
     </div>
   </div>
+  {% if recent_processing_runs %}
+  <table class="mini">
+    <thead><tr><th>Started</th><th>Type</th><th>Status</th><th>Papers</th><th>Error</th></tr></thead>
+    <tbody>
+      {% for r in recent_processing_runs %}
+      <tr>
+        <td>{{ r.started_at|date:"M j, H:i" }}</td>
+        <td>{{ r.run_type }}</td>
+        <td>{% if r.status == "failed" %}<span class="status-warn">failed</span>{% else %}{{ r.status }}{% endif %}</td>
+        <td>{{ r.papers_processed }}</td>
+        <td>{{ r.error_message|default:""|truncatechars:50 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-dim text-sm">No pipeline runs recorded yet.</p>
+  {% endif %}
 </div>
 
 {# ── Email delivery ── #}

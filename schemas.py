@@ -274,3 +274,25 @@ class EmailLogResponse(BaseModel):
     body: Optional[str]
     sent_at: datetime
     status: str
+
+# ProcessingRun Schemas
+class ProcessingRunCreate(BaseModel):
+    run_type: str
+    category: Optional[str] = None
+    status: str = "running"
+    papers_processed: int = 0
+
+class ProcessingRunUpdate(BaseModel):
+    status: Optional[str] = None
+    papers_processed: Optional[int] = None
+    error_message: Optional[str] = None
+
+class ProcessingRunResponse(BaseModel):
+    id: int
+    run_type: str
+    category: Optional[str]
+    status: str
+    papers_processed: int
+    error_message: Optional[str]
+    started_at: datetime
+    completed_at: Optional[datetime]
