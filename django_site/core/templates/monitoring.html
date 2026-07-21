@@ -10,10 +10,17 @@
   .status-ok { color:#1a7f37; font-weight:600; }
   .status-warn { color:#b35900; font-weight:600; }
   .bar-row { display:flex; align-items:center; gap:.5rem; margin:.15rem 0; font-size:.8rem; }
-  .bar-row .lbl { width:5rem; color:var(--text-dim); flex:none; }
-  .bar-row .track { flex:1; background:#e5e7eb; border-radius:3px; height:.75rem; overflow:hidden; }
-  .bar-row .fill { display:block; background:var(--accent,#F76900); height:100%; border-radius:3px; }
-  .bar-row .val { width:2.5rem; text-align:right; flex:none; }
+  .vchart { display:flex; align-items:flex-end; gap:2px; height:120px; margin:.6rem 0 0; }
+  .vchart .vcol { position:relative; flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; cursor:default; }
+  .vchart .vcol:hover { background:rgba(0,0,0,.04); }
+  .vchart .vbar { background:var(--accent,#F76900); border-radius:2px 2px 0 0; }
+  .vchart .vtip { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:4px;
+                  background:#1f2937; color:#fff; font-size:.7rem; line-height:1.2; padding:.15rem .4rem;
+                  border-radius:3px; white-space:nowrap; opacity:0; visibility:hidden; pointer-events:none;
+                  transition:opacity .08s ease; z-index:5; }
+  .vchart .vcol:hover .vtip { opacity:1; visibility:visible; }
+  .vaxis { display:flex; gap:2px; border-top:1px solid #ccc; padding-top:.2rem; margin-bottom:.25rem; }
+  .vaxis .vlabel { flex:1; text-align:center; font-size:.65rem; color:var(--text-dim); white-space:nowrap; }
   table.mini { width:100%; border-collapse:collapse; font-size:.82rem; margin-top:.3rem; }
   table.mini th, table.mini td { text-align:left; padding:.3rem .4rem; border-bottom:1px solid #eee; }
   table.mini th { color:var(--text-dim); font-weight:600; }
@@ -97,15 +104,18 @@
     <div><div class="kpi-num">{{ n }}</div><div class="kpi-label">Source: {{ src }}</div></div>
     {% endfor %}
   </div>
-  {% if papers_per_day %}
-  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Papers ingested per day</p>
-  {% for row in papers_per_day %}
-  <div class="bar-row">
-    <span class="lbl">{{ row.day|date:"M j" }}</span>
-    <span class="track"><span class="fill" style="width:{{ row.pct }}%;"></span></span>
-    <span class="val">{{ row.n }}</span>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Papers ingested per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if papers_window_total %}
+  <div class="vchart">
+    {% for row in papers_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% endfor %}
   </div>
-  {% endfor %}
+  <div class="vaxis">
+    {% for row in papers_per_day %}
+    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
   {% else %}
   <p class="text-dim text-sm">No papers ingested in the last {{ window_days }} days.</p>
   {% endif %}
@@ -132,15 +142,20 @@
     <div><div class="kpi-num">{{ profiles_total }}</div><div class="kpi-label">Profiles</div></div>
     <div><div class="kpi-num">{{ profiles_email_on }}</div><div class="kpi-label">Email-enabled profiles</div></div>
   </div>
-  {% if signups_per_day %}
-  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Signups per day</p>
-  {% for row in signups_per_day %}
-  <div class="bar-row">
-    <span class="lbl">{{ row.day|date:"M j" }}</span>
-    <span class="track"><span class="fill" style="width:{{ row.pct }}%;"></span></span>
-    <span class="val">{{ row.n }}</span>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Signups per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if signups_window_total %}
+  <div class="vchart">
+    {% for row in signups_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ row.pct }}%;"></div><span class="vtip">{{ row.day|date:'M j' }}: {{ row.n }}</span></div>
+    {% endfor %}
   </div>
-  {% endfor %}
+  <div class="vaxis">
+    {% for row in signups_per_day %}
+    <div class="vlabel">{% if row.show_label %}{{ row.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dim text-sm">No signups in the last {{ window_days }} days.</p>
   {% endif %}
 </div>
 {% endblock %}

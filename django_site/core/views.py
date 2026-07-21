@@ -1491,12 +1491,35 @@ def monitoring_dashboard_view(request):
             label = f"{int(hours // 24)} d ago"
         return label, hours
 
-    def _with_bars(rows, key="n"):
-        """Add a 'pct' width (peak → 100%) to each row for lightweight CSS bars."""
-        peak = max((r[key] for r in rows), default=0) or 1
-        for r in rows:
-            r["pct"] = round(r[key] / peak * 100)
-        return rows
+    def _daily_series(base_qs, days, label_every=5):
+        """Dense oldest→newest daily counts for a vertical bar chart.
+
+        Zero-fills missing days so the x-axis represents real time, tags each
+        day with a bar height % (nonzero days get at least 1%), and flags a
+        thinned subset of days to show an x-axis label (anchored to the most
+        recent day). Grouping and the window use the local date (USE_TZ).
+        """
+        end = timezone.localdate()
+        start = end - timedelta(days=days - 1)
+        counts = {
+            r["day"]: r["n"]
+            for r in base_qs.filter(created_at__date__gte=start)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(n=Count("id"))
+        }
+        peak = max(counts.values(), default=0) or 1
+        series = []
+        for i in range(days):
+            d = start + timedelta(days=i)
+            n = counts.get(d, 0)
+            series.append({
+                "day": d,
+                "n": n,
+                "pct": max(1, round(n / peak * 100)) if n else 0,
+                "show_label": (days - 1 - i) % label_every == 0,
+            })
+        return series
 
     # ── Pipeline freshness (proxy: derived from activity timestamps) ──
     last_run = RecommendationRun.objects.aggregate(t=Max("created_at"))["t"]
@@ -1533,13 +1556,8 @@ def monitoring_dashboard_view(request):
         Paper.objects.filter(embeddings__type="abstract").distinct().count()
     )
     papers_missing_embeddings = total_papers - papers_with_abstract_emb
-    papers_per_day = _with_bars(list(
-        Paper.objects.filter(created_at__gte=since)
-        .annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(n=Count("id"))
-        .order_by("-day")
-    ))
+    papers_per_day = _daily_series(Paper.objects.all(), window_days)
+    papers_window_total = sum(r["n"] for r in papers_per_day)
 
     # ── Recommendations (real) ──
     runs_in_window = RecommendationRun.objects.filter(created_at__gte=since).count()
@@ -1555,13 +1573,8 @@ def monitoring_dashboard_view(request):
     user_with_orcid = (
         PBUser.objects.exclude(orcid_id__isnull=True).exclude(orcid_id="").count()
     )
-    signups_per_day = _with_bars(list(
-        PBUser.objects.filter(created_at__gte=since)
-        .annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(n=Count("id"))
-        .order_by("-day")
-    ))
+    signups_per_day = _daily_series(PBUser.objects.all(), window_days)
+    signups_window_total = sum(r["n"] for r in signups_per_day)
     profiles_total = Profile.objects.count()
     profiles_email_on = Profile.objects.filter(email_notify=True).count()
 
@@ -1582,6 +1595,7 @@ def monitoring_dashboard_view(request):
         "papers_by_source": papers_by_source,
         "papers_missing_embeddings": papers_missing_embeddings,
         "papers_per_day": papers_per_day,
+        "papers_window_total": papers_window_total,
         # recommendations
         "runs_in_window": runs_in_window,
         "recs_in_window": recs_in_window,
@@ -1592,6 +1606,7 @@ def monitoring_dashboard_view(request):
         "user_verified": user_verified,
         "user_with_orcid": user_with_orcid,
         "signups_per_day": signups_per_day,
+        "signups_window_total": signups_window_total,
         "profiles_total": profiles_total,
         "profiles_email_on": profiles_email_on,
     }
