@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Monitoring – Preprint Bot{% endblock %}
+
+{% block extra_head %}
+<style>
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1rem; }
+  .kpi-num { font-size:1.8rem; font-weight:700; line-height:1.1; }
+  .kpi-label { font-size:.8rem; color:var(--text-dim); margin-top:.2rem; }
+  .status-ok { color:#1a7f37; font-weight:600; }
+  .status-warn { color:#b35900; font-weight:600; }
+  .warn-tip { position:relative; cursor:help; }
+  .warn-tip .tip { position:absolute; top:100%; left:0; margin-top:4px; background:#1f2937; color:#fff;
+                   font-size:.7rem; font-weight:400; line-height:1.2; padding:.2rem .45rem; border-radius:3px;
+                   white-space:nowrap; opacity:0; visibility:hidden; pointer-events:none;
+                   transition:opacity .08s ease; z-index:5; }
+  .warn-tip:hover .tip { opacity:1; visibility:visible; }
+  .vchart { display:flex; align-items:flex-end; gap:2px; height:120px; margin:.6rem 0 0; }
+  .vchart .vcol { position:relative; flex:1; display:flex; flex-direction:column; justify-content:flex-end; height:100%; cursor:default; }
+  .vchart .vcol:hover { background:rgba(0,0,0,.04); }
+  .vchart .vbar { background:var(--accent,#F76900); border-radius:2px 2px 0 0; }
+  .vchart .vtip { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:4px;
+                  background:#1f2937; color:#fff; font-size:.7rem; line-height:1.2; padding:.15rem .4rem;
+                  border-radius:3px; white-space:nowrap; opacity:0; visibility:hidden; pointer-events:none;
+                  transition:opacity .08s ease; z-index:5; }
+  .vchart .vcol:hover .vtip { opacity:1; visibility:visible; }
+  .vaxis { display:flex; gap:2px; border-top:1px solid #ccc; padding-top:.2rem; margin-bottom:.25rem; }
+  .vaxis .vlabel { flex:1; text-align:center; font-size:.65rem; color:var(--text-dim); white-space:nowrap; }
+  table.mini { width:100%; border-collapse:collapse; font-size:.82rem; margin-top:.3rem; }
+  table.mini th, table.mini td { text-align:left; padding:.3rem .4rem; border-bottom:1px solid #eee; }
+  table.mini th { color:var(--text-dim); font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <div>
+    <h1>Monitoring Dashboard</h1>
+  </div>
+</div>
+
+{# ── Pipeline health ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Pipeline health</h3>
+  <div class="kpi-grid">
+    <div>
+      <div class="kpi-num">
+        {% if pipeline_stale or pipeline_failed %}<span class="status-warn warn-tip">{{ last_run_label|default:"never" }}<span class="tip">{% if pipeline_failed %}⚠ last run failed{% else %}⚠ no run in 26h+{% endif %}</span></span>
+        {% else %}<span class="status-ok">{{ last_run_label }}</span>{% endif %}
+      </div>
+      <div class="kpi-label">Last pipeline run{% if last_run_status %} · {{ last_run_status }}{% endif %}</div>
+    </div>
+    <div>
+      <div class="kpi-num">{{ last_paper_label|default:"never" }}</div>
+      <div class="kpi-label">Last paper ingested</div>
+    </div>
+    <div>
+      <div class="kpi-num">{{ last_email_label|default:"never" }}</div>
+      <div class="kpi-label">Last email sent</div>
+    </div>
+  </div>
+  {% if recent_processing_runs %}
+  <table class="mini">
+    <thead><tr><th>Started</th><th>Type</th><th>Status</th><th>Papers</th><th>Error</th></tr></thead>
+    <tbody>
+      {% for r in recent_processing_runs %}
+      <tr>
+        <td>{{ r.started_at|date:"M j, H:i" }}</td>
+        <td>{{ r.run_type }}</td>
+        <td>{% if r.status == "failed" %}<span class="status-warn">failed</span>{% else %}{{ r.status }}{% endif %}</td>
+        <td>{{ r.papers_processed }}</td>
+        <td>{{ r.error_message|default:""|truncatechars:50 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-dim text-sm">No pipeline runs recorded yet.</p>
+  {% endif %}
+</div>
+
+{# ── Email delivery ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Email delivery <span class="text-sm text-dim">· last {{ window_days }} days</span></h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ email_sent }}</div><div class="kpi-label">Sent</div></div>
+    <div><div class="kpi-num">{{ email_failed }}</div><div class="kpi-label">Failed</div></div>
+    <div>
+      <div class="kpi-num {% if email_failure_rate > 10 %}status-warn{% endif %}">{{ email_failure_rate }}%</div>
+      <div class="kpi-label">Failure rate</div>
+    </div>
+  </div>
+  {% if recent_email_failures %}
+  <table class="mini">
+    <thead><tr><th>When</th><th>User</th><th>Subject</th></tr></thead>
+    <tbody>
+      {% for e in recent_email_failures %}
+      <tr>
+        <td>{{ e.sent_at|date:"M j, H:i" }}</td>
+        <td>{{ e.user.email }}</td>
+        <td>{{ e.subject|default:"—"|truncatechars:60 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{# ── Ingestion ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Ingestion</h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ total_papers }}</div><div class="kpi-label">Total papers</div></div>
+    <div>
+      <div class="kpi-num {% if papers_missing_embeddings %}status-warn{% endif %}">{{ papers_missing_embeddings }}</div>
+      <div class="kpi-label">Missing abstract embedding</div>
+    </div>
+    {% for src, n in papers_by_source.items %}
+    <div><div class="kpi-num">{{ n }}</div><div class="kpi-label">Source: {{ src }}</div></div>
+    {% endfor %}
+  </div>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Papers ingested per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if papers_window_total %}
+  <div class="vchart">
+    {% for col in papers_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="vaxis">
+    {% for col in papers_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dim text-sm">No papers ingested in the last {{ window_days }} days.</p>
+  {% endif %}
+</div>
+
+{# ── Recommendations ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Recommendations <span class="text-sm text-dim">· last {{ window_days }} days</span></h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ runs_in_window }}</div><div class="kpi-label">Runs</div></div>
+    <div><div class="kpi-num">{{ recs_in_window }}</div><div class="kpi-label">Recommendations created</div></div>
+    <div><div class="kpi-num">{{ avg_fetched|default:"—" }}</div><div class="kpi-label">Avg papers fetched / run</div></div>
+  </div>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Recommendations sent per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if recs_sent_window_total %}
+  <div class="vchart">
+    {% for col in recs_sent_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="vaxis">
+    {% for col in recs_sent_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dim text-sm">No recommendations sent in the last {{ window_days }} days.</p>
+  {% endif %}
+</div>
+
+{# ── Users & profiles ── #}
+<div class="card">
+  <h3 style="margin-top:0;">Users &amp; profiles</h3>
+  <div class="kpi-grid">
+    <div><div class="kpi-num">{{ user_total }}</div><div class="kpi-label">Total users</div></div>
+    <div><div class="kpi-num">{{ user_active }}</div><div class="kpi-label">Active</div></div>
+    <div><div class="kpi-num">{{ user_verified }}</div><div class="kpi-label">Email verified</div></div>
+    <div><div class="kpi-num">{{ user_with_orcid }}</div><div class="kpi-label">ORCID linked</div></div>
+    <div><div class="kpi-num">{{ profiles_total }}</div><div class="kpi-label">Profiles</div></div>
+    <div><div class="kpi-num">{{ profiles_email_on }}</div><div class="kpi-label">Email-enabled profiles</div></div>
+  </div>
+  <p class="text-sm" style="font-weight:600; margin:.9rem 0 .25rem;">Signups per day <span class="text-dim">· last {{ window_days }} days</span></p>
+  {% if signups_window_total %}
+  <div class="vchart">
+    {% for col in signups_per_day %}
+    <div class="vcol"><div class="vbar" style="height:{{ col.pct }}%;"></div><span class="vtip">{{ col.day|date:'M j' }}: {{ col.n }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="vaxis">
+    {% for col in signups_per_day %}
+    <div class="vlabel">{% if col.show_label %}{{ col.day|date:"M j" }}{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dim text-sm">No signups in the last {{ window_days }} days.</p>
+  {% endif %}
+</div>
+{% endblock %}

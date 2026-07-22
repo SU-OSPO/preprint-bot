@@ -6,7 +6,7 @@ from database import get_db_pool, close_db_pool
 
 from routes import users, papers, corpora, sections, embeddings, auth
 from routes import profiles, profile_corpora, summaries, profile_recommendations, email_logs, emails
-from routes import recommendation_runs
+from routes import recommendation_runs, processing_runs
 import routes.recommendations as recommendations
 
 
@@ -44,6 +44,7 @@ app.include_router(corpora.router)
 app.include_router(sections.router)
 app.include_router(embeddings.router)
 app.include_router(recommendation_runs.router)
+app.include_router(processing_runs.router)
 app.include_router(recommendations.recommendations_router)
 app.include_router(profiles.router)
 app.include_router(profile_corpora.router)

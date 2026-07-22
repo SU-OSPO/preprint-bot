@@ -106,5 +106,61 @@ class TestEnumMembership:
             assert hasattr(enum, member)
 
 
+class TestProcessingRunSchemas:
+    def test_create_defaults(self):
+        """Test ProcessingRunCreate defaults match the ProcessingRun model"""
+        from schemas import ProcessingRunCreate
+        run = ProcessingRunCreate(run_type="arxiv_ingest")
+        assert run.status == "started"
+        assert run.category is None
+        assert run.papers_processed == 0
+
+    def test_create_explicit_values(self):
+        """Test ProcessingRunCreate preserves explicitly passed values"""
+        from schemas import ProcessingRunCreate
+        run = ProcessingRunCreate(
+            run_type="arxiv_ingest",
+            category="cs.LG",
+            status="completed",
+            papers_processed=12,
+        )
+        assert run.category == "cs.LG"
+        assert run.status == "completed"
+        assert run.papers_processed == 12
+
+    def test_update_all_optional(self):
+        """Test ProcessingRunUpdate fields all default to None"""
+        from schemas import ProcessingRunUpdate
+        update = ProcessingRunUpdate()
+        assert update.status is None
+        assert update.papers_processed is None
+        assert update.error_message is None
+
+    def test_update_partial(self):
+        """Test ProcessingRunUpdate accepts a subset of fields"""
+        from schemas import ProcessingRunUpdate
+        update = ProcessingRunUpdate(status="failed", error_message="boom")
+        assert update.status == "failed"
+        assert update.error_message == "boom"
+        assert update.papers_processed is None
+
+    def test_response_round_trip(self):
+        """Test ProcessingRunResponse accepts a full row dict"""
+        from schemas import ProcessingRunResponse
+        from datetime import datetime
+        resp = ProcessingRunResponse(
+            id=1,
+            run_type="arxiv_ingest",
+            category=None,
+            status="completed",
+            papers_processed=5,
+            error_message=None,
+            started_at=datetime(2026, 7, 22, 6, 0, 0),
+            completed_at=datetime(2026, 7, 22, 6, 5, 0),
+        )
+        assert resp.id == 1
+        assert resp.completed_at is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

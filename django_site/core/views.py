@@ -8,14 +8,19 @@ the custom user model (AUTH_USER_MODEL).
 import json
 import re
 import time
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 
 from django.conf import settings as django_settings
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.db.models import Avg, Count, Max, Q
+from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -36,8 +41,10 @@ from .forms import (
 )
 from .models import (
     Corpus,
+    EmailLog,
     PBUser,
     Paper,
+    ProcessingRun,
     Profile,
     Recommendation,
     RecommendationRun,
@@ -1460,3 +1467,163 @@ def delete_account_view(request):
 
 def help_view(request):
     return render(request, "help.html")
+
+
+# ── Monitoring dashboard (staff only) ──────────────────────────────────────
+
+@staff_member_required
+def monitoring_dashboard_view(request):
+    """Operational dashboard: pipeline freshness, delivery, ingestion, users."""
+    now = timezone.now()
+    window_days = 30
+    since = now - timedelta(days=window_days)
+
+    def _age(ts):
+        """Return (human label, hours) for a timestamp, or (None, None)."""
+        if not ts:
+            return None, None
+        delta = now - ts
+        hours = delta.total_seconds() / 3600
+        if hours < 1:
+            label = f"{int(delta.total_seconds() // 60)} min ago"
+        elif hours < 48:
+            label = f"{int(hours)} h ago"
+        else:
+            label = f"{int(hours // 24)} d ago"
+        return label, hours
+
+    def _daily_series(base_qs, days):
+        """Dense oldest→newest daily counts for a vertical bar chart.
+
+        Zero-fills missing days so the x-axis represents real time, tags each
+        day with a bar height % (nonzero days get at least 1%), and flags
+        Mondays for an x-axis label (once per week). Grouping and the window
+        use the local date (USE_TZ).
+        """
+        end = timezone.localdate()
+        start = end - timedelta(days=days - 1)
+        counts = {
+            r["day"]: r["n"]
+            for r in base_qs.filter(created_at__date__gte=start)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(n=Count("id"))
+        }
+        peak = max(counts.values(), default=0) or 1
+        series = []
+        for i in range(days):
+            d = start + timedelta(days=i)
+            n = counts.get(d, 0)
+            series.append({
+                "day": d,
+                "n": n,
+                "pct": max(1, round(n / peak * 100)) if n else 0,
+                "show_label": d.weekday() == 0,  # Mondays (once per week)
+            })
+        return series
+
+    # ── Pipeline health ──
+    last_proc = ProcessingRun.objects.order_by("-started_at").first()
+    if last_proc:
+        last_run_label, last_run_hours = _age(last_proc.started_at)
+        last_run_status = last_proc.status
+    else:
+        last_run_label, last_run_hours, last_run_status = None, None, None
+    last_paper = Paper.objects.aggregate(t=Max("created_at"))["t"]
+    last_email = EmailLog.objects.aggregate(t=Max("sent_at"))["t"]
+    last_paper_label, _ = _age(last_paper)
+    last_email_label, _ = _age(last_email)
+    # The pipeline runs nightly, so a gap >26h or a failed last run is a real problem
+    pipeline_stale = last_run_hours is None or last_run_hours > 26
+    pipeline_failed = last_run_status == "failed"
+    recent_processing_runs = list(ProcessingRun.objects.order_by("-started_at")[:10])
+
+    # ── Email delivery (real) ──
+    email_counts = EmailLog.objects.filter(sent_at__gte=since).aggregate(
+        sent=Count("id", filter=Q(status="sent")),
+        failed=Count("id", filter=Q(status="failed")),
+    )
+    email_sent = email_counts["sent"] or 0
+    email_failed = email_counts["failed"] or 0
+    email_total = email_sent + email_failed
+    email_failure_rate = (email_failed / email_total * 100) if email_total else 0
+    recent_email_failures = list(
+        EmailLog.objects.filter(status="failed")
+        .select_related("user")
+        .order_by("-sent_at")[:10]
+    )
+
+    # ── Ingestion (real; ArxivDailyStats is empty, so derive from Paper) ──
+    total_papers = Paper.objects.count()
+    papers_by_source = {
+        row["source"]: row["n"]
+        for row in Paper.objects.values("source").annotate(n=Count("id"))
+    }
+    papers_with_abstract_emb = (
+        Paper.objects.filter(embeddings__type="abstract").distinct().count()
+    )
+    papers_missing_embeddings = total_papers - papers_with_abstract_emb
+    papers_per_day = _daily_series(Paper.objects.all(), window_days)
+    papers_window_total = sum(r["n"] for r in papers_per_day)
+
+    # ── Recommendations (real) ──
+    runs_in_window = RecommendationRun.objects.filter(created_at__gte=since).count()
+    recs_in_window = Recommendation.objects.filter(created_at__gte=since).count()
+    avg_fetched = RecommendationRun.objects.filter(
+        created_at__gte=since
+    ).aggregate(a=Avg("total_papers_fetched"))["a"]
+    recs_sent_per_day = _daily_series(
+        Recommendation.objects.filter(sent_in_email=True), window_days
+    )
+    recs_sent_window_total = sum(r["n"] for r in recs_sent_per_day)
+
+    # ── User activity (real) ──
+    user_total = PBUser.objects.count()
+    user_active = PBUser.objects.filter(is_active=True).count()
+    user_verified = PBUser.objects.filter(email_verified=True).count()
+    user_with_orcid = (
+        PBUser.objects.exclude(orcid_id__isnull=True).exclude(orcid_id="").count()
+    )
+    signups_per_day = _daily_series(PBUser.objects.all(), window_days)
+    signups_window_total = sum(r["n"] for r in signups_per_day)
+    profiles_total = Profile.objects.count()
+    profiles_email_on = Profile.objects.filter(email_notify=True).count()
+
+    context = {
+        "window_days": window_days,
+        # pipeline health
+        "last_run_label": last_run_label,
+        "last_run_status": last_run_status,
+        "last_paper_label": last_paper_label,
+        "last_email_label": last_email_label,
+        "pipeline_stale": pipeline_stale,
+        "pipeline_failed": pipeline_failed,
+        "recent_processing_runs": recent_processing_runs,
+        # email
+        "email_sent": email_sent,
+        "email_failed": email_failed,
+        "email_failure_rate": round(email_failure_rate, 1),
+        "recent_email_failures": recent_email_failures,
+        # ingestion
+        "total_papers": total_papers,
+        "papers_by_source": papers_by_source,
+        "papers_missing_embeddings": papers_missing_embeddings,
+        "papers_per_day": papers_per_day,
+        "papers_window_total": papers_window_total,
+        # recommendations
+        "runs_in_window": runs_in_window,
+        "recs_in_window": recs_in_window,
+        "avg_fetched": round(avg_fetched, 1) if avg_fetched is not None else None,
+        "recs_sent_per_day": recs_sent_per_day,
+        "recs_sent_window_total": recs_sent_window_total,
+        # users
+        "user_total": user_total,
+        "user_active": user_active,
+        "user_verified": user_verified,
+        "user_with_orcid": user_with_orcid,
+        "signups_per_day": signups_per_day,
+        "signups_window_total": signups_window_total,
+        "profiles_total": profiles_total,
+        "profiles_email_on": profiles_email_on,
+    }
+    return render(request, "monitoring.html", context)

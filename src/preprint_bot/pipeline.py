@@ -431,8 +431,17 @@ async def run_pipeline(args):
     _preflight_checks(args)
 
     api_client = APIClient(base_url=API_BASE_URL)
+    run_type = "backfill" if args.date else "latest"
+    processing_run_id = None
+    entries: List[PaperEntry] = []
 
     try:
+        try:
+            proc_run = await api_client.create_processing_run(run_type=run_type)
+            processing_run_id = proc_run["id"]
+        except Exception as e:
+            print(f"Warning: could not record processing run: {e}")
+
         if args.date:
             target_date = datetime.strptime(args.date, "%Y-%m-%d")
             print("\n" + "="*80)
@@ -461,6 +470,14 @@ async def run_pipeline(args):
         if not categories:
             print("ERROR: No categories found in user profiles.")
             print("Please create user profiles with categories before running the pipeline.")
+            if processing_run_id is not None:
+                try:
+                    await api_client.update_processing_run(
+                        processing_run_id, status="failed",
+                        error_message="No categories found in user profiles",
+                    )
+                except Exception:
+                    pass
             sys.exit(1)
 
         print("\n" + "="*60)
@@ -573,6 +590,25 @@ async def run_pipeline(args):
         print(f"  • Preprint papers: {len(entries)} fetched")
         print("="*80 + "\n")
 
+        if processing_run_id is not None:
+            try:
+                await api_client.update_processing_run(
+                    processing_run_id, status="completed",
+                    papers_processed=len(entries),
+                )
+            except Exception as e:
+                print(f"Warning: could not mark processing run complete: {e}")
+
+    except Exception as e:
+        if processing_run_id is not None:
+            try:
+                await api_client.update_processing_run(
+                    processing_run_id, status="failed",
+                    error_message=str(e)[:2000],
+                )
+            except Exception:
+                pass
+        raise
     finally:
         await api_client.close()
 

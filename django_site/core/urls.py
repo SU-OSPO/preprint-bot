@@ -45,4 +45,7 @@ urlpatterns = [
 
     # Help
     path("help/", views.help_view, name="help"),
+
+    # Monitoring dashboard (staff only)
+    path("monitoring/", views.monitoring_dashboard_view, name="monitoring"),
 ]
