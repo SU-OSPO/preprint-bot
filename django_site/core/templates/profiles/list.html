@@ -65,6 +65,69 @@
     {% endif %}
 
     <hr>
+    
+    {# ── Tabbed add-paper interface ────────── #}
+    <div class="paper-tabs" data-profile="{{ p.pk }}">
+      <div class="tab-bar">
+        <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
+        <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
+        <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">Search arXiv</button>
+      </div>
+
+      {# ── Tab 1: Upload PDF ────────────── #}
+      <div class="tab-panel active" id="upload-{{ p.pk }}">
+        <form method="post" action="{% url 'paper_upload' p.pk %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>Choose PDF files</label>
+            <input type="file" name="files" accept=".pdf" multiple>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">Upload</button>
+        </form>
+      </div>
+
+      {# ── Tab 2: Add by ID ─────────────── #}
+      <div class="tab-panel" id="byid-{{ p.pk }}">
+        <form method="post" action="{% url 'paper_add_arxiv' p.pk %}" class="add-arxiv-form"
+              data-profile="{{ p.pk }}">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>arXiv IDs</label>
+            <textarea name="arxiv_ids" rows="2"
+                      placeholder="https://arxiv.org/abs/2601.19018, arXiv:2601.19018, or 2301.12345"></textarea>
+            <div class="form-help">Comma or newline separated. Accepts full URLs, arXiv:-prefixed IDs, or bare IDs.</div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">Add from arXiv</button>
+          <div class="add-progress" style="display:none; margin-top:.5rem;"></div>
+        </form>
+      </div>
+
+      {# ── Tab 3: Search arXiv ──────────── #}
+      <div class="tab-panel" id="search-{{ p.pk }}">
+        <div class="grid-2" style="gap:.75rem;">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" class="search-title" placeholder="e.g. neural network…">
+          </div>
+          <div class="form-group">
+            <label>Author</label>
+            <input type="text" class="search-author" placeholder="e.g. LeCun…">
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary search-btn"
+                data-url="{% url 'paper_search_arxiv_api' p.pk %}">Search</button>
+
+        {# spinner shown while waiting #}
+        <div class="search-spinner" style="display:none; margin-top:.75rem;">
+          <span class="spinner"></span> Searching arXiv…
+        </div>
+
+        {# results injected here by JS #}
+        <div class="search-results" style="margin-top:.75rem;"></div>
+      </div>
+    </div>{# /paper-tabs #}
+    
+    <hr>
 
     {# ── Papers section ──────────────────────────── #}
     <details>
@@ -100,67 +163,6 @@
       </div>
 
       <hr>
-
-      {# ── Tabbed add-paper interface ────────── #}
-      <div class="paper-tabs" data-profile="{{ p.pk }}">
-        <div class="tab-bar">
-          <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
-          <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
-          <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">Search arXiv</button>
-        </div>
-
-        {# ── Tab 1: Upload PDF ────────────── #}
-        <div class="tab-panel active" id="upload-{{ p.pk }}">
-          <form method="post" action="{% url 'paper_upload' p.pk %}" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="form-group">
-              <label>Choose PDF files</label>
-              <input type="file" name="files" accept=".pdf" multiple>
-            </div>
-            <button type="submit" class="btn btn-sm btn-primary">Upload</button>
-          </form>
-        </div>
-
-        {# ── Tab 2: Add by ID ─────────────── #}
-        <div class="tab-panel" id="byid-{{ p.pk }}">
-          <form method="post" action="{% url 'paper_add_arxiv' p.pk %}" class="add-arxiv-form"
-                data-profile="{{ p.pk }}">
-            {% csrf_token %}
-            <div class="form-group">
-              <label>arXiv IDs</label>
-              <textarea name="arxiv_ids" rows="2"
-                        placeholder="https://arxiv.org/abs/2601.19018, arXiv:2601.19018, or 2301.12345"></textarea>
-              <div class="form-help">Comma or newline separated. Accepts full URLs, arXiv:-prefixed IDs, or bare IDs.</div>
-            </div>
-            <button type="submit" class="btn btn-sm btn-primary">Add from arXiv</button>
-            <div class="add-progress" style="display:none; margin-top:.5rem;"></div>
-          </form>
-        </div>
-
-        {# ── Tab 3: Search arXiv ──────────── #}
-        <div class="tab-panel" id="search-{{ p.pk }}">
-          <div class="grid-2" style="gap:.75rem;">
-            <div class="form-group">
-              <label>Title</label>
-              <input type="text" class="search-title" placeholder="e.g. neural network…">
-            </div>
-            <div class="form-group">
-              <label>Author</label>
-              <input type="text" class="search-author" placeholder="e.g. LeCun…">
-            </div>
-          </div>
-          <button type="button" class="btn btn-sm btn-primary search-btn"
-                  data-url="{% url 'paper_search_arxiv_api' p.pk %}">Search</button>
-
-          {# spinner shown while waiting #}
-          <div class="search-spinner" style="display:none; margin-top:.75rem;">
-            <span class="spinner"></span> Searching arXiv…
-          </div>
-
-          {# results injected here by JS #}
-          <div class="search-results" style="margin-top:.75rem;"></div>
-        </div>
-      </div>{# /paper-tabs #}
     </details>
   </div>
   {% endwith %}
