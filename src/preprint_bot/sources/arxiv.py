@@ -15,12 +15,16 @@ from zoneinfo import ZoneInfo
 
 import feedparser
 import httpx
+from pylatexenc.latex2text import LatexNodes2Text
 
 from .base import PaperEntry, PreprintSource
 from ..config import USER_AGENT
 
 _RSS_BASE = "https://rss.arxiv.org/rss"
 _API_BASE = "https://export.arxiv.org/api/query"
+
+# Reused across calls; converts LaTeX text markup (e.g. ``\'e``) to Unicode.
+_LATEX2TEXT = LatexNodes2Text()
 
 
 class ArxivSource(PreprintSource):
@@ -194,11 +198,27 @@ def _clean_html(text: str) -> str:
     return text.strip()
 
 
+def _latex_to_unicode(text: str) -> str:
+    r"""Convert LaTeX text-mode markup to Unicode (``J\'er\^ome`` → ``Jérôme``).
+
+    arXiv encodes author names in LaTeX. Only strings containing a backslash
+    are processed, so already-clean Unicode names (and apostrophes such as
+    ``O'Brien``) are left untouched. Falls back to the input on error.
+    """
+    if "\\" not in text:
+        return text
+    try:
+        return _LATEX2TEXT.latex_to_text(text).strip()
+    except Exception as e:
+        print(f"Could not convert assumed LaTeX {text} to unicode")
+        return text
+
+
 def _parse_rss_authors(item) -> List[str]:
-    """Extract author list from an RSS item.
+    r"""Extract author list from an RSS item.
 
     arXiv's RSS puts all authors in a single ``<dc:creator>`` element
-    as one comma-separated string.
+    as one comma-separated string, LaTeX-encoded (e.g. ``J\'er\^ome``).
     """
     # Gather raw name strings from whichever field feedparser populated
     raw: List[str] = []
@@ -213,7 +233,8 @@ def _parse_rss_authors(item) -> List[str]:
     names: List[str] = []
     for entry in raw:
         names.extend(a.strip() for a in entry.split(",") if a.strip())
-    return names
+    # Decode LaTeX markup (accents etc.) to Unicode
+    return [_latex_to_unicode(n) for n in names]
 
 
 def _parse_rss_categories(item) -> List[str]:
