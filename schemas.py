@@ -279,7 +279,7 @@ class EmailLogResponse(BaseModel):
 class ProcessingRunCreate(BaseModel):
     run_type: str
     category: Optional[str] = None
-    status: str = "running"
+    status: str = "started"
     papers_processed: int = 0
 
 class ProcessingRunUpdate(BaseModel):

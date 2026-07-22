@@ -40,7 +40,7 @@ async def update_processing_run(run_id: int, update: ProcessingRunUpdate):
                 papers_processed = COALESCE($3, papers_processed),
                 error_message = COALESCE($4, error_message),
                 completed_at = CASE
-                    WHEN $2 IN ('completed', 'failed') THEN NOW()
+                    WHEN $2 IN ('completed', 'failed') AND completed_at IS NULL THEN NOW()
                     ELSE completed_at
                 END
             WHERE id = $1

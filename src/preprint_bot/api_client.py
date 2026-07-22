@@ -285,8 +285,8 @@ class APIClient:
         response.raise_for_status()
         return response.json()
     
-    async def create_processing_run(self, run_type: str, category: str = None,
-                                    status: str = "running",
+    async def create_processing_run(self, run_type: str, category: Optional[str] = None,
+                                    status: str = "started",
                                     papers_processed: int = 0) -> Dict:
         response = await self.client.post(
             f"{self.base_url}/processing-runs/",
@@ -300,9 +300,9 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    async def update_processing_run(self, run_id: int, status: str = None,
-                                    papers_processed: int = None,
-                                    error_message: str = None) -> Dict:
+    async def update_processing_run(self, run_id: int, status: Optional[str] = None,
+                                    papers_processed: Optional[int] = None,
+                                    error_message: Optional[str] = None) -> Dict:
         response = await self.client.patch(
             f"{self.base_url}/processing-runs/{run_id}",
             json={
