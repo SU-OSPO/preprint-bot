@@ -160,6 +160,26 @@ def _pdf_has_text_layer(uploaded_file, min_chars=50, max_pages=3):
 
 # ── Decorator ──────────────────────────────────────────────────────────────
 
+# URL names reachable while onboarding is active (the flow itself plus the
+# paper-action endpoints its papers screen reuses). Everything else GETs
+# bounced back into the flow.
+_ONBOARDING_EXEMPT = {
+    "onboarding_profile", "onboarding_papers", "onboarding_finish",
+    "onboarding_skip", "logout",
+    "paper_upload", "paper_add_arxiv", "paper_search_arxiv_api",
+    "paper_view", "paper_delete",
+}
+
+
+def _onboarding_redirect(user):
+    """Resume onboarding at the right step: papers if a profile already
+    exists (their most recent one), otherwise the profile step."""
+    profile = Profile.objects.filter(user=user).order_by("-created_at").first()
+    if profile:
+        return redirect("onboarding_papers", profile_id=profile.pk)
+    return redirect("onboarding_profile")
+
+
 def pbuser_required(view_func):
     """Redirect to login if not authenticated, preserving the
     originally requested URL so we can bounce back after sign-in."""
@@ -173,6 +193,17 @@ def pbuser_required(view_func):
             next_url = request.get_full_path()
             return redirect(f"{login_url}?{urlencode({'next': next_url})}")
         request.pb_user = request.user  # convenience alias for templates
+
+        # Keep brand-new accounts in the onboarding flow until they finish
+        # or skip. Gate GET navigations only so form/API POSTs still land.
+        if (
+            request.session.get("onboarding")
+            and request.method == "GET"
+            and request.resolver_match
+            and request.resolver_match.url_name not in _ONBOARDING_EXEMPT
+        ):
+            return _onboarding_redirect(request.user)
+
         return view_func(request, *args, **kwargs)
 
     return wrapper
@@ -638,6 +669,9 @@ def dashboard_view(request):
     else:
         today_recs = []
 
+    # One-time congrats after finishing onboarding.
+    just_onboarded = request.session.pop("onboarding_just_finished", False)
+
     return render(
         request,
         "dashboard.html",
@@ -647,6 +681,7 @@ def dashboard_view(request):
             "total_recs": total_recs,
             "today_recs": today_recs[:20],
             "today_count": len(today_recs),
+            "just_onboarded": just_onboarded,
         },
     )
 
@@ -775,6 +810,92 @@ def profile_delete_view(request, profile_id):
     return redirect("profile_list")
 
 
+# ── Onboarding (first-login walkthrough) ──────────────────────────────────
+
+def _safe_next(request, default_url_name):
+    """Return a caller-supplied ``next`` path when it's a safe local URL,
+    otherwise the reversed default. Lets shared endpoints return into the
+    onboarding flow without changing their normal behaviour."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+    nxt = request.POST.get("next") or request.GET.get("next")
+    if nxt and url_has_allowed_host_and_scheme(
+        nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return nxt
+    return reverse(default_url_name)
+
+
+@pbuser_required
+def onboarding_profile_view(request):
+    """Step 1: create the first profile."""
+    pb_user = request.pb_user
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST)
+        if form.is_valid():
+            name = form.cleaned_data["name"].strip()
+            if Profile.objects.filter(user=pb_user, name__iexact=name).exists():
+                messages.error(request, f"A profile named '{name}' already exists.")
+            else:
+                profile = Profile.objects.create(
+                    user=pb_user,
+                    name=name,
+                    categories=form.cleaned_data["categories"],
+                    frequency=form.cleaned_data["frequency"],
+                    threshold=form.cleaned_data["threshold"],
+                    top_x=form.cleaned_data["top_x"],
+                )
+                return redirect("onboarding_papers", profile_id=profile.pk)
+    else:
+        form = ProfileForm()
+
+    return render(request, "onboarding/profile.html", {
+        "pb_user": pb_user,
+        "form": form,
+        "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
+    })
+
+
+@pbuser_required
+def onboarding_papers_view(request, profile_id):
+    """Step 2: add papers to the just-created profile."""
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
+
+    corpus_name = f"user_{pb_user.pk}_profile_{profile.pk}"
+    corpus = Corpus.objects.filter(user=pb_user, name=corpus_name).first()
+    papers = (
+        list(Paper.objects.filter(corpora=corpus).order_by("-created_at"))
+        if corpus else []
+    )
+
+    return render(request, "onboarding/papers.html", {
+        "pb_user": pb_user,
+        "profile": profile,
+        "papers": papers,
+        "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
+        "code_to_label": ARXIV_CODE_TO_LABEL,
+        "arxiv_search_per_page": django_settings.ARXIV_SEARCH_PER_PAGE,
+    })
+
+
+@pbuser_required
+@require_POST
+def onboarding_finish_view(request):
+    """Finish onboarding and land on the dashboard with a congrats note."""
+    request.session.pop("onboarding", None)
+    request.session["onboarding_just_finished"] = True
+    return redirect("dashboard")
+
+
+@pbuser_required
+@require_POST
+def onboarding_skip_view(request):
+    """Abandon onboarding entirely from either step."""
+    request.session.pop("onboarding", None)
+    return redirect("dashboard")
+
+
 # ── Paper uploads (within a profile) ──────────────────────────────────────
 
 @pbuser_required
@@ -848,7 +969,7 @@ def paper_upload_view(request, profile_id):
     else:
         messages.warning(request, "No valid PDF files selected.")
 
-    return redirect("profile_list")
+    return redirect(_safe_next(request, "profile_list"))
 
 
 @pbuser_required
@@ -873,7 +994,7 @@ def paper_delete_view(request, profile_id, paper_id):
             return JsonResponse({"ok": False, "error": "Paper not linked to this profile."}, status=400)
         messages.error(request, "Paper not linked to this profile.")
 
-    return redirect("profile_list")
+    return redirect(_safe_next(request, "profile_list"))
 
 
 @pbuser_required
@@ -914,7 +1035,7 @@ def paper_add_arxiv_view(request, profile_id):
         if is_ajax:
             return JsonResponse({"ok": False, "error": "No valid arXiv IDs provided."}, status=400)
         messages.error(request, "No valid arXiv IDs provided.")
-        return redirect("profile_list")
+        return redirect(_safe_next(request, "profile_list"))
 
     if not is_ajax and len(arxiv_ids) > MAX_IDS_PER_REQUEST:
         messages.warning(
@@ -953,7 +1074,7 @@ def paper_add_arxiv_view(request, profile_id):
     for fid in failed:
         messages.warning(request, f"Failed to download {fid}.")
 
-    return redirect("profile_list")
+    return redirect(_safe_next(request, "profile_list"))
 
 
 def _parse_arxiv_ids(raw: str) -> list[str]:

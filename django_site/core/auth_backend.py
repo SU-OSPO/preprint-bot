@@ -21,7 +21,11 @@ def authenticate_pbuser(request, email: str, password: str):
 
 def login_pbuser(request, pb_user: PBUser):
     """Log in a PBUser via Django's session framework."""
+    # flag brand-new accounts for onboarding.
+    is_first_login = pb_user.last_login is None
     login(request, pb_user)
+    if is_first_login:
+        request.session["onboarding"] = True
 
 
 def logout_pbuser(request):
