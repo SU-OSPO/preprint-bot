@@ -1,0 +1,509 @@
+const SCRIPT_PREFIX = (window.PAPER_MANAGER && window.PAPER_MANAGER.scriptPrefix) || '';
+/* ── Tab switching ──────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabs = btn.closest('.paper-tabs');
+    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    tabs.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ── arXiv search ───────────────────────────────────── */
+const PER_PAGE = (window.PAPER_MANAGER && window.PAPER_MANAGER.perPage) || 10;
+const ARXIV_DELAY_MS = 3000;  /* arXiv rate limit: 3 seconds between requests */
+
+document.querySelectorAll('.search-btn').forEach(btn => {
+  btn.addEventListener('click', () => doSearch(btn));
+});
+
+document.querySelectorAll('.search-title, .search-author').forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doSearch(input.closest('.tab-panel').querySelector('.search-btn'));
+    }
+  });
+});
+
+function doSearch(btn) {
+  const panel   = btn.closest('.tab-panel');
+  const title   = panel.querySelector('.search-title').value.trim();
+  const author  = panel.querySelector('.search-author').value.trim();
+  const spinner = panel.querySelector('.search-spinner');
+  const box     = panel.querySelector('.search-results');
+
+  if (!title && !author) { box.innerHTML = '<p class="text-dim">Enter a title or author.</p>'; return; }
+
+  spinner.style.display = '';
+  box.innerHTML = '';
+  btn.disabled = true;
+
+  const url = btn.dataset.url
+    + '?title=' + encodeURIComponent(title)
+    + '&author=' + encodeURIComponent(author);
+
+  fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => {
+      if (!r.ok && r.status === 429) {
+        return r.json().then(d => { throw new Error(d.error || 'Rate limited. Please wait and try again.'); });
+      }
+      if (!r.ok) {
+        return r.json().then(d => { throw new Error(d.error || 'Search failed.'); });
+      }
+      return r.json();
+    })
+    .then(data => {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+
+      if (data.error) {
+        box.innerHTML = '<p style="color:var(--danger);">' + esc(data.error) + '</p>';
+        return;
+      }
+      if (!data.results || data.results.length === 0) {
+        box.innerHTML = '<p class="text-dim">No papers found.</p>';
+        return;
+      }
+
+      /* split into new and already-added */
+      const newResults = data.results.filter(r => !r.already_added);
+      const addedResults = data.results.filter(r => r.already_added);
+
+      /* store results on the box element for pagination */
+      box._newResults = newResults;
+      box._addedResults = addedResults;
+      box._page = 1;
+      box._selectedIds = new Set();  /* persistent selection across pages */
+      box._addedIds = new Set();  /* papers added during this session */
+      box._addUrl = btn.closest('.paper-tabs').querySelector('[action*="add-arxiv"]').action;
+
+      renderSearchResults(box);
+    })
+    .catch(err => {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+      box.innerHTML = '<p style="color:var(--danger);">' + esc(String(err)) + '</p>';
+    });
+}
+
+function renderSearchResults(box) {
+  const newResults = box._newResults;
+  const addedResults = box._addedResults;
+  const page = box._page;
+  const addUrl = box._addUrl;
+  const totalNew = newResults.length;
+  const totalPages = Math.max(1, Math.ceil(totalNew / PER_PAGE));
+  const start = (page - 1) * PER_PAGE;
+  const pageResults = newResults.slice(start, start + PER_PAGE);
+
+  let html = '';
+
+  /* header with counts */
+  html += '<div class="flex-between mb-1">'
+    + '<span class="text-sm text-dim">'
+    + totalNew + ' new result' + (totalNew !== 1 ? 's' : '');
+  if (addedResults.length > 0) {
+    html += ' &middot; ' + addedResults.length + ' already in profile';
+  }
+  html += '<span class="sel-count"></span>';
+  html += '</span>'
+    + '<div style="display:flex;gap:.4rem;">'
+    + '<button type="button" class="btn btn-sm" onclick="togglePageCb(this,true)">Select Page</button>'
+    + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,true)" data-action="select-all">Select All ('
+    + (totalNew - (box._addedIds ? box._addedIds.size : 0)) + ')</button>'
+    + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,false)">Deselect All</button>'
+    + '</div></div>';
+
+  /* main results form */
+  const profileId = box.closest('.paper-tabs').dataset.profile;
+  html += '<form method="post" action="' + esc(addUrl) + '" class="add-arxiv-form"'
+    + ' data-profile="' + profileId + '">'
+    + '<input type="hidden" name="csrfmiddlewaretoken" value="' + getCSRF() + '">'
+    + '<input type="hidden" name="arxiv_ids" class="bulk-ids-field">'
+    + '<div class="search-results-scroll">';
+
+  if (pageResults.length === 0) {
+    html += '<p class="text-dim">No new papers found.</p>';
+  }
+  const selectedIds = box._selectedIds || new Set();
+  const addedIds = box._addedIds || new Set();
+  pageResults.forEach(r => {
+    html += renderPaperRow(r, false, selectedIds.has(r.arxiv_id), addedIds.has(r.arxiv_id));
+  });
+
+  html += '</div>';  /* close .search-results-scroll */
+
+  /* pagination */
+  if (totalPages > 1) {
+    html += '<div style="margin-top:.5rem; display:flex; gap:.3rem; align-items:center; flex-wrap:wrap;">'
+      + '<span class="text-sm text-dim">Page ' + page + ' of ' + totalPages + '</span>';
+    if (page > 1) {
+      html += ' <button type="button" class="btn btn-sm" onclick="searchPage(this,' + (page - 1) + ')">&laquo; Prev</button>';
+    }
+    if (page < totalPages) {
+      html += ' <button type="button" class="btn btn-sm" onclick="searchPage(this,' + (page + 1) + ')">Next &raquo;</button>';
+    }
+    html += '</div>';
+  }
+
+  html += '<button type="submit" class="btn btn-sm btn-primary" style="margin-top:.75rem;"'
+    + ' onclick="return collectBulk(this);">Add Selected to Profile</button>'
+    + '<div class="add-progress" style="display:none; margin-top:.5rem;"></div></form>';
+
+  /* already-added papers in collapsible section */
+  if (addedResults.length > 0) {
+    html += '<details style="margin-top:.75rem;">'
+      + '<summary class="text-sm text-dim" style="cursor:pointer;">'
+      + addedResults.length + ' paper' + (addedResults.length !== 1 ? 's' : '') + ' already in profile'
+      + '</summary><div class="search-results-scroll" style="margin-top:.25rem; opacity:0.7;">';
+    addedResults.forEach(r => {
+      html += renderPaperRow(r, true);
+    });
+    html += '</div></details>';
+  }
+
+  box.innerHTML = html;
+
+  /* wire up checkbox change events to sync with persistent selection */
+  box.querySelectorAll('.arxiv-cb:not([disabled])').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        box._selectedIds.add(cb.value);
+      } else {
+        box._selectedIds.delete(cb.value);
+      }
+      updateSelectionCount(box);
+    });
+  });
+  updateSelectionCount(box);  /* populate count from persistent selection */
+}
+
+function updateSelectionCount(box) {
+  const count = box._selectedIds ? box._selectedIds.size : 0;
+  /* update the counter in the header */
+  const countSpan = box.querySelector('.sel-count');
+  if (countSpan) {
+    countSpan.innerHTML = count > 0 ? ' &middot; <strong>' + count + ' selected</strong>' : '';
+  }
+  /* update the submit button text */
+  const btn = box.querySelector('button[type="submit"]');
+  if (btn) {
+    btn.textContent = 'Add Selected' + (count > 0 ? ' (' + count + ')' : '') + ' to Profile';
+  }
+  /* update the "Select All" button count */
+  const totalNew = (box._newResults || []).length;
+  const addedCount = box._addedIds ? box._addedIds.size : 0;
+  const selectAllBtn = box.querySelector('[data-action="select-all"]');
+  if (selectAllBtn) {
+    selectAllBtn.textContent = 'Select All (' + (totalNew - addedCount) + ')';
+  }
+}
+
+function renderPaperRow(r, isAdded, isSelected, isDisabled) {
+  let html = '<div style="padding:.5rem 0; border-bottom:1px solid var(--border);'
+    + ' display:flex; gap:.6rem; align-items:flex-start;">';
+  if (!isAdded) {
+    html += '<input type="checkbox" class="arxiv-cb" value="' + esc(r.arxiv_id) + '"'
+      + (isSelected || isDisabled ? ' checked' : '')
+      + (isDisabled ? ' disabled' : '')
+      + ' style="margin-top:.35rem;">';
+  }
+  html += '<div style="flex:1;">'
+    + '<a href="https://arxiv.org/abs/' + esc(r.arxiv_id)
+    + '" target="_blank" rel="noopener noreferrer" style="font-weight:600;">' + esc(r.title) + '</a>'
+    + '<div class="text-sm text-dim" style="margin-top:.15rem;">' + esc(r.authors) + '</div>'
+    + '<div class="text-sm text-dim">Published ' + esc(r.published)
+    + ' &middot; ' + esc(r.arxiv_id) + '</div>'
+    + '</div></div>';
+  return html;
+}
+
+function searchPage(btn, page) {
+  const box = btn.closest('.search-results');
+  box._page = page;
+  renderSearchResults(box);
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ── AJAX arXiv add ────────────────────────────────── */
+
+/* Intercept "Add by ID" form submissions */
+document.addEventListener('submit', e => {
+  const form = e.target.closest('.add-arxiv-form');
+  if (!form) return;
+  e.preventDefault();
+
+  /* collect IDs: from persistent selection set (search) or textarea (Tab 2) */
+  const textarea = form.querySelector('textarea[name="arxiv_ids"]');
+  let ids;
+  if (textarea) {
+    /* Tab 2: parse IDs from the textarea */
+    ids = textarea.value.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+  } else {
+    /* search results: use the persistent selection set */
+    const box = form.closest('.search-results');
+    const selectedIds = box ? box._selectedIds : null;
+    if (selectedIds && selectedIds.size > 0) {
+      ids = Array.from(selectedIds);
+    } else {
+      ids = Array.from(form.querySelectorAll('.arxiv-cb:checked:not([disabled])'))
+                 .map(cb => cb.value);
+    }
+  }
+
+  if (ids.length === 0) { alert('Enter or select at least one arXiv ID.'); return; }
+
+  const addUrl = form.action;
+  const profileId = form.dataset.profile;
+  const progressEl = form.querySelector('.add-progress');
+  const submitBtn = form.querySelector('button[type="submit"]');
+
+  addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, form);
+});
+
+async function addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, form) {
+  const total = ids.length;
+  let successCount = 0;
+  let errors = new Set();
+
+  /* get persistent state refs for search-tab checkbox updates */
+  const textarea = form.querySelector('textarea[name="arxiv_ids"]');
+  const box = !textarea ? form.closest('.search-results') : null;
+  const selectedIds = box ? box._selectedIds : null;
+  const addedIds = box ? box._addedIds : null;
+
+  /* disable submit button */
+  if (submitBtn) submitBtn.disabled = true;
+
+  /* show progress */
+  progressEl.style.display = '';
+  progressEl.innerHTML =
+    '<div class="text-sm" style="margin-bottom:.25rem;">'
+    + '<span class="add-progress-text">Starting...</span></div>'
+    + '<div style="background:var(--border); border-radius:4px; height:6px; overflow:hidden;">'
+    + '<div class="add-progress-fill" style="background:var(--accent); height:100%; width:0%; '
+    + 'transition:width .3s ease;"></div></div>'
+    + '<div class="add-progress-log text-sm text-dim" style="margin-top:.25rem; max-height:8rem; overflow-y:auto;"></div>';
+
+  const textEl = progressEl.querySelector('.add-progress-text');
+  const fillEl = progressEl.querySelector('.add-progress-fill');
+  const logEl  = progressEl.querySelector('.add-progress-log');
+
+  for (let i = 0; i < total; i++) {
+    const aid = ids[i];
+    textEl.textContent = 'Adding ' + (i + 1) + ' of ' + total + ': ' + aid + '...';
+
+    try {
+      const r = await fetch(addUrl, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': getCSRF(),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'arxiv_ids=' + encodeURIComponent(aid),
+      });
+      const data = await r.json();
+      if (data.ok && data.paper) {
+        successCount++;
+        addPaperToList(profileId, data.paper);
+        logEl.innerHTML += '<div style="color:var(--success);">&#10003; ' + esc(data.paper.title || aid) + '</div>';
+        logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
+        /* immediately disable checkbox and update selection state */
+        if (selectedIds) selectedIds.delete(aid);
+        if (addedIds) addedIds.add(aid);
+        const cb = form.querySelector('.arxiv-cb[value="' + CSS.escape(aid) + '"]');
+        if (cb) { cb.checked = true; cb.disabled = true; }
+        if (box) updateSelectionCount(box);
+      } else {
+        errors.add(aid);
+        logEl.innerHTML += '<div style="color:var(--danger);">&#10007; ' + esc(aid) + ': ' + esc(data.error || 'Unknown error') + '</div>';
+        logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
+      }
+    } catch (err) {
+      errors.add(aid);
+      logEl.innerHTML += '<div style="color:var(--danger);">&#10007; ' + esc(aid) + ': ' + esc(String(err)) + '</div>';
+      logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
+    }
+
+    /* update progress bar */
+    fillEl.style.width = ((i + 1) / total * 100) + '%';
+
+    /* wait between requests to respect arXiv rate limits */
+    if (i < total - 1) {
+      textEl.textContent = 'Waiting for arXiv rate limit (' + (i + 2) + ' of ' + total + ' next)...';
+      await new Promise(resolve => setTimeout(resolve, ARXIV_DELAY_MS));
+    }
+  }
+
+  /* summary */
+  let summary = successCount + ' of ' + total + ' paper(s) added.';
+  if (errors.size > 0) {
+    summary += ' ' + errors.size + ' failed.';
+  }
+  textEl.innerHTML = '<strong>' + summary + '</strong>';
+
+  /* re-enable submit */
+  if (submitBtn) submitBtn.disabled = false;
+
+  /* clear textarea if present (Tab 2) */
+  if (textarea && successCount > 0) textarea.value = '';
+}
+
+function addPaperToList(profileId, paper) {
+  /* find the paper list scroll div for this profile (not the search results) */
+  const tabs = document.querySelector('.paper-tabs[data-profile="' + profileId + '"]');
+  if (!tabs) return;
+  const details = tabs.closest('.card').querySelector('details.paper-list');
+  if (!details) return;
+  const scroll = details.querySelector('.search-results-scroll');
+  if (!scroll) return;
+
+  /* remove "No papers added yet" message if present */
+  const empty = scroll.querySelector('p.text-dim');
+  if (empty) empty.remove();
+
+  /* build paper row HTML */
+  const viewUrl = SCRIPT_PREFIX + '/profiles/' + profileId + '/papers/' + paper.id + '/';
+  const deleteUrl = viewUrl + 'delete/';
+
+  let sourceHtml;
+  if (paper.source === 'arxiv' && paper.arxiv_id) {
+    sourceHtml = 'arXiv: <a href="https://arxiv.org/abs/' + esc(paper.arxiv_id)
+      + '" target="_blank" rel="noopener noreferrer">' + esc(paper.arxiv_id) + '</a>';
+  } else if (paper.source === 'arxiv') {
+    sourceHtml = 'arXiv';
+  } else {
+    sourceHtml = 'User upload';
+  }
+
+  const title = paper.title || ('paper_' + paper.id);
+  const truncTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
+
+  const row = document.createElement('div');
+  row.className = 'flex-between paper-row';
+  row.style.cssText = 'padding:.35rem 0; border-bottom:1px solid var(--border);';
+  row.innerHTML =
+    '<div style="flex:1; min-width:0;">'
+    + '<a href="' + esc(viewUrl) + '" target="_blank" rel="noopener noreferrer"'
+    + ' class="text-sm" style="font-weight:600;">' + esc(truncTitle) + '</a>'
+    + '<div class="text-sm text-dim">' + sourceHtml + '</div>'
+    + '</div>'
+    + '<button type="button" class="btn btn-sm btn-danger" aria-label="Remove paper"'
+    + ' onclick="deletePaper(this, \'' + esc(deleteUrl) + '\')">&#128465;</button>';
+
+  scroll.prepend(row);
+
+  /* update paper count in <summary> */
+  const summary = details.querySelector('summary');
+  const match = summary.textContent.match(/(\d+)/);
+  if (match) {
+    const newCount = parseInt(match[1]) + 1;
+    summary.textContent = summary.textContent.replace(/\d+/, newCount);
+  }
+}
+
+/* ── Helpers ────────────────────────────────────────── */
+function deletePaper(btn, url) {
+  if (!confirm('Remove this paper from the profile?')) return;
+
+  const row = btn.closest('.flex-between');
+  btn.disabled = true;
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRFToken': getCSRF(),
+    },
+  })
+    .then(r => {
+      if (!r.ok) throw new Error('Delete failed');
+      return r.json();
+    })
+    .then(() => {
+      /* capture references before removing from DOM */
+      const details = row.closest('details');
+
+      /* remove the row */
+      row.remove();
+      if (details) {
+        const summary = details.querySelector('summary');
+        const match = summary.textContent.match(/(\d+)/);
+        if (match) {
+          const newCount = Math.max(0, parseInt(match[1]) - 1);
+          summary.textContent = summary.textContent.replace(/\d+/, newCount);
+        }
+
+        /* show empty message if no papers left */
+        const scroll = details.querySelector('.search-results-scroll');
+        if (scroll && scroll.querySelectorAll('.paper-row').length === 0) {
+          scroll.innerHTML = '<p class="text-sm text-dim">No papers added yet.</p>';
+        }
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      alert('Failed to remove paper. Please try again.');
+    });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function getCSRF() {
+  const el = document.querySelector('[name=csrfmiddlewaretoken]');
+  return el ? el.value : '';
+}
+
+function togglePageCb(btn, checked) {
+  const box = btn.closest('.search-results');
+  const selectedIds = box._selectedIds;
+  /* only toggle visible checkboxes on this page (skip already-added) */
+  box.querySelectorAll('.arxiv-cb:not([disabled])').forEach(cb => {
+    cb.checked = checked;
+    if (checked) {
+      selectedIds.add(cb.value);
+    } else {
+      selectedIds.delete(cb.value);
+    }
+  });
+  updateSelectionCount(box);
+}
+
+function toggleAllCb(btn, checked) {
+  const box = btn.closest('.search-results');
+  const selectedIds = box._selectedIds;
+  const addedIds = box._addedIds || new Set();
+  if (checked) {
+    /* select all results across all pages, skipping already-added */
+    (box._newResults || []).forEach(r => {
+      if (!addedIds.has(r.arxiv_id)) selectedIds.add(r.arxiv_id);
+    });
+  } else {
+    selectedIds.clear();
+  }
+  /* update visible checkboxes on this page */
+  box.querySelectorAll('.arxiv-cb:not([disabled])')
+     .forEach(cb => cb.checked = checked);
+  updateSelectionCount(box);
+}
+
+/* collectBulk validates selection count before the form submit handler fires */
+function collectBulk(btn) {
+  const box = btn.closest('.search-results');
+  const selectedIds = box ? box._selectedIds : null;
+  if (!selectedIds || selectedIds.size === 0) {
+    /* fall back to checking visible checkboxes (Tab 2 textarea path) */
+    const form = btn.closest('form');
+    const ids = Array.from(form.querySelectorAll('.arxiv-cb:checked:not([disabled])'))
+                     .map(cb => cb.value);
+    if (ids.length === 0) { alert('Select at least one paper.'); return false; }
+  }
+  return true;
+}

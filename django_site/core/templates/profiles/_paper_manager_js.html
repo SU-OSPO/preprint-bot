@@ -1,0 +1,9 @@
+{% load static %}
+{# Server values for the paper manager; the logic lives in the static JS. #}
+<script>
+  window.PAPER_MANAGER = {
+    scriptPrefix: "{{ SCRIPT_PREFIX }}",
+    perPage: {{ arxiv_search_per_page|default:10 }}
+  };
+</script>
+<script src="{% static 'core/paper_manager.js' %}" defer></script>

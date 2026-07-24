@@ -1,0 +1,65 @@
+{% extends "base_onboarding.html" %}
+{% block title %}Add your first papers – Preprint Bot{% endblock %}
+
+{% block content %}
+<p class="onboarding-step">Step 2 of 2</p>
+<h1>Add papers to "{{ profile.name }}"</h1>
+<p class="subtitle">These papers define what "relevant" means for this profile. The more representative they are, the better your matches.</p>
+
+<div class="card">
+  <div class="onboarding-hint" style="margin-bottom:.75rem;">
+    Three ways to add papers — use whichever is easiest:
+    <strong>Upload PDF</strong> for papers on your computer,
+    <strong>Add by ID</strong> if you have arXiv IDs or links, or
+    <strong>Search arXiv</strong> to find them by title or author.
+  </div>
+
+  {# ── Add-paper tabs (shared with the profiles page) ── #}
+  {% include "profiles/_paper_tabs.html" with p=profile next_url=request.path %}
+
+  <hr>
+
+  {# ── Papers added so far (DOM matches _paper_manager_js expectations) ── #}
+  <details open class="paper-list">
+    <summary style="cursor:pointer; font-weight:600; font-size:.9rem;">
+      📄 Papers ({{ papers|length }})
+    </summary>
+    <div class="search-results-scroll" style="margin-top:.5rem;">
+      {% if papers %}
+        {% for paper in papers %}
+        <div class="flex-between paper-row" style="padding:.35rem 0; border-bottom:1px solid var(--border);">
+          <div style="flex:1; min-width:0;">
+            <a href="{% url 'paper_view' profile.pk paper.pk %}" target="_blank" rel="noopener noreferrer"
+               class="text-sm" style="font-weight:600;">{{ paper.title|truncatechars:80 }}</a>
+            <div class="text-sm text-dim">
+              {% if paper.source == 'arxiv' and paper.arxiv_id %}
+                arXiv: <a href="https://arxiv.org/abs/{{ paper.arxiv_id }}" target="_blank" rel="noopener noreferrer">{{ paper.arxiv_id }}</a>
+              {% elif paper.source == 'arxiv' %}
+                arXiv
+              {% else %}
+                User upload
+              {% endif %}
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger" aria-label="Remove paper"
+                  onclick="deletePaper(this, '{% url 'paper_delete' profile.pk paper.pk %}')">🗑</button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-sm text-dim">No papers added yet.</p>
+      {% endif %}
+    </div>
+  </details>
+</div>
+
+<div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+  <form method="post" action="{% url 'onboarding_finish' %}" style="margin:0;">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Finish</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% include "profiles/_paper_manager_js.html" %}
+{% endblock %}

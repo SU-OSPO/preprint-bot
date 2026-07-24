@@ -1,9 +1,10 @@
-{% extends "base.html" %}
-{% block title %}{% if editing %}Edit Profile{% else %}New Profile{% endif %} – Preprint Bot{% endblock %}
+{% extends "base_onboarding.html" %}
+{% block title %}Create your first profile – Preprint Bot{% endblock %}
 
 {% block content %}
-<h1>{% if editing %}Edit "{{ profile.name }}"{% else %}New Profile{% endif %}</h1>
-<p class="subtitle">{% if editing %}Update your research profile settings.{% else %}Create a new research interest profile.{% endif %}</p>
+<p class="onboarding-step">Step 1 of 2</p>
+<h1>Create your first profile</h1>
+<p class="subtitle">A profile is a set of research interests. We'll match new preprints against it and email you the closest ones.</p>
 
 {% if form.non_field_errors %}
   <div class="alert alert-error">{{ form.non_field_errors.0 }}</div>
@@ -20,10 +21,12 @@
       <div class="form-group">
         <label for="id_name">Profile Name</label>
         {{ form.name }}
+        <div class="onboarding-hint">Something memorable, e.g. your topic or project name.</div>
       </div>
       <div class="form-group">
         <label for="id_frequency">Email Frequency</label>
         {{ form.frequency }}
+        <div class="onboarding-hint">How often you'd like a digest of matches.</div>
       </div>
     </div>
 
@@ -38,6 +41,7 @@
           <span>More results</span>
           <span>Stricter</span>
         </div>
+        <div class="onboarding-hint">Higher = fewer but more relevant matches. The default is a good start.</div>
       </div>
       <div class="form-group">
         <label for="id_top_x">Max Recommendations</label>
@@ -47,13 +51,12 @@
     </div>
   </div>
 
-  {# ── Category picker ───────────────────────────────── #}
+  {# ── Category picker (shared with the profile create page) ── #}
+  <div class="onboarding-hint" style="margin-bottom:.4rem;">Pick the arXiv sub-fields you follow. You can change these any time later.</div>
   {% include "profiles/_category_picker.html" %}
 
   <div style="display:flex; gap:.75rem; margin-top:1rem;">
-    <button type="submit" class="btn btn-primary">{% if editing %}Update Profile{% else %}Create Profile{% endif %}</button>
-    <a href="{% url 'profile_list' %}" class="btn">Cancel</a>
+    <button type="submit" class="btn btn-primary">Continue</button>
   </div>
 </form>
 {% endblock %}
-

@@ -2,6 +2,16 @@
 {% block title %}Dashboard – Preprint Bot{% endblock %}
 
 {% block content %}
+{% if just_onboarded %}
+<div class="congrats-overlay" id="congrats-overlay">
+  <div class="congrats-modal">
+    <h2 style="margin-top:0;">🎉 You're all set!</h2>
+    <p>Your first profile is ready. We'll match new preprints against it and email you the closest ones after the next run.</p>
+    <button type="button" class="btn btn-primary"
+            onclick="document.getElementById('congrats-overlay').remove();">Get started</button>
+  </div>
+</div>
+{% endif %}
 <h1>Dashboard</h1>
 <p class="subtitle">Welcome back, {{ pb_user.name|default:pb_user.email }}.</p>
 

@@ -493,3 +493,66 @@ h3 { font-size: 1rem; font-weight: 600; margin-bottom: .35rem; }
 .mb-1 { margin-bottom: .5rem; }
 .mb-2 { margin-bottom: 1rem; }
 hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+
+/* ── Onboarding (chrome-free walkthrough) ─────────────── */
+.onboarding-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem 1.5rem;
+  background: var(--bg-nav);
+  color: #fff;
+}
+.onboarding-bar .brand {
+  font-weight: 700;
+  color: #fff;
+}
+.onboarding-skip {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .8rem;
+  color: rgba(255,255,255,.75);
+  text-decoration: underline;
+  padding: .25rem;
+}
+.onboarding-skip:hover { color: #fff; }
+.onboarding-container { max-width: 720px; }
+.onboarding-step {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: .25rem;
+}
+.onboarding-hint {
+  font-size: .82rem;
+  color: var(--text-dim);
+  background: var(--accent-dim);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: .5rem .7rem;
+  margin-top: .35rem;
+}
+
+/* ── Congrats modal (post-onboarding) ─────────────────── */
+.congrats-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+.congrats-modal {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+  max-width: 26rem;
+  text-align: center;
+}
+.congrats-modal p { margin: .75rem 0 1.25rem; color: var(--text-dim); }
