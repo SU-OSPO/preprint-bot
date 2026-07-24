@@ -52,14 +52,32 @@
   </details>
 </div>
 
-<div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+<div style="display:flex; justify-content:flex-end; align-items:center; gap:.75rem; margin-top:1rem;">
+  <span id="finish-hint" class="text-sm text-dim"{% if papers %} style="display:none;"{% endif %}>Add at least one paper to finish.</span>
   <form method="post" action="{% url 'onboarding_finish' %}" style="margin:0;">
     {% csrf_token %}
-    <button type="submit" class="btn btn-primary">Finish</button>
+    <input type="hidden" name="profile_id" value="{{ profile.pk }}">
+    <button type="submit" id="finish-btn" class="btn btn-primary"{% if not papers %} disabled{% endif %}>Finish</button>
   </form>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 {% include "profiles/_paper_manager_js.html" %}
+<script>
+  // Gate the Finish button on having at least one paper in the list.
+  (function () {
+    const scroll = document.querySelector('details.paper-list .search-results-scroll');
+    const btn = document.getElementById('finish-btn');
+    const hint = document.getElementById('finish-hint');
+    if (!scroll || !btn) return;
+    const sync = () => {
+      const has = scroll.querySelectorAll('.paper-row').length > 0;
+      btn.disabled = !has;
+      if (hint) hint.style.display = has ? 'none' : '';
+    };
+    new MutationObserver(sync).observe(scroll, { childList: true });
+    sync();
+  })();
+</script>
 {% endblock %}

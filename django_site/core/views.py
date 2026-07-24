@@ -882,7 +882,17 @@ def onboarding_papers_view(request, profile_id):
 @pbuser_required
 @require_POST
 def onboarding_finish_view(request):
-    """Finish onboarding and land on the dashboard with a congrats note."""
+    """Finish onboarding and land on the dashboard with a congrats note.
+    Requires the profile to have at least one paper."""
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=request.POST.get("profile_id"), user=pb_user)
+
+    corpus_name = f"user_{pb_user.pk}_profile_{profile.pk}"
+    corpus = Corpus.objects.filter(user=pb_user, name=corpus_name).first()
+    if not (corpus and Paper.objects.filter(corpora=corpus).exists()):
+        messages.error(request, "Add at least one paper before finishing.")
+        return redirect("onboarding_papers", profile_id=profile.pk)
+
     request.session.pop("onboarding", None)
     request.session["onboarding_just_finished"] = True
     return redirect("dashboard")

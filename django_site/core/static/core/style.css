@@ -141,6 +141,12 @@ h3 { font-size: 1rem; font-weight: 600; margin-bottom: .35rem; }
 .btn-danger:hover { background: #fef2f2; }
 .btn-sm { padding: .3rem .65rem; font-size: .8rem; }
 
+/* Disabled buttons: dimmed, no pointer, no hover feedback */
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled:hover { background: var(--bg-card); filter: none; text-decoration: none; }
+.btn-primary:disabled:hover { background: var(--accent); border-color: var(--accent); color: #fff; filter: none; }
+.btn-danger:disabled:hover { background: #fff; }
+
 /* ── Forms ────────────────────────────────────────────── */
 .form-group { margin-bottom: 1rem; }
 .form-group label {
