@@ -2,7 +2,7 @@
 {# Server values for the paper manager; the logic lives in the static JS. #}
 <script>
   window.PAPER_MANAGER = {
-    scriptPrefix: "{{ SCRIPT_PREFIX }}",
+    scriptPrefix: "{{ SCRIPT_PREFIX|escapejs }}",
     perPage: {{ arxiv_search_per_page|default:10 }}
   };
 </script>

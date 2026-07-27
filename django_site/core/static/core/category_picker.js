@@ -6,7 +6,14 @@
 
 const _catTreeEl = document.getElementById('category-tree');
 const TREE = JSON.parse(_catTreeEl.dataset.tree);
-const INITIAL = JSON.parse(_catTreeEl.dataset.initial || '[]');
+// Prefer data-initial; fall back to the hidden input so selections survive a
+// server-side form re-render (e.g., a validation error).
+let INITIAL = JSON.parse(_catTreeEl.dataset.initial || '[]');
+if (INITIAL.length === 0) {
+  const hiddenEl = document.getElementById('id_categories');
+  const hidden = hiddenEl ? hiddenEl.value.trim() : '';
+  if (hidden) INITIAL = hidden.split(',').map(s => s.trim()).filter(Boolean);
+}
 const initialSet = new Set(INITIAL);
 
 /* ── Build the tree ────────────────────────────────────────── */
