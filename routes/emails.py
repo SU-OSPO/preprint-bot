@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import date, datetime
 import json
 from database import get_db_pool
-from services.email_service import send_recommendations_digest, send_email
+from services.email_service import send_recommendations_digest, send_email, send_admin_alert
 
 router = APIRouter(prefix="/emails", tags=["emails"])
 
@@ -121,3 +121,15 @@ async def test_email(to_email: str):
     if not success:
         raise HTTPException(status_code=500, detail="Test email failed")
     return {"status": "sent", "to": to_email}
+
+
+class AdminAlertRequest(BaseModel):
+    subject: str
+    detail: str
+
+
+@router.post("/admin-alert")
+async def admin_alert(req: AdminAlertRequest):
+    """Email the configured admin address about a pipeline failure."""
+    sent = await run_in_threadpool(send_admin_alert, req.subject, req.detail)
+    return {"sent": sent}

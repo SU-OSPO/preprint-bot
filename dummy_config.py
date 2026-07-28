@@ -97,6 +97,7 @@ EMAIL_USER = ""  # TODO: SMTP login username
 EMAIL_PASSWORD = ""  # TODO: SMTP login password
 EMAIL_FROM_ADDRESS = "noreply@localhost"  # TODO: sender address
 EMAIL_FROM_NAME = "Preprint Bot"  # TODO: sender display name
+ADMIN_EMAIL = ""  # TODO: address to alert when the pipeline errors (defaults to EMAIL_FROM_ADDRESS if empty)
 
 # ==================== DATABASE SETTINGS ====================
 
