@@ -659,7 +659,7 @@ class EmailVerificationOnTests(TestCase):
             "password": "GoodPassword99!",
             "confirm_password": "GoodPassword99!",
         })
-        resp = self.client.get("/")
+        resp = self.client.get("/profiles/")
         self.assertEqual(resp.status_code, 302)  # redirected to login
 
     def test_register_creates_unverified_user(self):
