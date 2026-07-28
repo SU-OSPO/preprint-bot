@@ -1,6 +1,7 @@
 import httpx
 from typing import List, Dict, Optional
 import datetime
+import asyncio
 
 class APIClient:
     def __init__(self, base_url: str = "http://127.0.0.1:8000"):
@@ -228,12 +229,28 @@ class APIClient:
         params = {"corpus_id": corpus_id}
         if type:
             params["type"] = type
-        response = await self.client.get(
-            f"{self.base_url}/embeddings/",
-            params=params
-        )
-        response.raise_for_status()
-        return response.json()
+        return await self._get_embeddings_retry(params)
+
+    async def _get_embeddings_retry(
+        self, params: Dict, max_retries: int = 4, backoff: float = 2.0,
+    ) -> List[Dict]:
+        """GET /embeddings/ with retry + backoff on dropped connections."""
+        timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+        last_exc = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.get(f"{self.base_url}/embeddings/", params=params)
+                    response.raise_for_status()
+                    return response.json()
+            except httpx.TransportError as e:
+                last_exc = e
+                if attempt < max_retries:
+                    wait = backoff * (2 ** (attempt - 1))
+                    print(f"  embeddings fetch attempt {attempt}/{max_retries} failed "
+                          f"({e.__class__.__name__}); retrying in {wait:.0f}s")
+                    await asyncio.sleep(wait)
+        raise last_exc
     
     async def get_embeddings_by_paper(self, paper_id: int, type: str = None) -> List[Dict]:
         params = {"paper_id": paper_id}
