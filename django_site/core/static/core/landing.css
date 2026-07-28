@@ -1,0 +1,107 @@
+/* Landing page styles. Loaded only by landing.html. */
+
+.lp { font-family: var(--font-body); color: var(--text); background: var(--bg); }
+.lp-wrap { max-width: 860px; margin: 0 auto; }
+.lp-em { color: var(--text); font-weight: 500; }
+.lp-desc { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+
+/* Nav — matches the app's dark top nav */
+.lp-nav { display:flex; align-items:center; justify-content:space-between;
+  padding:.75rem 1.5rem; background:var(--bg-nav); color:#fff;
+  position:sticky; top:0; z-index:50; }
+.lp-brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:1.15rem; letter-spacing:-.02em; color:#fff; }
+.lp-navlinks { display:flex; align-items:center; gap:4px; font-size:.875rem; }
+.lp-navlinks a:not(.lp-btn), .lp-navlinks span { color:rgba(255,255,255,.7); text-decoration:none;
+  cursor:pointer; padding:.35rem .7rem; border-radius:var(--radius); font-weight:500;
+  transition:background .15s, color .15s; }
+.lp-navlinks a:not(.lp-btn):hover, .lp-navlinks span:hover { color:#fff; background:rgba(255,255,255,.12); }
+.lp-navlinks .lp-btn { margin-left:.4rem; }
+
+/* Buttons */
+.lp-btn { display:inline-flex; align-items:center; height:44px; padding:0 20px;
+  border-radius:var(--radius); font-weight:600; font-size:14px; text-decoration:none;
+  border:1px solid transparent; transition:filter .15s, background .15s; white-space:nowrap; }
+.lp-btn-primary { background:var(--accent); color:#fff; }
+.lp-btn-primary:hover { filter:brightness(.93); text-decoration:none; }
+.lp-btn-ghost { background:transparent; color:var(--text); border-color:var(--border); }
+.lp-btn-ghost:hover { background:var(--bg); text-decoration:none; }
+.lp-btn-sm { height:38px; padding:0 15px; }
+.lp-btn-row { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+/* Hero */
+.lp-hero { padding:70px 28px 46px; text-align:center; background:var(--bg); }
+.lp-hero-h1 { margin:0 auto; font-size:50px; line-height:1.07; font-weight:700; letter-spacing:-.02em; max-width:720px; }
+.lp-hero-sub { margin:22px auto 0; font-size:16.5px; line-height:1.6; color:var(--text-dim); max-width:600px; }
+.lp-hero .lp-btn-row { margin-top:30px; }
+.lp-hero-meta { margin-top:16px; font-size:12px; color:var(--text-dim); }
+
+/* Sections */
+.lp-section { padding:56px 40px; border-top:1px solid var(--border); background:var(--bg); }
+.lp-eyebrow { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); margin-bottom:18px; }
+.lp-rule { display:flex; align-items:center; gap:14px; margin-bottom:28px; }
+.lp-rule__label { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
+.lp-rule__fill { flex:1; height:1px; background:var(--border); }
+.lp-code { font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:4px; color:var(--text-dim); }
+
+/* Live panel */
+.lp-panel-wrap { padding:0 28px 46px; background:var(--bg); }
+.lp-panel { max-width:760px; margin:0 auto; text-align:left; border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; background:var(--bg-card); box-shadow:var(--shadow); }
+.lp-panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg); }
+.lp-panel-profile { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.lp-panel-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); }
+.lp-panel-name { font-size:13px; font-weight:600; color:var(--text); }
+.lp-panel-status { display:flex; align-items:center; gap:8px; }
+.lp-spin { color:var(--accent); }
+.lp-scan { font-size:12px; color:var(--text-dim); }
+
+/* Streaming paper feed — fixed height so it never stretches */
+.lp-feed { padding:8px; display:flex; flex-direction:column; gap:8px; height:488px; overflow:hidden; }
+.lp-paper { display:grid; grid-template-columns:1fr auto; gap:16px; align-items:center;
+  height:88px; flex-shrink:0; padding:10px 15px; background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); opacity:0; }
+.lp-paper-main { min-width:0; }
+.lp-paper-title { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  font-size:14px; font-weight:600; color:var(--text); line-height:1.35; text-decoration:none; }
+.lp-paper-title:hover { color:var(--accent); }
+.lp-paper-meta { margin-top:5px; font-size:11.5px; color:var(--text-dim); }
+.lp-bar { margin-top:9px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+.lp-bar-fill { height:100%; width:0; background:var(--accent); border-radius:2px; }
+.lp-score { text-align:right; min-width:58px; }
+.lp-score-num { font-size:24px; font-weight:600; line-height:1; color:var(--accent); }
+.lp-score-label { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-dim); margin-top:5px; }
+
+/* How it works */
+.lp-steps { display:grid; grid-template-columns:repeat(4,1fr); }
+.lp-step { padding:0 22px; border-right:1px solid var(--border); }
+.lp-step:first-child { padding-left:0; }
+.lp-step:last-child { padding-right:0; border-right:none; }
+.lp-step-num { font-size:15px; color:var(--accent); font-weight:600; }
+.lp-step h3 { margin:12px 0 8px; font-size:15px; font-weight:600; }
+
+/* Features */
+.lp-features { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden; }
+.lp-feature { padding:22px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); }
+.lp-feature:nth-child(3n) { border-right:none; }
+.lp-feature:nth-child(n+4) { border-bottom:none; }
+.lp-feature h3 { margin:0 0 8px; font-size:14.5px; font-weight:600; color:var(--accent); }
+
+/* Footer CTA */
+.lp-cta { text-align:center; background:var(--bg-card); }
+.lp-cta h2 { margin:0; font-size:26px; font-weight:700; }
+.lp-cta .lp-btn-row { margin-top:22px; }
+.lp-cta-note { margin-top:26px; font-size:12px; color:var(--text-dim); }
+.lp-cta-note a { color:var(--text-dim); }
+
+/* Responsive */
+@media (max-width:640px) {
+  .lp-section { padding:40px 20px; }
+  .lp-nav { padding:13px 18px; }
+  .lp-navlinks .hide-sm { display:none; }
+  .lp-hero-h1 { font-size:34px; }
+  .lp-steps, .lp-features { grid-template-columns:1fr; }
+  .lp-step { border-right:none; border-bottom:1px solid var(--border); padding:16px 0; }
+  .lp-step:last-child { border-bottom:none; }
+}
