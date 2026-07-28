@@ -87,7 +87,8 @@ async def batch_create_embeddings(embeddings: List[EmbeddingCreate]):
 async def get_embeddings(
     paper_id: Optional[int] = Query(None),
     corpus_id: Optional[int] = Query(None),
-    type: Optional[str] = Query(None)
+    type: Optional[str] = Query(None),
+    paper_ids: Optional[List[int]] = Query(None)
 ):
     """Get embeddings with optional filters"""
     pool = await get_db_pool()
@@ -109,6 +110,11 @@ async def get_embeddings(
     if type is not None:
         conditions.append(f"e.type = ${idx}")
         params.append(type)
+        idx += 1
+    
+    if paper_ids:
+        conditions.append(f"e.paper_id = ANY(${idx})")
+        params.append(paper_ids)
         idx += 1
     
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""

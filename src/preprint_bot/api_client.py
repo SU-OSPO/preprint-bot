@@ -3,6 +3,11 @@ from typing import List, Dict, Optional
 import datetime
 import asyncio
 
+# Chunk size for GET /embeddings/?paper_ids=... so the request URL stays well
+# under the server's header-size limit when filtering to many papers.
+_EMBED_ID_CHUNK = 200
+
+
 class APIClient:
     def __init__(self, base_url: str = "http://127.0.0.1:8000"):
         self.base_url = base_url
@@ -225,11 +230,27 @@ class APIClient:
         response.raise_for_status()
         return response.json()
     
-    async def get_embeddings_by_corpus(self, corpus_id: int, type: str = None) -> List[Dict]:
+    async def get_embeddings_by_corpus(
+        self, corpus_id: int, type: str = None,
+        paper_ids: Optional[List[int]] = None,
+    ) -> List[Dict]:
         params = {"corpus_id": corpus_id}
         if type:
             params["type"] = type
-        return await self._get_embeddings_retry(params)
+
+        # No id filter: one request for the whole corpus.
+        if not paper_ids:
+            return await self._get_embeddings_retry(params)
+
+        # Filter to specific papers in SQL, chunking the id list so the request
+        # URL stays under the server's header-size limit.
+        results: List[Dict] = []
+        for i in range(0, len(paper_ids), _EMBED_ID_CHUNK):
+            chunk = paper_ids[i:i + _EMBED_ID_CHUNK]
+            results.extend(
+                await self._get_embeddings_retry({**params, "paper_ids": chunk})
+            )
+        return results
 
     async def _get_embeddings_retry(
         self, params: Dict, max_retries: int = 4, backoff: float = 2.0,

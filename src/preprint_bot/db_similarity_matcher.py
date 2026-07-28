@@ -102,20 +102,18 @@ async def run_similarity_matching(
     print(f"\nCreated recommendation run ID: {run_id}")
     
     # Fetch embeddings based on mode
-    if use_sections:
-        print("\nFetching embeddings (abstract + sections)...")
-        user_embeddings = await api_client.get_embeddings_by_corpus(user_corpus_id)
-        all_arxiv_embeddings = await api_client.get_embeddings_by_corpus(arxiv_corpus_id)
-    else:
-        print("\nFetching embeddings (abstract only)...")
-        user_embeddings = await api_client.get_embeddings_by_corpus(user_corpus_id, type="abstract")
-        all_arxiv_embeddings = await api_client.get_embeddings_by_corpus(arxiv_corpus_id, type="abstract")
-
-    # Keep only embeddings for candidate papers
+    # Fetch embeddings for user's papers
+    emb_type = None if use_sections else "abstract"
+    print(f"\nFetching embeddings ({'abstract + sections' if use_sections else 'abstract only'})...")
+    user_embeddings = await api_client.get_embeddings_by_corpus(user_corpus_id, type=emb_type)
+    
+    # Fetch embeddings for new arXiv papers
     if candidate_ids:
-        arxiv_embeddings = [e for e in all_arxiv_embeddings if e['paper_id'] in candidate_ids]
+        arxiv_embeddings = await api_client.get_embeddings_by_corpus(
+            arxiv_corpus_id, type=emb_type, paper_ids=list(candidate_ids)
+        )
     else:
-        arxiv_embeddings = all_arxiv_embeddings
+        arxiv_embeddings = await api_client.get_embeddings_by_corpus(arxiv_corpus_id, type=emb_type)
     
     if not user_embeddings:
         print("Error: No user embeddings found. Run embedding step first.")
