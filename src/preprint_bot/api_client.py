@@ -402,3 +402,12 @@ class APIClient:
         response = await self.client.get(f"{self.base_url}/papers/arxiv-stats/date/{date}")
         response.raise_for_status()
         return response.json()
+
+    async def send_admin_alert(self, subject: str, detail: str) -> Dict:
+        """Ask the API to email the configured admin about a pipeline failure."""
+        response = await self.client.post(
+            f"{self.base_url}/emails/admin-alert",
+            json={"subject": subject, "detail": detail},
+        )
+        response.raise_for_status()
+        return response.json()

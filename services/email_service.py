@@ -9,6 +9,10 @@ from typing import List, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME, SITE_URL
+try:
+    from config import ADMIN_EMAIL
+except ImportError:
+    ADMIN_EMAIL = ""
 
 DASHBOARD_URL = SITE_URL
 SU_ORANGE = "#F76900"
@@ -105,6 +109,24 @@ def send_email(to_address: str, subject: str, html_body: str) -> bool:
     except Exception as e:
         print(f"Email send failed: {e}")
         return False
+
+
+def send_admin_alert(subject: str, detail: str) -> bool:
+    """Email the admin about a pipeline failure."""
+    # Fall back to EMAIL_FROM_ADDRESS when ADMIN_EMAIL is not configured
+    recipient = ADMIN_EMAIL or EMAIL_FROM_ADDRESS
+    if not recipient:
+        print("Admin alert skipped: no ADMIN_EMAIL or EMAIL_FROM_ADDRESS set.")
+        return False
+    # Strip CR/LF to prevent header injection, and bound the subject length.
+    subject = subject.replace("\r", " ").replace("\n", " ")[:300]
+    html_body = (
+        "<p>The Preprint Bot pipeline reported an error:</p>"
+        "<pre style=\"white-space:pre-wrap;font-size:13px;background:#f6f6f6;"
+        "padding:12px;border-radius:6px;overflow-x:auto;\">"
+        f"{html.escape(detail)}</pre>"
+    )
+    return send_email(recipient, subject, html_body)
 
 
 def send_recommendations_digest(

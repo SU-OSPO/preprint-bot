@@ -5,6 +5,7 @@ Database-integrated Preprint Recommender Pipeline
 import argparse
 import asyncio
 import sys
+import traceback
 from pathlib import Path
 from typing import List
 from datetime import datetime, timezone, date as date_type
@@ -613,6 +614,32 @@ async def run_pipeline(args):
         await api_client.close()
 
 
+def _notify_admin_of_failure(detail: str):
+    """Ask the API to email the admin about a pipeline failure (best-effort)."""
+    # Keep the tail of long tracebacks — the exception and innermost frames.
+    max_detail = 8000
+    if len(detail) > max_detail:
+        detail = "…(truncated)…\n" + detail[-max_detail:]
+
+    async def _send():
+        client = APIClient(base_url=API_BASE_URL)
+        try:
+            subject = f"\u26a0\ufe0f Preprint Bot pipeline failed \u2014 {datetime.now(timezone.utc):%Y-%m-%d %H:%M %Z}"
+            return await client.send_admin_alert(subject, detail)
+        finally:
+            await client.close()
+
+    try:
+        # Bounded so a down or slow API can't hold the pipeline process open.
+        resp = asyncio.run(asyncio.wait_for(_send(), timeout=20))
+        if resp.get("sent"):
+            print("  Sent pipeline-failure alert to admin.")
+        else:
+            print("  Admin alert not sent (email delivery failed).")
+    except Exception as e:
+        print(f"  Warning: could not send admin failure alert: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Preprint Bot Pipeline")
     mode = parser.add_mutually_exclusive_group()
@@ -628,7 +655,18 @@ def main():
     parser.add_argument("--llm-model", default="models/llama-3.2-3b-instruct-q4_k_m.gguf", help="Path to LLM model")
 
     args = parser.parse_args()
-    asyncio.run(run_pipeline(args))
+    try:
+        asyncio.run(run_pipeline(args))
+    except SystemExit as e:
+        # Preflight/validation aborts (e.g. no categories, unreachable services).
+        if e.code not in (0, None):
+            _notify_admin_of_failure(
+                f"Pipeline aborted early (exit code {e.code}). See pipeline logs for details."
+            )
+        raise
+    except Exception:
+        _notify_admin_of_failure(traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":
