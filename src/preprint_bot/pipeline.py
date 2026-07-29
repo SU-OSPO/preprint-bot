@@ -615,17 +615,23 @@ async def run_pipeline(args):
 
 
 def _notify_admin_of_failure(detail: str):
-    """Ask the API to email the admin about a pipeline failure."""
+    """Ask the API to email the admin about a pipeline failure (best-effort)."""
+    # Keep the tail of long tracebacks — the exception and innermost frames.
+    max_detail = 8000
+    if len(detail) > max_detail:
+        detail = "…(truncated)…\n" + detail[-max_detail:]
+
     async def _send():
         client = APIClient(base_url=API_BASE_URL)
         try:
-            subject = f"\u26a0\ufe0f Preprint Bot pipeline failed \u2014 {datetime.now():%Y-%m-%d %H:%M}"
+            subject = f"\u26a0\ufe0f Preprint Bot pipeline failed \u2014 {datetime.now(timezone.utc):%Y-%m-%d %H:%M %Z}"
             return await client.send_admin_alert(subject, detail)
         finally:
             await client.close()
 
     try:
-        resp = asyncio.run(_send())
+        # Bounded so a down or slow API can't hold the pipeline process open.
+        resp = asyncio.run(asyncio.wait_for(_send(), timeout=20))
         if resp.get("sent"):
             print("  Sent pipeline-failure alert to admin.")
         else:

@@ -118,6 +118,8 @@ def send_admin_alert(subject: str, detail: str) -> bool:
     if not recipient:
         print("Admin alert skipped: no ADMIN_EMAIL or EMAIL_FROM_ADDRESS set.")
         return False
+    # Strip CR/LF to prevent header injection, and bound the subject length.
+    subject = subject.replace("\r", " ").replace("\n", " ")[:300]
     html_body = (
         "<p>The Preprint Bot pipeline reported an error:</p>"
         "<pre style=\"white-space:pre-wrap;font-size:13px;background:#f6f6f6;"

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date, datetime
 import json
@@ -124,8 +124,8 @@ async def test_email(to_email: str):
 
 
 class AdminAlertRequest(BaseModel):
-    subject: str
-    detail: str
+    subject: str = Field(max_length=300)
+    detail: str = Field(max_length=20000)
 
 
 @router.post("/admin-alert")
