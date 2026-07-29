@@ -1,0 +1,154 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ SITE_NAME }} — never miss the paper that matters</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/style.css' %}">
+  <link rel="stylesheet" href="{% static 'core/landing.css' %}">
+  <script src="{% static 'core/landing.js' %}" defer></script>
+
+  {# Respect the deployment's configured colors (needs template rendering, so it stays inline). #}
+  {% if ACCENT_COLOR or NAV_COLOR %}
+  <style>
+    :root {
+      {% if ACCENT_COLOR %}--accent: {{ ACCENT_COLOR }};
+      --accent-dim: color-mix(in srgb, {{ ACCENT_COLOR }} 15%, white);{% endif %}
+      {% if NAV_COLOR %}--bg-nav: {{ NAV_COLOR }};{% endif %}
+    }
+  </style>
+  {% endif %}
+</head>
+<body>
+<div class="lp">
+
+  <!-- ── Nav ─────────────────────────────────────────── -->
+  <header class="lp-nav">
+    <div class="lp-brand">{{ SITE_NAME }}</div>
+    <nav class="lp-navlinks">
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#features" class="hide-sm">Features</a>
+      <a href="https://github.com/SU-OSPO/preprint-bot" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="{% url 'login' %}">Sign in</a>
+      {% if REGISTRATION_OPEN %}<a href="{% url 'register' %}" class="lp-btn lp-btn-primary lp-btn-sm">Create account</a>{% endif %}
+    </nav>
+  </header>
+
+  <!-- ── Hero ────────────────────────────────────────── -->
+  <div class="lp-hero">
+    <div class="lp-wrap">
+      <p class="lp-eyebrow">Developed by the <a href="https://opensource.syracuse.edu/" target="_blank" rel="noopener noreferrer">Syracuse University Open Source Program Office</a></p>
+      <h1 class="lp-hero-h1">Never miss the paper that matters.</h1>
+      <p class="lp-hero-sub">{{ SITE_NAME }} reads every new arXiv paper each morning and surfaces the handful that <span class="lp-em">semantically match your research instead of a list of keywords</span>.</p>
+      <div class="lp-btn-row">
+        {% if REGISTRATION_OPEN %}
+        <a href="{% url 'register' %}" class="lp-btn lp-btn-primary">Create account →</a>
+        {% else %}
+        <a href="{% url 'login' %}" class="lp-btn lp-btn-primary">Sign in →</a>
+        {% endif %}
+        <a href="https://github.com/SU-OSPO/preprint-bot" class="lp-btn lp-btn-ghost" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live panel ──────────────────────────────────── -->
+  <div class="lp-panel-wrap">
+    <div class="lp-panel">
+      <div class="lp-panel-head">
+        <div class="lp-panel-profile">
+          <span class="lp-panel-label">Profile</span>
+          <span class="lp-panel-name">Representation Learning</span>
+          <span class="lp-code">cs.LG</span>
+          <span class="lp-code">cs.AI</span>
+        </div>
+        <div class="lp-panel-status">
+          <span id="lp-spin" class="lp-spin" aria-hidden="true">/</span>
+          <span class="lp-scan">scanning arXiv · <span id="lp-count">1,284</span> today</span>
+        </div>
+      </div>
+      <div id="lp-feed" class="lp-feed"></div>
+    </div>
+  </div>
+
+  <!-- ── How it works ────────────────────────────────── -->
+  <div id="how" class="lp-section">
+    <div class="lp-wrap">
+      <div class="lp-rule"><span class="lp-rule__label">How it works</span><span class="lp-rule__fill"></span></div>
+      <div class="lp-steps">
+        <div class="lp-step">
+          <div class="lp-step-num">01</div>
+          <h3>Build a profile</h3>
+          <p class="lp-desc">Assemble your own corpus of research papers to match against.</p>
+        </div>
+        <div class="lp-step">
+          <div class="lp-step-num">02</div>
+          <h3>Fetch nightly</h3>
+          <p class="lp-desc">New preprints are scanned the moment they appear on arXiv.</p>
+        </div>
+        <div class="lp-step">
+          <div class="lp-step-num">03</div>
+          <h3>Match by meaning</h3>
+          <p class="lp-desc">Sentence-transformer embeddings rank papers by semantic similarity.</p>
+        </div>
+        <div class="lp-step">
+          <div class="lp-step-num">04</div>
+          <h3>Morning digest</h3>
+          <p class="lp-desc">Top matches land in your inbox. Skim the day's reading in two minutes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Features ────────────────────────────────────── -->
+  <div id="features" class="lp-section">
+    <div class="lp-wrap">
+      <div class="lp-rule"><span class="lp-rule__label">Features</span><span class="lp-rule__fill"></span></div>
+      <div class="lp-features">
+        <div class="lp-feature">
+          <h3>Semantic search</h3>
+          <p class="lp-desc">Vector similarity finds papers you'd never have searched for.</p>
+        </div>
+        <div class="lp-feature">
+          <h3>Multiple profiles</h3>
+          <p class="lp-desc">Create a separate profile for every thread of your research.</p>
+        </div>
+        <div class="lp-feature">
+          <h3>Match your papers</h3>
+          <p class="lp-desc">Upload your own PDFs or search for papers on arXiv. {{ SITE_NAME }} then reads them section by section for sharper matches.</p>
+        </div>
+        <div class="lp-feature">
+          <h3>Email digests</h3>
+          <p class="lp-desc">Daily, weekly, or monthly. Set your own frequency and score threshold.</p>
+        </div>
+        <div class="lp-feature">
+          <h3>Sign in with ORCID</h3>
+          <p class="lp-desc">Authenticate with your ORCID iD — no new password to remember.</p>
+        </div>
+        <div class="lp-feature">
+          <h3>Open source</h3>
+          <p class="lp-desc">GPL-3.0, built by Syracuse OSPO. Read the code, file an issue, run your own instance.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer CTA ──────────────────────────────────── -->
+  <div class="lp-section lp-cta">
+    <h2>Start keeping up with scientific literature today.</h2>
+    <div class="lp-btn-row">
+      {% if REGISTRATION_OPEN %}
+      <a href="{% url 'register' %}" class="lp-btn lp-btn-primary">Create account →</a>
+      {% else %}
+      <a href="{% url 'login' %}" class="lp-btn lp-btn-primary">Sign in →</a>
+      {% endif %}
+    </div>
+    <p class="lp-cta-note">Questions? Email us at <a href="mailto:{{ SUPPORT_EMAIL }}">{{ SUPPORT_EMAIL }}</a></p>
+  </div>
+
+</div>
+</body>
+</html>

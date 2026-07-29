@@ -612,6 +612,14 @@ def reset_password_view(request, uidb64, token):
 
 # ── Dashboard ──────────────────────────────────────────────────────────────
 
+def home_view(request):
+    """Root: public landing page for anonymous visitors, dashboard for
+    signed-in users."""
+    if not request.user.is_authenticated:
+        return render(request, "landing.html")
+    return dashboard_view(request)
+
+
 @pbuser_required
 def dashboard_view(request):
     pb_user = request.pb_user
