@@ -4,7 +4,7 @@ import datetime
 import asyncio
 
 # Chunk size for GET /embeddings/?paper_ids=... so the request URL stays well
-# under the server's header-size limit when filtering to many papers.
+# under the server's request-line length limit when filtering to many papers.
 _EMBED_ID_CHUNK = 200
 
 
@@ -238,32 +238,36 @@ class APIClient:
         if type:
             params["type"] = type
 
-        # No id filter: one request for the whole corpus.
-        if not paper_ids:
-            return await self._get_embeddings_retry(params)
+        # Keep-alives disabled so every request (and retry) opens a fresh connection
+        timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+        limits = httpx.Limits(max_keepalive_connections=0)
+        async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
+            # No id filter provided: one request for the whole corpus. An
+            # explicitly-empty list falls through and yields no results.
+            if paper_ids is None:
+                return await self._get_embeddings_retry(client, params)
 
-        # Filter to specific papers in SQL, chunking the id list so the request
-        # URL stays under the server's header-size limit.
-        results: List[Dict] = []
-        for i in range(0, len(paper_ids), _EMBED_ID_CHUNK):
-            chunk = paper_ids[i:i + _EMBED_ID_CHUNK]
-            results.extend(
-                await self._get_embeddings_retry({**params, "paper_ids": chunk})
-            )
-        return results
+            # Filter to specific papers in SQL, chunking the id list so the
+            # request URL stays under the server's request-line length limit.
+            results: List[Dict] = []
+            for i in range(0, len(paper_ids), _EMBED_ID_CHUNK):
+                chunk = paper_ids[i:i + _EMBED_ID_CHUNK]
+                results.extend(
+                    await self._get_embeddings_retry(client, {**params, "paper_ids": chunk})
+                )
+            return results
 
     async def _get_embeddings_retry(
-        self, params: Dict, max_retries: int = 4, backoff: float = 2.0,
+        self, client: httpx.AsyncClient, params: Dict,
+        max_retries: int = 4, backoff: float = 2.0,
     ) -> List[Dict]:
         """GET /embeddings/ with retry + backoff on dropped connections."""
-        timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
         last_exc = None
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.get(f"{self.base_url}/embeddings/", params=params)
-                    response.raise_for_status()
-                    return response.json()
+                response = await client.get(f"{self.base_url}/embeddings/", params=params)
+                response.raise_for_status()
+                return response.json()
             except httpx.TransportError as e:
                 last_exc = e
                 if attempt < max_retries:

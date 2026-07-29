@@ -91,6 +91,11 @@ async def get_embeddings(
     paper_ids: Optional[List[int]] = Query(None)
 ):
     """Get embeddings with optional filters"""
+    if paper_id is not None and paper_ids is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Specify either paper_id or paper_ids, not both.",
+        )
     pool = await get_db_pool()
     
     conditions = []
@@ -112,7 +117,7 @@ async def get_embeddings(
         params.append(type)
         idx += 1
     
-    if paper_ids:
+    if paper_ids is not None:
         conditions.append(f"e.paper_id = ANY(${idx})")
         params.append(paper_ids)
         idx += 1
