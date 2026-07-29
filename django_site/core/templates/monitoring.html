@@ -28,6 +28,21 @@
   table.mini { width:100%; border-collapse:collapse; font-size:.82rem; margin-top:.3rem; }
   table.mini th, table.mini td { text-align:left; padding:.3rem .4rem; border-bottom:1px solid #eee; }
   table.mini th { color:var(--text-dim); font-weight:600; }
+  /* Email delivery: Sent/Failed toggle + scrollable lists */
+  /* Radios are hidden off-screen but stay focusable; focus shows on the label. */
+  .email-tabs > input[type=radio] { position:absolute; width:1px; height:1px; opacity:0; }
+  .email-tab-btns { display:inline-flex; border:1px solid #e5e7eb; border-radius:6px; margin:.6rem 0 .2rem; }
+  .email-tab-btns label { padding:.25rem .8rem; font-size:.8rem; cursor:pointer; color:var(--text-dim); user-select:none; }
+  .email-tab-btns label:first-of-type { border-radius:6px 0 0 6px; }
+  .email-tab-btns label:last-of-type { border-radius:0 6px 6px 0; }
+  .email-tab-btns label + label { border-left:1px solid #e5e7eb; }
+  #emailtab-sent:checked ~ .email-tab-btns label[for=emailtab-sent],
+  #emailtab-failed:checked ~ .email-tab-btns label[for=emailtab-failed] { background:var(--accent,#F76900); color:#fff; }
+  #emailtab-sent:focus-visible ~ .email-tab-btns label[for=emailtab-sent],
+  #emailtab-failed:focus-visible ~ .email-tab-btns label[for=emailtab-failed] { outline:2px solid var(--accent,#F76900); outline-offset:2px; }
+  .email-list { display:none; max-height:280px; overflow-y:auto; }
+  #emailtab-sent:checked ~ .email-list--sent { display:block; }
+  #emailtab-failed:checked ~ .email-list--failed { display:block; }
 </style>
 {% endblock %}
 
@@ -89,20 +104,50 @@
       <div class="kpi-label">Failure rate</div>
     </div>
   </div>
-  {% if recent_email_failures %}
-  <table class="mini">
-    <thead><tr><th>When</th><th>User</th><th>Subject</th></tr></thead>
-    <tbody>
-      {% for e in recent_email_failures %}
-      <tr>
-        <td>{{ e.sent_at|date:"M j, H:i" }}</td>
-        <td>{{ e.user.email }}</td>
-        <td>{{ e.subject|default:"—"|truncatechars:60 }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
+  <div class="email-tabs">
+    <input type="radio" name="emailtab" id="emailtab-sent" checked>
+    <input type="radio" name="emailtab" id="emailtab-failed">
+    <div class="email-tab-btns">
+      <label for="emailtab-sent">Sent</label>
+      <label for="emailtab-failed">Failed</label>
+    </div>
+    <div class="email-list email-list--sent">
+      {% if recent_sent %}
+      <table class="mini">
+        <thead><tr><th>When</th><th>User</th><th>Subject</th></tr></thead>
+        <tbody>
+          {% for e in recent_sent %}
+          <tr>
+            <td>{{ e.sent_at|date:"M j, H:i" }}</td>
+            <td>{{ e.user.email }}</td>
+            <td>{{ e.subject|default:"—"|truncatechars:60 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-dim">No sent emails in the last {{ window_days }} days.</p>
+      {% endif %}
+    </div>
+    <div class="email-list email-list--failed">
+      {% if recent_failed %}
+      <table class="mini">
+        <thead><tr><th>When</th><th>User</th><th>Subject</th></tr></thead>
+        <tbody>
+          {% for e in recent_failed %}
+          <tr>
+            <td>{{ e.sent_at|date:"M j, H:i" }}</td>
+            <td>{{ e.user.email }}</td>
+            <td>{{ e.subject|default:"—"|truncatechars:60 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm text-dim">No failed emails in the last {{ window_days }} days.</p>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
 {# ── Ingestion ── #}

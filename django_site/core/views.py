@@ -1686,11 +1686,9 @@ def monitoring_dashboard_view(request):
     email_failed = email_counts["failed"] or 0
     email_total = email_sent + email_failed
     email_failure_rate = (email_failed / email_total * 100) if email_total else 0
-    recent_email_failures = list(
-        EmailLog.objects.filter(status="failed")
-        .select_related("user")
-        .order_by("-sent_at")[:10]
-    )
+    _recent_emails = EmailLog.objects.filter(sent_at__gte=since).select_related("user")
+    recent_sent = list(_recent_emails.filter(status="sent").order_by("-sent_at")[:100])
+    recent_failed = list(_recent_emails.filter(status="failed").order_by("-sent_at")[:100])
 
     # ── Ingestion (real; ArxivDailyStats is empty, so derive from Paper) ──
     total_papers = Paper.objects.count()
@@ -1742,7 +1740,8 @@ def monitoring_dashboard_view(request):
         "email_sent": email_sent,
         "email_failed": email_failed,
         "email_failure_rate": round(email_failure_rate, 1),
-        "recent_email_failures": recent_email_failures,
+        "recent_sent": recent_sent,
+        "recent_failed": recent_failed,
         # ingestion
         "total_papers": total_papers,
         "papers_by_source": papers_by_source,
