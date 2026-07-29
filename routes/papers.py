@@ -8,7 +8,7 @@ router = APIRouter(prefix="/papers", tags=["papers"])
 
 @router.get("/needing-processing", response_model=List[PaperResponse])
 async def get_papers_needing_processing():
-    """Papers with a PDF on disk but no sections extracted yet."""
+    """User-corpus papers with a PDF on disk but no sections extracted yet."""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -19,6 +19,12 @@ async def get_papers_needing_processing():
             LEFT JOIN sections s ON p.id = s.paper_id
             WHERE p.pdf_path IS NOT NULL
               AND s.id IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM papers_corpora pc
+                  JOIN corpora c ON pc.corpus_id = c.id
+                  WHERE pc.paper_id = p.id
+                    AND c.name <> 'arxiv_papers'
+              )
             ORDER BY p.created_at DESC
             """
         )
