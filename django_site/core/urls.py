@@ -25,6 +25,12 @@ urlpatterns = [
     path("profiles/<int:profile_id>/edit/", views.profile_edit_view, name="profile_edit"),
     path("profiles/<int:profile_id>/delete/", views.profile_delete_view, name="profile_delete"),
 
+    # Onboarding (first-login walkthrough)
+    path("onboarding/profile/", views.onboarding_profile_view, name="onboarding_profile"),
+    path("onboarding/papers/<int:profile_id>/", views.onboarding_papers_view, name="onboarding_papers"),
+    path("onboarding/finish/", views.onboarding_finish_view, name="onboarding_finish"),
+    path("onboarding/skip/", views.onboarding_skip_view, name="onboarding_skip"),
+
     # Paper management (within a profile)
     path("profiles/<int:profile_id>/upload/", views.paper_upload_view, name="paper_upload"),
     path("profiles/<int:profile_id>/papers/<int:paper_id>/delete/", views.paper_delete_view, name="paper_delete"),

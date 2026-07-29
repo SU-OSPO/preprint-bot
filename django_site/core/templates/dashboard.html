@@ -2,6 +2,17 @@
 {% block title %}Dashboard – Preprint Bot{% endblock %}
 
 {% block content %}
+{% if just_onboarded %}
+<div class="congrats-overlay" id="congrats-overlay">
+  <div class="congrats-modal" role="dialog" aria-modal="true"
+       aria-labelledby="congrats-title" aria-describedby="congrats-desc">
+    <h2 id="congrats-title" style="margin-top:0;">🎉 You're all set!</h2>
+    <p id="congrats-desc">Your first profile is ready. We'll match new preprints against it after the <a href="https://info.arxiv.org/help/availability.html#announcement-schedule"  target="_blank" rel="noopener noreferrer">next arXiv update</a>. We'll email you your top matches at your specified frequency (daily, weekly, or monthly).</p>
+    <button type="button" class="btn btn-primary"
+            onclick="document.getElementById('congrats-overlay').remove();">Get started</button>
+  </div>
+</div>
+{% endif %}
 <h1>Dashboard</h1>
 <p class="subtitle">Welcome back, {{ pb_user.name|default:pb_user.email }}.</p>
 

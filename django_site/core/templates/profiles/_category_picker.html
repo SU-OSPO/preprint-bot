@@ -1,0 +1,33 @@
+{% load static %}
+{# arXiv category picker: hidden input + searchable collapsible tree. #}
+{# Data is passed via data- attributes; the logic lives in the static JS. #}
+{# Expects `category_tree_json` and optional `initial_categories_json` in context. #}
+<div class="card">
+  <h3>arXiv Categories <span style="color:var(--danger);">*</span></h3>
+  <p class="text-sm text-dim mb-1">Select the sub-fields you want to track. At least one is required.</p>
+
+  {# Hidden input that the JS tree writes into #}
+  <input type="hidden" name="categories" id="id_categories"
+         value="{{ form.categories.value|default:'' }}">
+
+  {% if form.categories.errors %}
+    <div class="alert alert-error">{{ form.categories.errors.0 }}</div>
+  {% endif %}
+
+  {# Search/filter input with selected category tags #}
+  <div id="cat-search-box" style="border:1px solid var(--border); border-radius:var(--radius);
+       padding:.35rem .5rem; display:flex; flex-wrap:wrap; gap:.3rem; align-items:center;
+       margin-bottom:.75rem; cursor:text;"
+       onclick="document.getElementById('cat-search-input').focus();">
+    <span id="cat-tags"></span>
+    <input type="text" id="cat-search-input" placeholder="Search categories…"
+           style="border:none; outline:none; flex:1; min-width:8rem; font-size:.85rem;
+           padding:.15rem 0; background:transparent;">
+  </div>
+
+  <div id="category-tree"
+       data-tree="{{ category_tree_json }}"
+       data-initial="{{ initial_categories_json|default:'[]' }}"></div>
+</div>
+
+<script src="{% static 'core/category_picker.js' %}" defer></script>

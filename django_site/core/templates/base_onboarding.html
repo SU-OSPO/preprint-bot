@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Getting started – Preprint Bot{% endblock %}</title>
+
+  {# ── Fonts ───────────────────────────────────────────── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{% static 'core/style.css' %}">
+
+  {# ── MathJax: render $…$ / $$…$$ math in paper titles ── #}
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" id="MathJax-script" async crossorigin="anonymous"></script>
+
+  {% if ACCENT_COLOR or NAV_COLOR %}
+  <style>
+    :root {
+      {% if ACCENT_COLOR %}--accent: {{ ACCENT_COLOR }};
+      --accent-dim: color-mix(in srgb, {{ ACCENT_COLOR }} 15%, white);{% endif %}
+      {% if NAV_COLOR %}--bg-nav: {{ NAV_COLOR }};{% endif %}
+    }
+  </style>
+  {% endif %}
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  {# ── Minimal header: brand only (no navigation), plus a small skip ── #}
+  <header class="onboarding-bar">
+    <span class="brand">Preprint Bot</span>
+    <form method="post" action="{% url 'onboarding_skip' %}" style="margin:0;">
+      {% csrf_token %}
+      <button type="submit" class="onboarding-skip">Skip setup</button>
+    </form>
+  </header>
+
+  {# ── Messages ──────────────────────────────────────────── #}
+  <div class="container onboarding-container">
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+    {% endfor %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+  // Prevent scroll-wheel from changing focused number inputs while page scrolls
+  document.addEventListener('wheel', function(e) {
+    if (
+      e.target instanceof Element &&
+      e.target.matches('input[type=number]') &&
+      document.activeElement === e.target
+    ) {
+      e.target.blur();
+    }
+  }, {passive: true});
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

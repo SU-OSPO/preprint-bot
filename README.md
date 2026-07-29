@@ -552,6 +552,11 @@ The web interface is a Django application located in `django_site/`. It reads an
 
 ### Features
 
+**Onboarding:**
+- First-time walkthrough after initial login: create a profile, then add papers to it
+- Runs on a chrome-free page (no navigation) to keep new users in the flow
+- Triggered only on a brand-new account's first login (detected via `last_login`); a small "Skip setup" option ends it, and it never re-triggers on later visits
+
 **Dashboard:**
 - Profile and corpus counts
 - Recent recommendations (today's papers)
