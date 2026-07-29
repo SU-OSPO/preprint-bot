@@ -416,12 +416,14 @@ class AuthFlowTests(TestCase):
         self.client.post("/auth/logout/")
         resp = self.client.get("/profiles/")
         self.assertEqual(resp.status_code, 302)  # redirected to login
+        self.assertIn("/auth/login/", resp.url)
 
     # ── Access control ────────────────────────────────────
 
     def test_unauthenticated_home_shows_landing(self):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)  # public landing page
+        self.assertTemplateUsed(resp, "landing.html")
 
     def test_unauthenticated_redirected_to_login(self):
         resp = self.client.get("/profiles/")
