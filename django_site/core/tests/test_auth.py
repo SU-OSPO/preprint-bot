@@ -331,3 +331,55 @@ class EmailVerificationOnTests(TestCase):
     def test_resend_without_session_redirects(self):
         resp = self.client.get("/auth/resend-verification/")
         self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
+
+
+class PasswordResetFlowTests(TestCase):
+    """Forgot-password (email issuance, no user enumeration) and reset."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(
+            email="reset@example.com", password="OldPass123!",
+        )
+
+    def _reset_url(self, user):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        return f"/auth/reset-password/{uid}/{token}/"
+
+    def test_forgot_password_sends_email_for_existing_user(self):
+        resp = self.client.post("/auth/forgot-password/", {"email": "reset@example.com"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_forgot_password_silent_for_unknown_email(self):
+        resp = self.client.post("/auth/forgot-password/", {"email": "nobody@example.com"})
+        self.assertEqual(resp.status_code, 200)  # same response — no user enumeration
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_reset_with_valid_token_changes_password(self):
+        resp = self.client.post(self._reset_url(self.user), {
+            "new_password": "BrandNewPass99!",
+            "confirm_password": "BrandNewPass99!",
+        })
+        self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("BrandNewPass99!"))
+
+    def test_reset_with_invalid_token_redirects(self):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        resp = self.client.get(f"/auth/reset-password/{uid}/bad-token/")
+        self.assertRedirects(resp, "/auth/forgot-password/", fetch_redirect_response=False)
+
+    def test_reset_password_mismatch_rejected(self):
+        resp = self.client.post(self._reset_url(self.user), {
+            "new_password": "BrandNewPass99!",
+            "confirm_password": "Different99!",
+        })
+        self.assertEqual(resp.status_code, 200)  # stays on the form
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password("BrandNewPass99!"))

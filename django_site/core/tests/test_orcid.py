@@ -230,3 +230,98 @@ class OrcidCompleteTests(TestCase):
     def test_complete_clears_session(self):
         self.client.post("/auth/orcid/complete/", {"email": "clear@example.com"})
         self.assertNotIn("orcid_pending", self.client.session)
+
+
+@override_settings(ORCID_CLIENT_ID="APP-TEST123", ORCID_CLIENT_SECRET="test-secret")
+class OrcidLinkTests(TestCase):
+    """Linking an ORCID iD to an existing, logged-in account."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(
+            email="linker@example.com", password="SecurePass123!",
+        )
+        self.client.login(username="linker@example.com", password="SecurePass123!")
+
+    def test_link_requires_login(self):
+        self.client.logout()
+        resp = self.client.get("/auth/orcid/link/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/auth/login/", resp.url)
+
+    def test_link_redirects_to_orcid_and_sets_link_mode(self):
+        resp = self.client.get("/auth/orcid/link/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("orcid.org/oauth/authorize", resp.url)
+        self.assertTrue(self.client.session.get("orcid_link_mode"))
+        self.assertIn("orcid_oauth_state", self.client.session)
+
+    def test_link_when_already_linked_redirects_to_settings(self):
+        self.user.orcid_id = "0000-0001-0000-0001"
+        self.user.save(update_fields=["orcid_id"])
+        resp = self.client.get("/auth/orcid/link/")
+        self.assertRedirects(resp, "/settings/", fetch_redirect_response=False)
+
+    @patch("core.orcid.exchange_code")
+    def test_link_callback_attaches_orcid(self, mock_exchange):
+        mock_exchange.return_value = {
+            "orcid": "0000-0001-2222-3333", "name": "L", "access_token": "t",
+        }
+        session = self.client.session
+        session["orcid_oauth_state"] = "st"
+        session["orcid_link_mode"] = True
+        session.save()
+        resp = self.client.get("/auth/orcid/callback/", {"state": "st", "code": "c"})
+        self.assertRedirects(resp, "/settings/", fetch_redirect_response=False)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.orcid_id, "0000-0001-2222-3333")
+
+    @patch("core.orcid.exchange_code")
+    def test_link_callback_duplicate_orcid_rejected(self, mock_exchange):
+        PBUser.objects.create_user(
+            email="owner@example.com", password="SecurePass123!",
+            orcid_id="0000-0001-9999-9999",
+        )
+        mock_exchange.return_value = {
+            "orcid": "0000-0001-9999-9999", "name": "Dup", "access_token": "t",
+        }
+        session = self.client.session
+        session["orcid_oauth_state"] = "st"
+        session["orcid_link_mode"] = True
+        session.save()
+        resp = self.client.get("/auth/orcid/callback/", {"state": "st", "code": "c"})
+        self.assertRedirects(resp, "/settings/", fetch_redirect_response=False)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.orcid_id)  # not linked to the taken iD
+
+
+class OrcidUnlinkTests(TestCase):
+    """Unlinking a previously linked ORCID iD."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(
+            email="unlinker@example.com", password="SecurePass123!",
+            orcid_id="0000-0002-8888-7777",
+        )
+        self.client.login(username="unlinker@example.com", password="SecurePass123!")
+
+    def test_unlink_removes_orcid(self):
+        resp = self.client.post("/auth/orcid/unlink/")
+        self.assertRedirects(resp, "/settings/", fetch_redirect_response=False)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.orcid_id)
+
+    def test_unlink_when_none_is_noop(self):
+        self.user.orcid_id = None
+        self.user.save(update_fields=["orcid_id"])
+        resp = self.client.post("/auth/orcid/unlink/")
+        self.assertRedirects(resp, "/settings/", fetch_redirect_response=False)
+
+    def test_unlink_requires_post(self):
+        resp = self.client.get("/auth/orcid/unlink/")
+        self.assertEqual(resp.status_code, 405)
+
+    def test_unlink_requires_login(self):
+        self.client.logout()
+        resp = self.client.post("/auth/orcid/unlink/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/auth/login/", resp.url)
