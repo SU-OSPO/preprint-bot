@@ -767,8 +767,9 @@ class EmailVerificationOnTests(TestCase):
 from unittest.mock import patch
 
 
+@override_settings(ORCID_CLIENT_ID="", ORCID_CLIENT_SECRET="")
 class OrcidDisabledTests(TestCase):
-    """When ORCID_CLIENT_ID is not set (default), ORCID features are hidden."""
+    """With ORCID unconfigured, ORCID features are hidden."""
 
     def test_login_page_has_no_orcid_button(self):
         resp = self.client.get("/auth/login/")
