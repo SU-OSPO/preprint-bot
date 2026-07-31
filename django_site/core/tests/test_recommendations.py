@@ -214,3 +214,83 @@ class RecommendationsViewTests(_RecTestBase):
             self.client.get(f"/recommendations/?profile={pa.pk}").context["recs_json"]
         )
         self.assertEqual({r["arxiv_id"] for r in recs}, {"2301.00001"})
+
+
+
+class RecommendationAddToProfileTests(_RecTestBase):
+    """recommendation_add_to_profile_view: link a recommended paper to a corpus."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(username="rec@example.com", password="SecurePass123!")
+        self.profile = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
+
+    def _add(self, profile_id, paper_id):
+        return self.client.post(
+            f"/recommendations/add/{profile_id}/{paper_id}/",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+    def _recommend(self, paper):
+        """Recommend `paper` to self.user so the view's was_recommended check passes."""
+        return self._rec(self._run_for(self.profile), paper, 0.8)
+
+    def test_add_recommended_paper_links_to_corpus(self):
+        paper = _make_paper("2301.00001", "Rec Paper")
+        self._recommend(paper)
+        resp = self._add(self.profile.pk, paper.pk)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertFalse(data["already_linked"])
+        self.assertEqual(data["paper"]["arxiv_id"], "2301.00001")
+        corpus = _get_or_create_user_corpus(self.user, self.profile)
+        self.assertTrue(paper.corpora.filter(pk=corpus.pk).exists())
+
+    def test_add_already_linked_is_idempotent(self):
+        paper = _make_paper("2301.00001", "Rec Paper")
+        self._recommend(paper)
+        paper.corpora.add(_get_or_create_user_corpus(self.user, self.profile))
+        resp = self._add(self.profile.pk, paper.pk)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["already_linked"])
+
+    def test_add_paper_not_recommended_to_user_404(self):
+        # Paper recommended only to a different user -> not addable by this user.
+        other = PBUser.objects.create_user(email="other@example.com", password="SecurePass123!")
+        other_ref = Corpus.objects.create(user=other, name="ref_arxiv")
+        other_p = Profile.objects.create(user=other, name="OB", categories=["cs.LG"])
+        other_run = RecommendationRun.objects.create(
+            user=other, user_corpus=_get_or_create_user_corpus(other, other_p),
+            ref_corpus=other_ref, profile=other_p, total_papers_fetched=1,
+        )
+        paper = _make_paper("2301.00001", "Theirs")
+        Recommendation.objects.create(run=other_run, profile=other_p, paper=paper, score=0.9, rank=1)
+        resp = self._add(self.profile.pk, paper.pk)
+        self.assertEqual(resp.status_code, 404)
+        self.assertFalse(resp.json()["ok"])
+
+    def test_add_nonexistent_paper_404(self):
+        resp = self._add(self.profile.pk, 999999)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_add_other_users_profile_404(self):
+        paper = _make_paper("2301.00001", "Rec Paper")
+        self._recommend(paper)
+        other = PBUser.objects.create_user(email="other2@example.com", password="SecurePass123!")
+        other_p = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
+        resp = self._add(other_p.pk, paper.pk)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_add_requires_post(self):
+        resp = self.client.get(f"/recommendations/add/{self.profile.pk}/1/")
+        self.assertEqual(resp.status_code, 405)
+
+    def test_add_requires_login(self):
+        self.client.logout()
+        paper = _make_paper("2301.00001", "Rec Paper")
+        resp = self._add(self.profile.pk, paper.pk)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/auth/login/", resp.url)
