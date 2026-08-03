@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "preprint_bot"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from preprint_bot.extract_grobid import extract_grobid_sections
 
