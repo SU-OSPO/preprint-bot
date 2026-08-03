@@ -96,15 +96,21 @@ class ArxivAddAjaxTests(TestCase):
         self.assertEqual(resp.status_code, 404)
 
 
-@override_settings(PAPER_STORAGE_DIR=Path(tempfile.mkdtemp()))
 class ArxivAddDedupTests(TestCase):
     """Duplicate handling: re-adding the same arXiv ID dedupes by SHA-256."""
 
     def setUp(self):
+        self._paper_storage_tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._paper_storage_tmpdir.cleanup)
+        self._override_settings = override_settings(
+            PAPER_STORAGE_DIR=Path(self._paper_storage_tmpdir.name)
+        )
+        self._override_settings.enable()
+        self.addCleanup(self._override_settings.disable)
+
         self.user = PBUser.objects.create_user(email="dedup@example.com", password="SecurePass123!")
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="dedup@example.com", password="SecurePass123!")
-
     def _ajax_add(self, ids):
         return self.client.post(
             f"/profiles/{self.profile.pk}/add-arxiv/",
