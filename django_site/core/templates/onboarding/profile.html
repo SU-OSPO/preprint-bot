@@ -24,7 +24,7 @@
         <div class="onboarding-hint">Something memorable, e.g. your topic or project name.</div>
       </div>
       <div class="form-group">
-        <label for="id_frequency">Email Frequency <span style="color:var(--danger);">*</span></label>
+        <label for="id_frequency">Email Frequency <span style="color:var(--danger);" aria-hidden="true">*</span></label>
         {{ form.frequency }}
         <div class="onboarding-hint">How often you'd like a digest of matches.</div>
       </div>
@@ -44,7 +44,7 @@
         <div class="onboarding-hint">Higher = fewer but more relevant matches. The default is a good start.</div>
       </div>
       <div class="form-group">
-        <label for="id_top_x">Max Recommendations <span style="color:var(--danger);">*</span></label>
+        <label for="id_top_x">Max Recommendations <span style="color:var(--danger);" aria-hidden="true">*</span></label>
         {{ form.top_x }}
         <div class="form-help">{{ form.top_x.help_text }}</div>
       </div>
