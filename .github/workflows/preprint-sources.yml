@@ -1,0 +1,45 @@
+name: preprint_sources tests
+
+# Independent, light package — only runs when it (or this workflow) changes.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/preprint_sources/**'
+      - '.github/workflows/preprint-sources.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'packages/preprint_sources/**'
+      - '.github/workflows/preprint-sources.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ '3.10', '3.11', '3.12' ]
+
+    defaults:
+      run:
+        working-directory: packages/preprint_sources
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the package with test extras
+        run: |
+          python -m pip install --upgrade pip
+          # Deps come from pyproject.toml — light: httpx / feedparser / pylatexenc.
+          pip install -e ".[test]"
+
+      - name: Run tests
+        run: pytest -v --tb=short
