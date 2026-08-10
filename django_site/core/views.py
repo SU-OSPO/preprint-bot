@@ -24,7 +24,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .arxiv_categories import ARXIV_CODE_TO_LABEL, ARXIV_CATEGORY_TREE, label_for
+from preprint_sources.taxonomies.arxiv import ARXIV_CODE_TO_LABEL, ARXIV_CATEGORY_TREE, label_for
 from .auth_backend import (
     authenticate_pbuser,
     login_pbuser,
