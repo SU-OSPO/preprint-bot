@@ -211,6 +211,10 @@ cd preprint-bot
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
+# Install the shared preprint-source package (local, not on PyPI) — required by
+# the pipeline. Run from the repo root so the ./packages path resolves.
+pip install ./packages/preprint_sources
+
 # Standard install — includes the LLaMA summarizer (the default backend)
 pip install ".[llama]"
 
