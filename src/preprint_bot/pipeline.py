@@ -4,6 +4,7 @@ Database-integrated Preprint Recommender Pipeline
 """
 import argparse
 import asyncio
+import logging
 import sys
 import traceback
 from pathlib import Path
@@ -24,7 +25,7 @@ from .extract_grobid import extract_grobid_sections
 from .summarization_script import TransformerSummarizer
 from .user_mode_processor import process_unprocessed_papers
 from .db_similarity_matcher import run_similarity_matching
-from .sources import ArxivSource, PaperEntry
+from preprint_sources import ArxivSource, PaperEntry
 
 
 async def get_all_profile_categories(api_client: APIClient) -> List[str]:
@@ -641,6 +642,12 @@ def _notify_admin_of_failure(detail: str):
 
 
 def main():
+    # Surface INFO logs from the shared preprint_sources package (it uses a
+    # module logger rather than print), alongside this module's own output.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     parser = argparse.ArgumentParser(description="Preprint Bot Pipeline")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--latest", action="store_true", default=True,
