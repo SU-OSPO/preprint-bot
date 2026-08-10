@@ -35,3 +35,9 @@ def test_enabled_defaults_to_arxiv(monkeypatch):
 def test_enabled_reads_env_and_drops_unknown(monkeypatch):
     monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv, bogus")
     assert enabled_names() == ["arxiv"]
+
+
+def test_enabled_dedupes_preserving_order(monkeypatch):
+    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv, arxiv")
+    assert enabled_names() == ["arxiv"]
+    assert [s.name for s in enabled_sources()] == ["arxiv"]

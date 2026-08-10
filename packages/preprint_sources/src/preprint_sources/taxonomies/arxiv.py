@@ -262,8 +262,7 @@ def _build_code_to_label() -> Dict[str, str]:
             lbl = node.get("label", v)
             if v:
                 out[v] = lbl
-            for ch in node.get("children", []):
-                walk([ch])
+            walk(node.get("children", []))
 
     walk(ARXIV_CATEGORY_TREE)
     return out

@@ -8,6 +8,7 @@ backfilling historical dates).
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List
@@ -30,6 +31,8 @@ _API_BASE = "https://export.arxiv.org/api/query"
 
 # Reused across calls; converts LaTeX text markup (e.g. ``\'e``) to Unicode.
 _LATEX2TEXT = LatexNodes2Text()
+
+logger = logging.getLogger(__name__)
 
 
 class ArxivSource(PreprintSource):
@@ -71,9 +74,9 @@ class ArxivSource(PreprintSource):
         cat_str = "+".join(categories)
         url = f"{_RSS_BASE}/{cat_str}"
 
-        print(f"\nFetching latest arXiv papers via RSS")
-        print(f"  Feed: {url}")
-        print(f"  Categories: {categories}")
+        logger.info(f"\nFetching latest arXiv papers via RSS")
+        logger.info(f"  Feed: {url}")
+        logger.info(f"  Categories: {categories}")
 
         async with httpx.AsyncClient(
             timeout=30, headers={"User-Agent": USER_AGENT}
@@ -118,7 +121,7 @@ class ArxivSource(PreprintSource):
                 )
             )
 
-        print(f"  Found {len(entries)} new papers")
+        logger.info(f"  Found {len(entries)} new papers")
         return entries
 
     # ── API with submission windows (backfill) ─────────────────────
@@ -135,7 +138,7 @@ class ArxivSource(PreprintSource):
         """
         window = _get_announcement_window(target_date)
         if window is None:
-            print(
+            logger.info(
                 f"\nNo arXiv announcement on "
                 f"{target_date.strftime('%A %Y-%m-%d')} — skipping fetch."
             )
@@ -145,12 +148,12 @@ class ArxivSource(PreprintSource):
         start = start_dt.strftime("%Y%m%d%H%M")
         end = end_dt.strftime("%Y%m%d%H%M")
 
-        print(
+        logger.info(
             f"\nFetching arXiv papers via API for "
             f"{target_date.strftime('%A %Y-%m-%d')}"
         )
-        print(f"  Submission window: {start_dt} → {end_dt} (UTC)")
-        print(f"  Categories: {categories}")
+        logger.info(f"  Submission window: {start_dt} → {end_dt} (UTC)")
+        logger.info(f"  Categories: {categories}")
 
         entries: List[PaperEntry] = []
         seen_ids: set[str] = set()
@@ -165,8 +168,8 @@ class ArxivSource(PreprintSource):
 
             papers = await _api_fetch_all(client, query)
             for item in papers:
-                arxiv_id = item.id.split("/")[-1]
-                if arxiv_id in seen_ids:
+                arxiv_id = _extract_arxiv_id(item.id)
+                if not arxiv_id or arxiv_id in seen_ids:
                     continue
                 seen_ids.add(arxiv_id)
 
@@ -191,7 +194,7 @@ class ArxivSource(PreprintSource):
                     )
                 )
 
-        print(f"  Total: {len(entries)} new papers")
+        logger.info(f"  Total: {len(entries)} new papers")
         return entries
 
 
@@ -231,7 +234,7 @@ def _latex_to_unicode(text: str) -> str:
     try:
         return _LATEX2TEXT.latex_to_text(text).strip()
     except Exception as e:
-        print(f"Could not convert assumed LaTeX {text} to unicode")
+        logger.info(f"Could not convert assumed LaTeX {text} to unicode")
         return text
 
 
@@ -299,7 +302,7 @@ async def _api_fetch_all(
         if total is None:
             total = feed_total
             if total is not None and total > page_size:
-                print(f"  {total} total results, paginating...")
+                logger.info(f"  {total} total results, paginating...")
 
         # Stop if we got fewer than a full page or we've fetched everything
         if len(feed_entries) < page_size:
@@ -310,7 +313,7 @@ async def _api_fetch_all(
         offset += page_size
         await asyncio.sleep(5)  # polite delay between pages
 
-    print(f"  Fetched {len(all_entries)} papers via API")
+    logger.info(f"  Fetched {len(all_entries)} papers via API")
     return all_entries
 
 
@@ -334,7 +337,7 @@ async def _api_fetch_page(
                     if retry_after
                     else backoff * (2**attempt)
                 )
-                print(
+                logger.info(
                     f"  429 rate limited, waiting {wait}s "
                     f"(attempt {attempt + 1}/{max_retries})"
                 )
@@ -348,13 +351,13 @@ async def _api_fetch_page(
             return feed.entries, total
         except Exception as e:
             wait = backoff * (2**attempt)
-            print(
+            logger.info(
                 f"  API error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}"
             )
             if attempt < max_retries - 1:
                 await asyncio.sleep(wait)
 
-    print(f"  API fetch failed after {max_retries} attempts")
+    logger.info(f"  API fetch failed after {max_retries} attempts")
     return None
 
 

@@ -33,7 +33,8 @@ def enabled_names() -> List[str]:
     Unknown names in the env var are ignored.
     """
     raw = os.environ.get("PREPRINT_ENABLED_SOURCES", "arxiv")
-    return [n.strip() for n in raw.split(",") if n.strip() in _CLASSES]
+    names = [n.strip() for n in raw.split(",") if n.strip() in _CLASSES]
+    return list(dict.fromkeys(names))
 
 
 def enabled_sources() -> List[PreprintSource]:

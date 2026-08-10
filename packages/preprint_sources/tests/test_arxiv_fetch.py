@@ -109,10 +109,10 @@ class TestFetchByDate:
         papers = await ArxivSource().fetch_by_date(date(2024, 1, 2), ["cs.SE"])
         assert len(papers) == 1
         p = papers[0]
-        # API path keeps the version suffix (unlike the RSS path).
-        assert p.source_id == "2401.09999v1"
+        # Version stripped, consistent with the RSS path (fetch_latest).
+        assert p.source_id == "2401.09999"
         assert p.title == "API Paper"
         assert p.abstract == "An abstract."
         assert p.authors == ["Grace Hopper"]
         assert p.categories == ["cs.SE"]
-        assert p.pdf_url == "https://arxiv.org/pdf/2401.09999v1.pdf"
+        assert p.pdf_url == "https://arxiv.org/pdf/2401.09999.pdf"
