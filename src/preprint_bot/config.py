@@ -71,4 +71,4 @@ SYSTEM_USER_NAME = "Preprint Bot"
 USER_AGENT = settings.USER_AGENT
 
 # Corpus naming
-ARXIV_CORPUS_NAME = "arxiv_papers"
+REFERENCE_CORPUS_NAME = "arxiv_papers"

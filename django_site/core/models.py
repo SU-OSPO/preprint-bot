@@ -199,6 +199,13 @@ class Paper(models.Model):
         return ""
 
     @property
+    def landing_url(self):
+        """Source-aware abstract/landing page URL (empty for uploads)."""
+        if not self.arxiv_id or self.source not in all_source_names():
+            return ""
+        return get_source(self.source).landing_url(self.arxiv_id)
+
+    @property
     def categories_list(self):
         if self.metadata and isinstance(self.metadata, dict):
             return self.metadata.get("categories", [])
