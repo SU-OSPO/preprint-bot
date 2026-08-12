@@ -171,7 +171,7 @@ django_site/
     ├── views.py               # All view functions
     ├── urls.py                # URL routing
     ├── forms.py               # Django forms
-    ├── tests.py               # Unit tests (run with `manage.py test core`)
+    ├── tests/                 # Unit test package (run with `manage.py test core`)
     ├── auth_backend.py        # Auth helper wrappers around Django's built-in auth
     ├── orcid.py               # ORCID OAuth2 helpers
     ├── arxiv_categories.py    # Category tree data + helpers
@@ -214,10 +214,7 @@ cd django_site
 python manage.py test core -v 2
 ```
 
-Tests are in `core/tests.py`. The current suite covers pure functions, form
-validation, auth flows, and profile CRUD:
-
-**Tier 1** — pure functions and form validation (`SimpleTestCase`, no database):
+Tests are in the `core/tests/` package. The current suite includes the following:
 
 - **`ParseArxivIdsTests`** — arXiv ID extraction from bare IDs, URLs, versioned
   PDFs, legacy IDs, query strings, comma/newline separation, deduplication.
@@ -225,9 +222,6 @@ validation, auth flows, and profile CRUD:
   hash-based file path format.
 - **`CleanCategoriesTests`** — leaf-only category validation, parent group
   rejection, whitespace handling, XSS injection rejection.
-
-**Tier 2** — auth flows and profile CRUD (`TestCase`, requires database):
-
 - **`AuthFlowTests`** — registration, duplicate/case-insensitive email rejection,
   weak password rejection, login, logout (POST-only), inactive user blocked,
   access control redirects with `?next=` preservation.

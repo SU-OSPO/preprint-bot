@@ -42,7 +42,7 @@ preprint-bot/
 │   │   ├── forms.py               # Form definitions
 │   │   ├── orcid.py               # ORCID OAuth integration
 │   │   ├── auth_backend.py        # Custom authentication backend
-│   │   ├── tests.py               # Django test suite
+│   │   ├── tests/                 # Django test suite
 │   │   ├── templates/             # HTML templates
 │   │   ├── static/                # CSS, JS, images
 │   │   └── migrations/            # Database migrations
@@ -610,7 +610,7 @@ pytest -vv --tb=long
 
 ### Django Tests
 
-The Django app has its own test suite in `django_site/core/tests.py`, covering arXiv ID parsing, SHA-256 hashing, form validation, auth flows (registration, login, logout, email verification, access control), profile CRUD and ownership, ORCID OAuth2 flows, and paper upload deduplication. Run these with Django's test runner from the `django_site/` directory:
+The Django app has its own test suite in the `django_site/core/tests/` package. Run these with Django's test runner from the `django_site/` directory:
 
 ```bash
 cd django_site
