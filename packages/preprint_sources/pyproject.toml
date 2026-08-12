@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Preprint-server source adapters (fetch, taxonomy, URLs) shared by the pipeline and the web app."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "Syracuse University Open Source Program Office", email = "ospo@syr.edu" },
 ]
