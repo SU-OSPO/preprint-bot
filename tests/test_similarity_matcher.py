@@ -1,6 +1,7 @@
 """Unit tests for similarity computation"""
 import pytest
 import numpy as np
+from unittest.mock import AsyncMock, MagicMock
 
 from pathlib import Path
 import tempfile
@@ -145,6 +146,112 @@ class TestPaperSimilarity:
         # Should return a single float value
         assert isinstance(similarity, float)
         assert -1.0 <= similarity <= 1.0
+
+
+class TestCandidateSelection:
+    """An empty candidate set must mean "recommend nothing", not "compare
+    against every paper in the reference corpus"."""
+
+    def _mock_api_client(self, profile_categories=None, papers=None, run_id=1364):
+        client = AsyncMock()
+        client.base_url = "http://testserver"
+        client.client.get = AsyncMock(
+            return_value=MagicMock(
+                json=MagicMock(return_value={"categories": profile_categories or []})
+            )
+        )
+        client.get_papers_by_corpus = AsyncMock(return_value=papers or [])
+        client.create_recommendation_run = AsyncMock(return_value={"id": run_id})
+        client.get_embeddings_by_corpus = AsyncMock(return_value=[])
+        client.create_recommendation = AsyncMock()
+        return client
+
+    @pytest.mark.asyncio
+    async def test_empty_paper_ids_stores_no_recommendations(self):
+        """No papers fetched should short-circuit before any embedding fetch."""
+        from preprint_bot.db_similarity_matcher import run_similarity_matching
+
+        client = self._mock_api_client()
+
+        run_id = await run_similarity_matching(
+            client,
+            user_id=1,
+            user_corpus_id=1,
+            arxiv_corpus_id=2,
+            profile_id=None,
+            paper_ids=set(),
+        )
+
+        assert run_id == 1364
+        client.get_embeddings_by_corpus.assert_not_called()
+        client.create_recommendation.assert_not_called()
+        kwargs = client.create_recommendation_run.call_args.kwargs
+        assert kwargs["total_papers_fetched"] == 0
+
+    @pytest.mark.asyncio
+    async def test_category_filter_emptying_candidates_stores_no_recommendations(self):
+        """Candidates filtered down to nothing must not fall back to the corpus."""
+        from preprint_bot.db_similarity_matcher import run_similarity_matching
+
+        client = self._mock_api_client(
+            profile_categories=["cs.GL"],
+            papers=[{"id": 10, "metadata": {"categories": ["cs.LG"]}}],
+        )
+
+        run_id = await run_similarity_matching(
+            client,
+            user_id=1,
+            user_corpus_id=1,
+            arxiv_corpus_id=2,
+            profile_id=7,
+            paper_ids={10},
+        )
+
+        assert run_id == 1364
+        client.get_embeddings_by_corpus.assert_not_called()
+        client.create_recommendation.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_surviving_candidates_restrict_the_embedding_fetch(self):
+        """Candidates that pass the category filter are the only ones fetched."""
+        from preprint_bot.db_similarity_matcher import run_similarity_matching
+
+        client = self._mock_api_client(
+            profile_categories=["cs.GL"],
+            papers=[{"id": 10, "metadata": {"categories": ["cs.GL"]}}],
+        )
+
+        await run_similarity_matching(
+            client,
+            user_id=1,
+            user_corpus_id=1,
+            arxiv_corpus_id=2,
+            profile_id=7,
+            paper_ids={10},
+        )
+
+        # First call is the user corpus, second is the restricted arXiv fetch.
+        arxiv_call = client.get_embeddings_by_corpus.call_args_list[1]
+        assert arxiv_call.kwargs["paper_ids"] == [10]
+
+    @pytest.mark.asyncio
+    async def test_no_paper_ids_still_compares_against_whole_corpus(self):
+        """paper_ids=None keeps the unrestricted behaviour for ad-hoc callers."""
+        from preprint_bot.db_similarity_matcher import run_similarity_matching
+
+        client = self._mock_api_client()
+
+        await run_similarity_matching(
+            client,
+            user_id=1,
+            user_corpus_id=1,
+            arxiv_corpus_id=2,
+            profile_id=None,
+            paper_ids=None,
+        )
+
+        arxiv_call = client.get_embeddings_by_corpus.call_args_list[1]
+        assert "paper_ids" not in arxiv_call.kwargs
 
 
 if __name__ == "__main__":
