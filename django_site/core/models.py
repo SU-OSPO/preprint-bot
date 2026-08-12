@@ -15,6 +15,8 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.contrib.postgres.fields import ArrayField
 from pgvector.django import VectorField
 
+from preprint_sources import all_source_names, get_source
+
 
 # ── Users ──────────────────────────────────────────────────────────────────
 
@@ -156,7 +158,10 @@ class Paper(models.Model):
     stored at ``{PAPER_STORAGE_DIR}/{sha256[:2]}/{sha256}.pdf``.
     """
 
-    SOURCE_CHOICES = [("user", "User"), ("arxiv", "arXiv")]
+    # User uploads plus all sources derived from the source registry
+    SOURCE_CHOICES = [("user", "User")] + [
+        (name, get_source(name).label) for name in all_source_names()
+    ]
 
     # Legacy FK — no longer populated or queried; kept for schema compat
     corpus = models.ForeignKey(
