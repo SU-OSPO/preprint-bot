@@ -26,9 +26,12 @@ async def run_similarity_matching(
 ):
     """
     Run similarity matching between user papers and arXiv papers.
-    When paper_ids is provided, only those papers are compared
-    (bypassing any date-based filtering).  Papers are still filtered
-    by the profile's categories when a profile is given.
+    paper_ids restricts which arXiv papers are compared: a set limits the
+    comparison to those papers (an empty set means there is nothing to
+    compare and no recommendations are produced) and None compares against
+    the whole reference corpus.  Restricted papers are filtered further by
+    the profile's categories when a profile is given.  target_date is
+    recorded on the run but does not filter papers.
     """
     
     if isinstance(threshold, str):
@@ -56,10 +59,11 @@ async def run_similarity_matching(
         except Exception as e:
             print(f"  Warning: Could not fetch profile categories: {e}")
     
-    # Determine which arXiv papers to compare against
-    candidate_ids = set(paper_ids) if paper_ids else set()
+    # Determine which arXiv papers to compare against.
+    # None means no restriction; an empty set means restricted to nothing.
+    candidate_ids = set(paper_ids) if paper_ids is not None else None
 
-    if not candidate_ids:
+    if candidate_ids is None:
         print("  Warning: no paper_ids provided, comparing against all arXiv papers in corpus")
 
     # Filter candidates by profile categories
@@ -84,7 +88,7 @@ async def run_similarity_matching(
 
         candidate_ids = filtered
 
-    total_papers_fetched = len(candidate_ids)
+    total_papers_fetched = len(candidate_ids) if candidate_ids is not None else 0
     print(f"  Candidate papers: {total_papers_fetched}")
     
     # Create recommendation run with total_papers_fetched
@@ -100,7 +104,12 @@ async def run_similarity_matching(
         )
     run_id = run["id"]
     print(f"\nCreated recommendation run ID: {run_id}")
-    
+
+    # An explicit but empty candidate set means there is nothing to recommend
+    if candidate_ids is not None and not candidate_ids:
+        print("  No candidate papers after filtering; nothing to recommend.")
+        return run_id
+
     # Fetch embeddings based on mode
     # Fetch embeddings for user's papers
     emb_type = None if use_sections else "abstract"
@@ -108,7 +117,7 @@ async def run_similarity_matching(
     user_embeddings = await api_client.get_embeddings_by_corpus(user_corpus_id, type=emb_type)
     
     # Fetch embeddings for new arXiv papers
-    if candidate_ids:
+    if candidate_ids is not None:
         arxiv_embeddings = await api_client.get_embeddings_by_corpus(
             arxiv_corpus_id, type=emb_type, paper_ids=list(candidate_ids)
         )
