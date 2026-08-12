@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from preprint_bot import __version__
 from database import get_db_pool, close_db_pool
 
-from routes import users, papers, corpora, sections, embeddings, auth
+from routes import users, papers, corpora, sections, embeddings
 from routes import profiles, profile_corpora, summaries, profile_recommendations, email_logs, emails
 from routes import recommendation_runs, processing_runs
 import routes.recommendations as recommendations
@@ -52,7 +52,6 @@ app.include_router(summaries.router)
 app.include_router(profile_recommendations.router)
 app.include_router(email_logs.router)
 app.include_router(emails.router)
-app.include_router(auth.router)
 
 
 @app.get("/")

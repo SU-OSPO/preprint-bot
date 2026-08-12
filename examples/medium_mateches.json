@@ -1,9 +1,0 @@
-[
-  {
-    "title": "Binary Black Hole Merger in Galactic Nuclei: Post-Newtonian Simulations",
-    "summary": "This paper studies the formation and evolution of binary supermassive black\nholes (SMBHs) in rotating galactic nuclei, focusing on the role of stellar\ndynamics. We present the first N-body simulations that follow the evolution of\nthe SMBHs from kiloparsec separations all the way to their final relativistic\ncoalescence, and that can robustly be scaled to real galaxies. The N-body code\nincludes post-Newtonian (PN) corrections to the binary equations of motion up\nto order 2.5; we show that the evolution of the massive binary is only\ncorrectly reproduced if the conservative 1PN and 2PN terms are included. The\norbital eccentricities of the massive binaries in our simulations are often\nfound to remain large until shortly before coalescence. This directly affects\nnot only their orbital evolution rates, but has important consequences as well\nfor the gravitational waveforms emitted during the relativistic inspiral. We\nestimate gravitational wave amplitudes when the frequencies fall inside the\nband of the (planned) Laser Interferometer Space Antennae (LISA). We find\nsignificant contributions -- well above the LISA sensitivity curve -- from the\nhigher-order harmonics.",
-    "url": "http://arxiv.org/abs/0812.2756v1",
-    "published": "2008-12-15T10:27:00Z",
-    "score": 0.7037210464477539
-  }
-]
