@@ -26,9 +26,12 @@ async def run_similarity_matching(
 ):
     """
     Run similarity matching between user papers and arXiv papers.
-    When paper_ids is provided, only those papers are compared
-    (bypassing any date-based filtering).  Papers are still filtered
-    by the profile's categories when a profile is given.
+    paper_ids restricts which arXiv papers are compared: a set limits the
+    comparison to those papers (an empty set means there is nothing to
+    compare and no recommendations are produced) and None compares against
+    the whole reference corpus.  Restricted papers are filtered further by
+    the profile's categories when a profile is given.  target_date is
+    recorded on the run but does not filter papers.
     """
     
     if isinstance(threshold, str):
