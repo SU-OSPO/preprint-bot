@@ -30,6 +30,8 @@ jobs:
           # Install in correct order to avoid conflicts
           pip install "numpy<2.0"
           pip install "pydantic>=2.5.3,<3.0.0"
+          # Install the local shared source package first
+          pip install -e ./packages/preprint_sources
           # Install the package with test extras (dependencies come from pyproject.toml)
           pip install -e ".[test]" --extra-index-url https://download.pytorch.org/whl/cpu
           # Download NLTK data (needed for tests)
@@ -65,6 +67,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install "numpy<2.0"
+          # Local shared source package (not on PyPI), installed like production.
+          pip install ./packages/preprint_sources
           # No extras: this must succeed with the core dependencies alone.
           pip install . --extra-index-url https://download.pytorch.org/whl/cpu
           # punkt is fetched at import time by summarization_script; pre-fetch
