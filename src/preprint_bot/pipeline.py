@@ -16,10 +16,10 @@ import requests
 from .config import (
     API_BASE_URL, DATA_DIR, DEFAULT_MODEL_NAME,
     PDF_DIR,
-    SYSTEM_USER_EMAIL, SYSTEM_USER_NAME, ARXIV_CORPUS_NAME,
+    SYSTEM_USER_EMAIL, SYSTEM_USER_NAME, REFERENCE_CORPUS_NAME,
 )
 from .api_client import APIClient
-from .download_arxiv_pdfs import download_arxiv_pdfs
+from .download_arxiv_pdfs import download_arxiv_pdfs, safe_filename
 from .embed_papers import embed_and_store_papers
 from .extract_grobid import extract_grobid_sections
 from .summarization_script import TransformerSummarizer
@@ -81,7 +81,7 @@ async def store_fetched_papers(
 
     corpus = await api_client.get_or_create_corpus(
         user_id=user['id'],
-        name=ARXIV_CORPUS_NAME,
+        name=REFERENCE_CORPUS_NAME,
         description="Automatically fetched preprint papers"
     )
     print(f"Using corpus: {corpus['name']} (ID: {corpus['id']})")
@@ -125,12 +125,13 @@ async def store_fetched_papers(
                 metadata={
                     "published": paper.published,
                     "arxiv_url": paper.url,
+                    "pdf_url": paper.pdf_url,
                     "authors": paper.authors,
                     "categories": paper.categories,
                     **paper.metadata,
                 },
                 source=paper.source,
-                pdf_path=str(PDF_DIR / f"{paper.source_id}.pdf"),
+                pdf_path=str(PDF_DIR / f"{safe_filename(paper.source_id)}.pdf"),
                 submitted_date=submitted_date,
             )
             paper_ids.add(created['id'])
@@ -143,7 +144,8 @@ async def store_fetched_papers(
 
     if not skip_download and stored_count > 0:
         stats = download_arxiv_pdfs(
-            [{"arxiv_url": p.url} for p in entries],
+            [{"pdf_url": p.pdf_url, "source_id": p.source_id, "arxiv_url": p.url}
+             for p in entries],
             output_folder=str(PDF_DIR),
             use_s3=False,
             min_delay=3,

@@ -16,6 +16,11 @@ HEADERS = {
     "User-Agent": USER_AGENT
 }
 
+
+def safe_filename(source_id: str) -> str:
+    """Filesystem-safe stem for a source id (e.g. bioRxiv DOIs contain '/')."""
+    return source_id.replace("/", "_")
+
 class AdaptiveRateLimiter:
     """
     Adaptive rate limiter that adjusts based on server responses.
@@ -161,9 +166,11 @@ def download_arxiv_pdfs(
     stats = {"downloaded": 0, "skipped": 0, "failed": 0, "start_time": time.time()}
     
     for paper in tqdm(paper_metadata, desc="Downloading", unit="paper"):
-        arxiv_id = paper["arxiv_url"].split("/")[-1]
-        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-        pdf_path = os.path.join(output_folder, f"{arxiv_id}.pdf")
+        # Use the source-provided PDF URL directly; the stored filename mirrors
+        # pipeline.store_fetched_papers' pdf_path.
+        source_id = paper["source_id"]
+        pdf_url = paper["pdf_url"]
+        pdf_path = os.path.join(output_folder, f"{safe_filename(source_id)}.pdf")
         
         # Skip if exists
         if os.path.exists(pdf_path):
@@ -201,7 +208,7 @@ def download_arxiv_pdfs(
         
         if not success:
             stats["failed"] += 1
-            tqdm.write(f"  Failed: {arxiv_id}")
+            tqdm.write(f"  Failed: {source_id}")
     
     # Final summary
     elapsed = time.time() - stats["start_time"]

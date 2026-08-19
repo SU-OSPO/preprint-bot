@@ -15,6 +15,8 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.contrib.postgres.fields import ArrayField
 from pgvector.django import VectorField
 
+from preprint_sources import all_source_names, get_source
+
 
 # ── Users ──────────────────────────────────────────────────────────────────
 
@@ -156,7 +158,10 @@ class Paper(models.Model):
     stored at ``{PAPER_STORAGE_DIR}/{sha256[:2]}/{sha256}.pdf``.
     """
 
-    SOURCE_CHOICES = [("user", "User"), ("arxiv", "arXiv")]
+    # User uploads plus all sources derived from the source registry
+    SOURCE_CHOICES = [("user", "User")] + [
+        (name, get_source(name).label) for name in all_source_names()
+    ]
 
     # Legacy FK — no longer populated or queried; kept for schema compat
     corpus = models.ForeignKey(
@@ -192,6 +197,13 @@ class Paper(models.Model):
         if self.arxiv_id:
             return f"https://arxiv.org/abs/{self.arxiv_id}"
         return ""
+
+    @property
+    def landing_url(self):
+        """Source-aware abstract/landing page URL (empty for uploads)."""
+        if not self.arxiv_id or self.source not in all_source_names():
+            return ""
+        return get_source(self.source).landing_url(self.arxiv_id)
 
     @property
     def categories_list(self):

@@ -3,6 +3,8 @@ from typing import Optional, List
 from datetime import datetime, date
 from enum import Enum
 
+from preprint_sources import all_source_names
+
 # Enums
 class FrequencyEnum(str, Enum):
     daily = "daily"
@@ -14,9 +16,13 @@ class FrequencyEnum(str, Enum):
 #     medium = "medium"
 #     high = "high"
 
-class SourceEnum(str, Enum):
-    user = "user"
-    arxiv = "arxiv"
+# Derived from the source registry so new sources (e.g. bioRxiv) are accepted
+# alongside user uploads.
+SourceEnum = Enum(
+    "SourceEnum",
+    {name: name for name in ["user", *all_source_names()]},
+    type=str,
+)
 
 class ModeEnum(str, Enum):
     abstract = "abstract"
