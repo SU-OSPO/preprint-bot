@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "preprint-sources"
+dynamic = ["version"]
+description = "Preprint-server source adapters (fetch, taxonomy, URLs) shared by the pipeline and the web app."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "Syracuse University Open Source Program Office", email = "ospo@syr.edu" },
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "feedparser>=6.0.11",
+    "pylatexenc>=2.10",  # decode LaTeX author names from arXiv RSS to Unicode
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "preprint_sources.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
