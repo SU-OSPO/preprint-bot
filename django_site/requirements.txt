@@ -1,5 +1,8 @@
 # Django site requirements
-# Install with: pip install -r requirements.txt
+# Install from the repo root with: pip install -r django_site/requirements.txt
+
+# Shared preprint-source package (taxonomy for the category picker).
+./packages/preprint_sources
 
 Django>=5.1,<6.0
 psycopg2-binary>=2.9.9

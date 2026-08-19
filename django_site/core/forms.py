@@ -115,7 +115,7 @@ class ProfileForm(forms.Form):
     )
 
     def clean_categories(self):
-        from .arxiv_categories import ARXIV_LEAF_CODES
+        from preprint_sources.taxonomies.arxiv import ARXIV_LEAF_CODES
         raw = self.cleaned_data.get("categories", "")
         cats = [c.strip() for c in raw.split(",") if c.strip()]
         if not cats:
