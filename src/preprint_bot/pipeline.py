@@ -456,6 +456,7 @@ async def run_pipeline(args):
         except Exception as e:
             print(f"Warning: could not record processing run: {e}")
 
+        pipeline_start = time.time()
         if args.date:
             target_date = datetime.strptime(args.date, "%Y-%m-%d")
             print("\n" + "="*80)
@@ -463,7 +464,7 @@ async def run_pipeline(args):
             print("="*80 + "\n")
         else:
             target_date = datetime.combine(date_type.today(), datetime.min.time())
-        pipeline_start = time.time()
+
             print("\n" + "="*80)
             print(f"PREPRINT BOT PIPELINE - latest announcement")
             print("="*80 + "\n")
