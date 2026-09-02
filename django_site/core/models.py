@@ -193,12 +193,6 @@ class Paper(models.Model):
         return self.title[:80]
 
     @property
-    def arxiv_url(self):
-        if self.source_id:
-            return f"https://arxiv.org/abs/{self.source_id}"
-        return ""
-
-    @property
     def landing_url(self):
         """Source-aware abstract/landing page URL (empty for uploads)."""
         if not self.source_id or self.source not in all_source_names():
