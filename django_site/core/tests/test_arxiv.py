@@ -40,12 +40,12 @@ class ArxivAddAjaxTests(TestCase):
     @patch("core.views._download_arxiv_pdfs")
     def test_ajax_add_returns_paper_json(self, mock_dl):
         mock_dl.return_value = (1, [])
-        Paper.objects.create(arxiv_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv")
+        Paper.objects.create(source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv")
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["ok"])
-        self.assertEqual(data["paper"]["arxiv_id"], "2301.00001")
+        self.assertEqual(data["paper"]["source_id"], "2301.00001")
         self.assertEqual(data["paper"]["title"], "A Great Paper")
         self.assertEqual(data["paper"]["source"], "arxiv")
         self.assertIn("id", data["paper"])
@@ -53,7 +53,7 @@ class ArxivAddAjaxTests(TestCase):
     @patch("core.views._download_arxiv_pdfs")
     def test_ajax_processes_only_first_id(self, mock_dl):
         mock_dl.return_value = (1, [])
-        Paper.objects.create(arxiv_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
+        Paper.objects.create(source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
         self._ajax_add(self.profile.pk, "2301.00001, 2301.00002")
         # AJAX handles a single ID: only the first is downloaded.
         self.assertEqual(mock_dl.call_args.args[2], ["2301.00001"])
@@ -134,7 +134,7 @@ class ArxivAddDedupTests(TestCase):
         self.assertEqual(r2.status_code, 200)
         self.assertTrue(r2.json()["ok"])
         # Deduplicated: a single Paper row, returned both times.
-        self.assertEqual(Paper.objects.filter(arxiv_id="2301.00001").count(), 1)
+        self.assertEqual(Paper.objects.filter(source_id="2301.00001").count(), 1)
         self.assertEqual(r1.json()["paper"]["id"], r2.json()["paper"]["id"])
 
 
@@ -165,7 +165,7 @@ class ArxivSearchApiTests(TestCase):
         results = resp.json()["results"]
         self.assertEqual(len(results), 1)
         r = results[0]
-        self.assertEqual(r["arxiv_id"], "2301.00001")          # version suffix stripped
+        self.assertEqual(r["source_id"], "2301.00001")          # version suffix stripped
         self.assertEqual(r["title"], "Deep Learning")
         self.assertEqual(r["authors"], "Alice Smith, Bob Jones")
         self.assertEqual(r["published"], "2023-01-15")
@@ -174,7 +174,7 @@ class ArxivSearchApiTests(TestCase):
     @patch("arxiv.Client")
     def test_search_flags_already_added(self, mock_client):
         corpus = _get_or_create_user_corpus(self.user, self.profile)
-        existing = Paper.objects.create(arxiv_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv")
+        existing = Paper.objects.create(source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv")
         existing.corpora.add(corpus)
         pub = datetime(2023, 1, 15, tzinfo=timezone.utc)
         mock_client.return_value.results.return_value = [
@@ -182,7 +182,7 @@ class ArxivSearchApiTests(TestCase):
             _fake_result("2401.99999v1", "New One", ["B"], pub),
         ]
         results = self._search(title="x").json()["results"]
-        by_id = {r["arxiv_id"]: r for r in results}
+        by_id = {r["source_id"]: r for r in results}
         self.assertTrue(by_id["2301.00001"]["already_added"])
         self.assertFalse(by_id["2401.99999"]["already_added"])
 

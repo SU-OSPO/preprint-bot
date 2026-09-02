@@ -49,8 +49,8 @@
       </div>
     {% endif %}
 
-    {% if rec.arxiv_id %}
-      <span class="text-sm text-dim text-mono">{{ rec.arxiv_id }}</span>
+    {% if rec.source_id %}
+      <span class="text-sm text-dim text-mono">{{ rec.source_id }}</span>
     {% endif %}
 
     {% if rec.summary_text %}
@@ -59,8 +59,8 @@
       <p class="mt-1 text-dim" style="font-size:.88rem;">{{ rec.abstract|truncatewords:40 }}</p>
     {% endif %}
 
-    {% if rec.arxiv_id %}
-      <a href="https://arxiv.org/abs/{{ rec.arxiv_id }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm mt-1">View on arXiv →</a>
+    {% if rec.source_id %}
+      <a href="https://arxiv.org/abs/{{ rec.source_id }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm mt-1">View on arXiv →</a>
     {% endif %}
   </div>
   {% endfor %}

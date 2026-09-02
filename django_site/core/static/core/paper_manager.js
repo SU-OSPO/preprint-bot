@@ -130,7 +130,7 @@ function renderSearchResults(box) {
   const selectedIds = box._selectedIds || new Set();
   const addedIds = box._addedIds || new Set();
   pageResults.forEach(r => {
-    html += renderPaperRow(r, false, selectedIds.has(r.arxiv_id), addedIds.has(r.arxiv_id));
+    html += renderPaperRow(r, false, selectedIds.has(r.source_id), addedIds.has(r.source_id));
   });
 
   html += '</div>';  /* close .search-results-scroll */
@@ -205,17 +205,17 @@ function renderPaperRow(r, isAdded, isSelected, isDisabled) {
   let html = '<div style="padding:.5rem 0; border-bottom:1px solid var(--border);'
     + ' display:flex; gap:.6rem; align-items:flex-start;">';
   if (!isAdded) {
-    html += '<input type="checkbox" class="arxiv-cb" value="' + esc(r.arxiv_id) + '"'
+    html += '<input type="checkbox" class="arxiv-cb" value="' + esc(r.source_id) + '"'
       + (isSelected || isDisabled ? ' checked' : '')
       + (isDisabled ? ' disabled' : '')
       + ' style="margin-top:.35rem;">';
   }
   html += '<div style="flex:1;">'
-    + '<a href="https://arxiv.org/abs/' + esc(r.arxiv_id)
+    + '<a href="https://arxiv.org/abs/' + esc(r.source_id)
     + '" target="_blank" rel="noopener noreferrer" style="font-weight:600;">' + esc(r.title) + '</a>'
     + '<div class="text-sm text-dim" style="margin-top:.15rem;">' + esc(r.authors) + '</div>'
     + '<div class="text-sm text-dim">Published ' + esc(r.published)
-    + ' &middot; ' + esc(r.arxiv_id) + '</div>'
+    + ' &middot; ' + esc(r.source_id) + '</div>'
     + '</div></div>';
   return html;
 }
@@ -370,9 +370,9 @@ function addPaperToList(profileId, paper) {
   const deleteUrl = viewUrl + 'delete/';
 
   let sourceHtml;
-  if (paper.source === 'arxiv' && paper.arxiv_id) {
-    sourceHtml = 'arXiv: <a href="https://arxiv.org/abs/' + esc(paper.arxiv_id)
-      + '" target="_blank" rel="noopener noreferrer">' + esc(paper.arxiv_id) + '</a>';
+  if (paper.source === 'arxiv' && paper.source_id) {
+    sourceHtml = 'arXiv: <a href="https://arxiv.org/abs/' + esc(paper.source_id)
+      + '" target="_blank" rel="noopener noreferrer">' + esc(paper.source_id) + '</a>';
   } else if (paper.source === 'arxiv') {
     sourceHtml = 'arXiv';
   } else {
@@ -483,7 +483,7 @@ function toggleAllCb(btn, checked) {
   if (checked) {
     /* select all results across all pages, skipping already-added */
     (box._newResults || []).forEach(r => {
-      if (!addedIds.has(r.arxiv_id)) selectedIds.add(r.arxiv_id);
+      if (!addedIds.has(r.source_id)) selectedIds.add(r.source_id);
     });
   } else {
     selectedIds.clear();

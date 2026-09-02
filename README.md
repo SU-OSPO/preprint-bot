@@ -389,7 +389,7 @@ PUT /profiles/{profile_id}
 POST /papers/
 Body: {
   "corpus_id": 1,
-  "arxiv_id": "2501.12345",
+  "source_id": "2501.12345",
   "title": "Paper Title",
   "abstract": "Paper abstract...",
   "source": "arxiv"
@@ -734,7 +734,7 @@ weekend gaps and holiday deferrals.
 SELECT * FROM profiles WHERE user_id = 1;
 
 -- Get recommendations for profile
-SELECT r.score, p.title, p.arxiv_id
+SELECT r.score, p.title, p.source_id
 FROM recommendations r
 JOIN recommendation_runs rr ON r.run_id = rr.id
 JOIN papers p ON r.paper_id = p.id

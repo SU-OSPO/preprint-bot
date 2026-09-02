@@ -49,7 +49,7 @@ async def process_unprocessed_papers(
                 current_title = paper.get('title', '')
                 is_placeholder = (
                     not current_title
-                    or current_title == paper.get('arxiv_id')  # arXiv ID as title
+                    or current_title == paper.get('source_id')  # source ID as title
                     or current_title == f"paper_{paper['id']}"  # auto-generated
                     or paper.get('source') == 'user'  # filename as title (safe:
                     # this only runs on first processing before sections exist,

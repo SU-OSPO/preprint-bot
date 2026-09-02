@@ -115,13 +115,13 @@ class APIClient:
             return False
     
     
-    async def create_paper(self, corpus_id: int, arxiv_id: str, title: str, 
+    async def create_paper(self, corpus_id: int, source_id: str, title: str, 
                         abstract: str, metadata: Dict, source: str = "arxiv",
                         processed_text_path: str = None, pdf_path: str = None,
                         submitted_date: datetime = None) -> Dict:  # ADD THIS PARAM
         paper_data = {
             "corpus_id": corpus_id,
-            "arxiv_id": arxiv_id,
+            "source_id": source_id,
             "title": title,
             "abstract": abstract,
             "metadata": metadata,
@@ -151,10 +151,10 @@ class APIClient:
         response.raise_for_status()
         return response.json()
     
-    async def get_paper_by_arxiv_id(self, arxiv_id: str) -> Optional[Dict]:
+    async def get_paper_by_source_id(self, source_id: str) -> Optional[Dict]:
         response = await self.client.get(
             f"{self.base_url}/papers/",
-            params={"arxiv_id": arxiv_id}
+            params={"source_id": source_id}
         )
         response.raise_for_status()
         papers = response.json()

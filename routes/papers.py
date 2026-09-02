@@ -13,7 +13,7 @@ async def get_papers_needing_processing():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT p.id, p.corpus_id, p.arxiv_id, p.title, p.abstract, p.metadata,
+            SELECT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata,
                    p.pdf_path, p.processed_text_path, p.submitted_date, p.source, p.created_at
             FROM papers p
             LEFT JOIN sections s ON p.id = s.paper_id
@@ -44,7 +44,7 @@ async def get_papers_needing_embeddings():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT DISTINCT p.id, p.corpus_id, p.arxiv_id, p.title, p.abstract, p.metadata,
+            SELECT DISTINCT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata,
                    p.pdf_path, p.processed_text_path, p.submitted_date, p.source, p.created_at
             FROM papers p
             JOIN sections s ON p.id = s.paper_id
@@ -74,11 +74,11 @@ async def create_paper(paper: PaperCreate):
             async with conn.transaction():
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO papers (arxiv_id, title, abstract, metadata, pdf_path, submitted_date, source)
+                    INSERT INTO papers (source_id, title, abstract, metadata, pdf_path, submitted_date, source)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    RETURNING id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at
+                    RETURNING id, corpus_id, source_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at
                     """,
-                    paper.arxiv_id, 
+                    paper.source_id, 
                     paper.title, 
                     paper.abstract,
                     json.dumps(paper.metadata) if paper.metadata else None,
@@ -102,7 +102,7 @@ async def create_paper(paper: PaperCreate):
             return result
     except Exception as e:
         print(f"ERROR creating paper: {e}")
-        print(f"Paper data: arxiv_id={paper.arxiv_id}, submitted_date={paper.submitted_date}")
+        print(f"Paper data: source_id={paper.source_id}, submitted_date={paper.submitted_date}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
@@ -117,7 +117,7 @@ async def update_processed_text_path(paper_id: int, path: str = Query(...)):
             UPDATE papers 
             SET processed_text_path = $1 
             WHERE id = $2
-            RETURNING id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at
+            RETURNING id, corpus_id, source_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at
             """,
             path, paper_id
         )
@@ -129,22 +129,22 @@ async def update_processed_text_path(paper_id: int, path: str = Query(...)):
         return result
 
 @router.get("/", response_model=List[PaperResponse])
-async def get_papers(corpus_id: Optional[int] = Query(None), arxiv_id: Optional[str] = Query(None)):
+async def get_papers(corpus_id: Optional[int] = Query(None), source_id: Optional[str] = Query(None)):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        if arxiv_id is not None:
+        if source_id is not None:
             rows = await conn.fetch(
                 """
-                SELECT id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path,
+                SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
                        processed_text_path, submitted_date, source, created_at
-                FROM papers WHERE arxiv_id = $1
+                FROM papers WHERE source_id = $1
                 """,
-                arxiv_id
+                source_id
             )
         elif corpus_id is not None:
             rows = await conn.fetch(
                 """
-                SELECT DISTINCT p.id, p.corpus_id, p.arxiv_id, p.title, p.abstract, p.metadata, p.pdf_path, 
+                SELECT DISTINCT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata, p.pdf_path, 
                        p.processed_text_path, p.submitted_date, p.source, p.created_at 
                 FROM papers p
                 JOIN papers_corpora pc ON p.id = pc.paper_id
@@ -155,7 +155,7 @@ async def get_papers(corpus_id: Optional[int] = Query(None), arxiv_id: Optional[
         else:
             rows = await conn.fetch(
                 """
-                SELECT id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path, 
+                SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path, 
                        processed_text_path, submitted_date, source, created_at 
                 FROM papers
                 """
@@ -174,7 +174,7 @@ async def get_paper(paper_id: int):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path, 
+            SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path, 
                    processed_text_path, submitted_date, source, created_at 
             FROM papers WHERE id = $1
             """,
@@ -194,9 +194,9 @@ async def update_paper(paper_id: int, paper: PaperUpdate):
     values = []
     idx = 1
     
-    if paper.arxiv_id is not None:
-        updates.append(f"arxiv_id = ${idx}")
-        values.append(paper.arxiv_id)
+    if paper.source_id is not None:
+        updates.append(f"source_id = ${idx}")
+        values.append(paper.source_id)
         idx += 1
     if paper.title is not None:
         updates.append(f"title = ${idx}")
@@ -225,7 +225,7 @@ async def update_paper(paper_id: int, paper: PaperUpdate):
     values.append(paper_id)
     query = f"""UPDATE papers SET {', '.join(updates)} 
                 WHERE id = ${idx} 
-                RETURNING id, corpus_id, arxiv_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at"""
+                RETURNING id, corpus_id, source_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at"""
     
     async with pool.acquire() as conn:
         row = await conn.fetchrow(query, *values)

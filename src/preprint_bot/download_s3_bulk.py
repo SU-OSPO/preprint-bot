@@ -66,12 +66,12 @@ def download_from_s3_bulk(paper_metadata, output_folder):
     
     for paper in tqdm(paper_metadata, desc="Downloading from S3", unit="paper"):
         # Extract arXiv ID
-        arxiv_id = paper["arxiv_url"].split("/")[-1]
+        source_id = paper["arxiv_url"].split("/")[-1]
         
         # Remove version suffix (e.g., v1, v2)
-        clean_id = arxiv_id.split('v')[0] if 'v' in arxiv_id else arxiv_id
+        clean_id = source_id.split('v')[0] if 'v' in source_id else source_id
         
-        local_path = output_path / f"{arxiv_id}.pdf"
+        local_path = output_path / f"{source_id}.pdf"
         
         # Skip if exists
         if local_path.exists():
@@ -82,7 +82,7 @@ def download_from_s3_bulk(paper_metadata, output_folder):
         success = False
         
         try:
-            # Parse YYMM from arxiv_id
+            # Parse YYMM from source_id
             parts = clean_id.split('.')
             if len(parts) >= 2:
                 yymm = parts[0]
@@ -90,9 +90,9 @@ def download_from_s3_bulk(paper_metadata, output_folder):
                 # Try multiple path formats
                 s3_paths = [
                     f"pdf/{yymm}/{clean_id}.pdf",           # Standard: pdf/2601/2601.05789.pdf
-                    f"pdf/{yymm}/{arxiv_id}.pdf",           # With version: pdf/2601/2601.05789v1.pdf
+                    f"pdf/{yymm}/{source_id}.pdf",          # With version: pdf/2601/2601.05789v1.pdf
                     f"{yymm}/{clean_id}.pdf",               # Without pdf/ prefix
-                    f"{yymm}/{arxiv_id}.pdf",               # Without pdf/ prefix, with version
+                    f"{yymm}/{source_id}.pdf",              # Without pdf/ prefix, with version
                 ]
                 
                 for s3_key in s3_paths:
@@ -107,12 +107,12 @@ def download_from_s3_bulk(paper_metadata, output_folder):
             if not success:
                 stats['failed'] += 1
                 if stats['failed'] <= 10:
-                    tqdm.write(f"  S3 miss: {arxiv_id}")
+                    tqdm.write(f"  S3 miss: {source_id}")
         
         except Exception as e:
             stats['failed'] += 1
             if stats['failed'] <= 10:
-                tqdm.write(f"  S3 error for {arxiv_id}: {str(e)[:50]}")
+                tqdm.write(f"  S3 error for {source_id}: {str(e)[:50]}")
     
     print(f"\n{'='*60}")
     print("S3 Download Complete!")

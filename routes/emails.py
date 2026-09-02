@@ -44,7 +44,7 @@ async def send_digest(req: DigestRequest):
         rows = await conn.fetch(
             """
             SELECT r.id AS recommendation_id,
-                   p.arxiv_id, p.title, p.abstract, p.metadata,
+                   p.source_id, p.title, p.abstract, p.metadata,
                    r.score, r.summary, s.summary_text
             FROM recommendations r
             JOIN recommendation_runs rr ON rr.id = r.run_id

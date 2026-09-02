@@ -113,7 +113,7 @@ class ProfileCorpusResponse(BaseModel):
 # Paper Schemas
 class PaperCreate(BaseModel):
     corpus_id: Optional[int] = None  # used for M2M linking only
-    arxiv_id: Optional[str] = None
+    source_id: Optional[str] = None
     title: str
     abstract: Optional[str] = None
     metadata: Optional[dict] = None
@@ -122,7 +122,7 @@ class PaperCreate(BaseModel):
     source: SourceEnum
 
 class PaperUpdate(BaseModel):
-    arxiv_id: Optional[str] = None
+    source_id: Optional[str] = None
     title: Optional[str] = None
     abstract: Optional[str] = None
     metadata: Optional[dict] = None
@@ -132,7 +132,7 @@ class PaperUpdate(BaseModel):
 class PaperResponse(BaseModel):
     id: int
     corpus_id: Optional[int]  # legacy — may be NULL for new papers
-    arxiv_id: Optional[str]
+    source_id: Optional[str]
     title: str
     abstract: Optional[str]
     metadata: Optional[dict]

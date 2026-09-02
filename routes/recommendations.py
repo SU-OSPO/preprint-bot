@@ -101,7 +101,7 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
             """
             SELECT 
                 r.id, r.run_id, r.paper_id, r.score, r.rank, r.summary, r.created_at,
-                p.arxiv_id, p.title, p.abstract, p.metadata, p.source, p.submitted_date,
+                p.source_id, p.title, p.abstract, p.metadata, p.source, p.submitted_date,
                 s.summary_text
             FROM recommendations r
             JOIN papers p ON r.paper_id = p.id
@@ -147,9 +147,9 @@ async def get_recommendations_by_profile(profile_id: int, limit: int = Query(500
         user_corpus_id = corpus['id']
         rows = await conn.fetch(
             """
-            SELECT DISTINCT ON (p.arxiv_id)
+            SELECT DISTINCT ON (p.source_id)
                 r.id, r.run_id, r.paper_id, r.score, r.rank, r.created_at,
-                p.arxiv_id, p.title, p.abstract, p.metadata, p.submitted_date,
+                p.source_id, p.title, p.abstract, p.metadata, p.submitted_date,
                 s.summary_text,
                 rr.total_papers_fetched
             FROM recommendations r
@@ -157,7 +157,7 @@ async def get_recommendations_by_profile(profile_id: int, limit: int = Query(500
             JOIN papers p ON r.paper_id = p.id
             LEFT JOIN summaries s ON s.paper_id = p.id AND s.mode = 'abstract'
             WHERE rr.user_corpus_id = $1
-            ORDER BY p.arxiv_id, r.score DESC, p.submitted_date DESC
+            ORDER BY p.source_id, r.score DESC, p.submitted_date DESC
             LIMIT $2
             """,
             user_corpus_id, limit
