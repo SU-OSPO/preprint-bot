@@ -1,6 +1,6 @@
 """
 Re-fetch metadata (title, abstract, categories, authors) from the arXiv API
-for all papers that have a valid arxiv_id.
+for all papers that have a valid source_id.
 
 Usage:
     python manage.py refresh_arxiv_metadata          # dry run
@@ -57,10 +57,10 @@ class Command(BaseCommand):
 
         # Only include papers with valid arXiv IDs (skip legacy citation-style IDs)
         papers = [
-            p for p in Paper.objects.filter(arxiv_id__isnull=False)
-            .exclude(arxiv_id="")
+            p for p in Paper.objects.filter(source_id__isnull=False)
+            .exclude(source_id="")
             .order_by("id")
-            if ARXIV_ID_RE.match(re.sub(r"v\d+$", "", p.arxiv_id))
+            if ARXIV_ID_RE.match(re.sub(r"v\d+$", "", p.source_id))
         ]
 
         if not papers:
@@ -78,7 +78,7 @@ class Command(BaseCommand):
         for batch_num, batch in enumerate(batches, 1):
             self.stdout.write(f"\nBatch {batch_num}/{len(batches)} ({len(batch)} papers)...")
 
-            id_map = {p.arxiv_id: p for p in batch}
+            id_map = {p.source_id: p for p in batch}
             arxiv_ids = list(id_map.keys())
 
             try:

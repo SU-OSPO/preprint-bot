@@ -170,7 +170,7 @@ class Paper(models.Model):
         help_text="Deprecated — not populated. Use corpora M2M. Can be dropped in a future migration.",
     )
     corpora = models.ManyToManyField(Corpus, blank=True, related_name="papers")
-    arxiv_id = models.CharField(max_length=50, blank=True, null=True)
+    source_id = models.CharField(max_length=50, blank=True, null=True)
     sha256 = models.CharField(max_length=64, unique=True, blank=True, null=True)
     title = models.TextField()
     abstract = models.TextField(blank=True, null=True)
@@ -185,7 +185,7 @@ class Paper(models.Model):
     class Meta:
         db_table = "papers"
         indexes = [
-            models.Index(fields=["arxiv_id"], name="papers_arxiv_id_idx"),
+            models.Index(fields=["source_id"], name="papers_source_id_idx"),
             models.Index(fields=["submitted_date"], name="papers_submitted_date_idx"),
         ]
 
@@ -193,17 +193,11 @@ class Paper(models.Model):
         return self.title[:80]
 
     @property
-    def arxiv_url(self):
-        if self.arxiv_id:
-            return f"https://arxiv.org/abs/{self.arxiv_id}"
-        return ""
-
-    @property
     def landing_url(self):
         """Source-aware abstract/landing page URL (empty for uploads)."""
-        if not self.arxiv_id or self.source not in all_source_names():
+        if not self.source_id or self.source not in all_source_names():
             return ""
-        return get_source(self.source).landing_url(self.arxiv_id)
+        return get_source(self.source).landing_url(self.source_id)
 
     @property
     def categories_list(self):

@@ -1069,11 +1069,11 @@ def paper_add_arxiv_view(request, profile_id):
         if failed:
             return JsonResponse({"ok": False, "error": f"Failed to download {aid}."}, status=400)
         # Look up the paper to return its info for the DOM
-        paper = Paper.objects.filter(arxiv_id=aid).order_by("-id").first()
+        paper = Paper.objects.filter(source_id=aid).order_by("-id").first()
         if not paper:
             # Legacy data may have version suffix (e.g., 2507.08778v1);
             # prefer the newest matching row deterministically.
-            paper = Paper.objects.filter(arxiv_id__startswith=aid + 'v').order_by("-id").first()
+            paper = Paper.objects.filter(source_id__startswith=aid + 'v').order_by("-id").first()
         if not paper:
             return JsonResponse({"ok": False, "error": f"Paper stored but could not be retrieved for arXiv ID {aid}."}, status=500)
         return JsonResponse({
@@ -1081,7 +1081,7 @@ def paper_add_arxiv_view(request, profile_id):
             "paper": {
                 "id": paper.pk,
                 "title": paper.title,
-                "arxiv_id": paper.arxiv_id,
+                "source_id": paper.source_id,
                 "source": paper.source,
             },
         })
@@ -1118,7 +1118,7 @@ def _parse_arxiv_ids(raw: str) -> list[str]:
 def _fetch_arxiv_metadata(arxiv_ids):
     """Batch-fetch metadata (title, abstract, date) from arXiv API.
 
-    Returns a dict keyed by arxiv_id (version-stripped).
+    Returns a dict keyed by source_id (version-stripped).
     Falls back gracefully if the arxiv package is unavailable.
     """
     metadata = {}
@@ -1199,7 +1199,7 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
             from django.db import IntegrityError
             try:
                 paper = Paper.objects.create(
-                    arxiv_id=aid,
+                    source_id=aid,
                     sha256=file_hash,
                     title=meta.get("title", aid),
                     abstract=meta.get("abstract"),
@@ -1262,11 +1262,11 @@ def paper_search_arxiv_api_view(request, profile_id):
             sort_order=arxiv_lib.SortOrder.Descending,
         )
 
-        # Existing paper arxiv_ids for this profile (to flag already-added ones)
+        # Existing paper source_ids for this profile (to flag already-added ones)
         corpus = _get_or_create_user_corpus(pb_user, profile)
         existing_ids = set(
-            Paper.objects.filter(corpora=corpus, arxiv_id__isnull=False)
-            .values_list("arxiv_id", flat=True)
+            Paper.objects.filter(corpora=corpus, source_id__isnull=False)
+            .values_list("source_id", flat=True)
         )
 
         results = []
@@ -1279,7 +1279,7 @@ def paper_search_arxiv_api_view(request, profile_id):
             else:
                 authors_str = ", ".join(author_names)
             results.append({
-                "arxiv_id": aid,
+                "source_id": aid,
                 "title": paper.title,
                 "authors": authors_str,
                 "published": paper.published.strftime("%Y-%m-%d"),
@@ -1403,7 +1403,7 @@ def _query_profile_recommendations(pb_user, profile=None):
     recs_list = list(
         Recommendation.objects.filter(run__in=runs)
         .select_related("paper", "run")
-        .order_by("-paper__submitted_date", "-score", "paper__arxiv_id")
+        .order_by("-paper__submitted_date", "-score", "paper__source_id")
         [:5000]
     )
 
@@ -1424,11 +1424,11 @@ def _query_profile_recommendations(pb_user, profile=None):
         if pid:
             profile_paper_ids.setdefault(pid, set()).add(paper_pk)
 
-    # Deduplicate by arxiv_id keeping highest score
+    # Deduplicate by source_id keeping highest score
     seen = {}
     for rec in recs_list:
         paper = rec.paper
-        aid = paper.arxiv_id or f"_pk_{paper.pk}"
+        aid = paper.source_id or f"_pk_{paper.pk}"
         if aid in seen and rec.score <= seen[aid]["score"]:
             continue
 
@@ -1446,7 +1446,7 @@ def _query_profile_recommendations(pb_user, profile=None):
             "title": paper.title,
             "score": rec.score,
             "rank": rec.rank,
-            "arxiv_id": paper.arxiv_id,
+            "source_id": paper.source_id,
             "abstract": paper.abstract or "",
             "summary_text": summaries_map.get(paper.pk, ""),
             "date_obj": date_obj,
@@ -1491,7 +1491,7 @@ def recommendation_add_to_profile_view(request, profile_id, paper_id):
         "paper": {
             "id": paper.pk,
             "title": paper.title,
-            "arxiv_id": paper.arxiv_id,
+            "source_id": paper.source_id,
         },
     })
 

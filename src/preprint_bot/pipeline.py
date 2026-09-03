@@ -94,7 +94,7 @@ async def store_fetched_papers(
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
     new_paper_ids: set[int] = set()  # only newly created papers
     for paper in entries:
-        existing = await api_client.get_paper_by_arxiv_id(paper.source_id)
+        existing = await api_client.get_paper_by_source_id(paper.source_id)
         if existing:
             paper_ids.add(existing['id'])
             continue
@@ -119,7 +119,7 @@ async def store_fetched_papers(
         try:
             created = await api_client.create_paper(
                 corpus_id=corpus['id'],
-                arxiv_id=paper.source_id,
+                source_id=paper.source_id,
                 title=paper.title,
                 abstract=paper.abstract,
                 metadata={
@@ -175,7 +175,7 @@ async def _parse_and_store_sections(
     """
     papers = await api_client.get_papers_by_corpus(corpus_id)
     entry_ids = {e.source_id for e in entries}
-    papers = [p for p in papers if p.get('arxiv_id') in entry_ids]
+    papers = [p for p in papers if p.get('source_id') in entry_ids]
 
     parsed = 0
     for paper in papers:
@@ -200,10 +200,10 @@ async def _parse_and_store_sections(
 
             parsed += 1
             if sections_stored > 0:
-                print(f"  {paper['arxiv_id']}: {sections_stored} sections")
+                print(f"  {paper['source_id']}: {sections_stored} sections")
 
         except Exception as e:
-            print(f"  Failed to process {paper.get('arxiv_id', paper['id'])}: {e}")
+            print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
 
     print(f"Parsed {parsed} papers, stored sections to database")
 
@@ -219,7 +219,7 @@ async def summarize_papers(
     print(f"\nGenerating summaries using {type(summarizer).__name__}...")
     papers = await api_client.get_papers_by_corpus(corpus_id)
     entry_ids = {e.source_id for e in entries}
-    papers = [p for p in papers if p.get('arxiv_id') in entry_ids]
+    papers = [p for p in papers if p.get('source_id') in entry_ids]
 
     if paper_ids is not None:
         papers = [p for p in papers if p['id'] in paper_ids]
@@ -244,7 +244,7 @@ async def summarize_papers(
             summarized_count += 1
             print(f"  {paper['title'][:60]}...")
         except Exception as e:
-            print(f"  Failed: {paper.get('arxiv_id', paper['id'])}: {e}")
+            print(f"  Failed: {paper.get('source_id', paper['id'])}: {e}")
 
     print(f"\nGenerated {summarized_count} summaries")
 

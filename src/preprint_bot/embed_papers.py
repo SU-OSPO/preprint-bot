@@ -119,7 +119,7 @@ async def embed_and_store_papers(
             else:
                 skipped += 1
         except Exception as e:
-            print(f"  Failed to embed paper {paper.get('arxiv_id', paper['id'])}: {e}")
+            print(f"  Failed to embed paper {paper.get('source_id', paper['id'])}: {e}")
             skipped += 1
 
     print(f"\nEmbedding complete!")

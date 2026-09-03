@@ -308,11 +308,11 @@ function renderCard(r, showDate) {
 
   if (showDate) {
     html += '<div class="text-sm text-dim" style="margin-bottom:.25rem;">';
-    if (r.arxiv_id) html += '<span class="text-mono">' + esc(r.arxiv_id) + '</span> &middot; ';
+    if (r.source_id) html += '<span class="text-mono">' + esc(r.source_id) + '</span> &middot; ';
     html += esc(r.date_str || formatDate(r.date_iso));
     html += '</div>';
-  } else if (r.arxiv_id) {
-    html += '<span class="text-sm text-dim text-mono">' + esc(r.arxiv_id) + '</span>';
+  } else if (r.source_id) {
+    html += '<span class="text-sm text-dim text-mono">' + esc(r.source_id) + '</span>';
   }
 
   if (r.summary_text) {
@@ -321,8 +321,8 @@ function renderCard(r, showDate) {
     html += '<p class="mt-1 text-dim" style="font-size:.86rem;">' + esc(truncWords(r.abstract, 50)) + '</p>';
   }
 
-  if (r.arxiv_id) {
-    html += '<a href="https://arxiv.org/abs/' + esc(r.arxiv_id)
+  if (r.source_id) {
+    html += '<a href="https://arxiv.org/abs/' + esc(r.source_id)
       + '" target="_blank" rel="noopener noreferrer" class="btn btn-sm mt-1">View on arXiv →</a>';
   }
 

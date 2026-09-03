@@ -39,12 +39,12 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
     papers = papers[:10]
     rows = ""
     for i, paper in enumerate(papers, 1):
-        arxiv_id = paper.get("arxiv_id", "")
+        source_id = paper.get("source_id", "")
         title = paper.get("title", "No title")
         score = paper.get("score", 0)
         authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
-        arxiv_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else "#"
+        arxiv_url = f"https://arxiv.org/abs/{source_id}" if source_id else "#"
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''

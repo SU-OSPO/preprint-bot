@@ -1,5 +1,5 @@
 """
-Recover arXiv IDs for papers that have titles but missing arxiv_id values,
+Recover arXiv IDs for papers that have titles but missing source_id values,
 by searching the arXiv API by title.
 
 Usage:
@@ -21,7 +21,7 @@ ARXIV_ID_RE = re.compile(
 
 
 def _search_arxiv_by_title(title):
-    """Search arXiv for a paper by exact title. Returns (arxiv_id, api_title) or (None, None)."""
+    """Search arXiv for a paper by exact title. Returns (source_id, api_title) or (None, None)."""
     try:
         import arxiv as arxiv_lib
     except ImportError:
@@ -53,7 +53,7 @@ def _search_arxiv_by_title(title):
 
 
 class Command(BaseCommand):
-    help = "Recover arXiv IDs by searching arXiv API by title for papers with missing arxiv_id."
+    help = "Recover arXiv IDs by searching arXiv API by title for papers with missing source_id."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -73,7 +73,7 @@ class Command(BaseCommand):
 
         papers = list(
             Paper.objects.filter(
-                arxiv_id__isnull=True,
+                source_id__isnull=True,
                 source=source,
             )
             .exclude(title="")
@@ -106,8 +106,8 @@ class Command(BaseCommand):
 
             if aid:
                 if apply:
-                    paper.arxiv_id = aid
-                    paper.save(update_fields=["arxiv_id"])
+                    paper.source_id = aid
+                    paper.save(update_fields=["source_id"])
                 mark = "+" if apply else "~"
                 self.stdout.write(self.style.SUCCESS(f"    {mark} Found: {aid}"))
                 recovered += 1

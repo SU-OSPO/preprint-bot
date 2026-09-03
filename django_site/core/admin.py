@@ -46,9 +46,9 @@ class CorpusAdmin(admin.ModelAdmin):
 
 @admin.register(Paper)
 class PaperAdmin(admin.ModelAdmin):
-    list_display = ("id", "arxiv_id", "title_short", "source", "sha256_short", "submitted_date")
+    list_display = ("id", "source_id", "title_short", "source", "sha256_short", "submitted_date")
     list_filter = ("source",)
-    search_fields = ("arxiv_id", "title", "sha256")
+    search_fields = ("source_id", "title", "sha256")
 
     @admin.display(description="Title")
     def title_short(self, obj):

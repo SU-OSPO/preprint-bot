@@ -186,7 +186,7 @@ async def search_similar_embeddings(request: VectorSearchRequest):
     if request.corpus_id is not None:
         query = """
             SELECT DISTINCT
-                p.id, p.arxiv_id, p.title, p.abstract,
+                p.id, p.source_id, p.title, p.abstract,
                 1 - (e.embedding <=> $1::vector) as similarity
             FROM embeddings e
             JOIN papers p ON e.paper_id = p.id
@@ -201,7 +201,7 @@ async def search_similar_embeddings(request: VectorSearchRequest):
     else:
         query = """
             SELECT DISTINCT
-                p.id, p.arxiv_id, p.title, p.abstract,
+                p.id, p.source_id, p.title, p.abstract,
                 1 - (e.embedding <=> $1::vector) as similarity
             FROM embeddings e
             JOIN papers p ON e.paper_id = p.id
