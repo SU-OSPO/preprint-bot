@@ -693,7 +693,7 @@ def _format_duration(seconds):
         return str(seconds)
     
     if secs < 60:
-        return f"{secs:.2f}s".rstrip('0').rstrip('.') + 's' if '.' in f"{secs:.2f}" else f"{int(secs)}s"
+        return f"{secs:.2f}s"
     elif secs < 3600:
         mins = int(secs // 60)
         rem_secs = secs % 60
@@ -704,3 +704,4 @@ def _format_duration(seconds):
         mins = int(rem // 60)
         rem_secs = rem % 60
         return f"{hours}h {mins}m {rem_secs:.1f}s"
+
