@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Recommendations – Preprint Bot{% endblock %}
 
 {% block content %}
@@ -111,6 +111,7 @@ const PROFILES = JSON.parse('{{ profiles_json|escapejs }}');
 const PROFILE_PARAM = '{{ profile_param }}';
 const SELECTED_PROFILE_ID = {{ selected_profile.pk|default:'null' }};
 const ADD_URL_BASE = '{% url "recommendations" %}add/';
+  const CREATE_PROFILE_URL_BASE = '{% url "recommendations" %}create-profile/';
   const CREATE_PROFILE_URL_BASE = '{% url "recommendations" %}create-profile/';
 const PER_PAGE = 20;
 

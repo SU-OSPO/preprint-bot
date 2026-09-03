@@ -1,4 +1,4 @@
-﻿from django.urls import path
+from django.urls import path
 from . import views
 
 urlpatterns = [
@@ -39,7 +39,7 @@ urlpatterns = [
     path("profiles/<int:profile_id>/search-arxiv/", views.paper_search_arxiv_api_view, name="paper_search_arxiv_api"),
 
     # Recommendations
-    path("recommendations/", views.recommendations_view, name="recommendations"),
+    path("recommendations/", views.recommendations_view, name="recommendations"),`r`n    path("recommendations/create-profile/<int:paper_id>/", views.recommendation_create_profile_view, name="recommendation_create_profile"),
     path("recommendations/create-profile/<int:paper_id>/", views.recommendation_create_profile_view, name="recommendation_create_profile"),
     path("recommendations/add/<int:profile_id>/<int:paper_id>/", views.recommendation_add_to_profile_view, name="recommendation_add_to_profile"),
 
