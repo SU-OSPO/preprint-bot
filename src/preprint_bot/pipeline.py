@@ -684,7 +684,7 @@ if __name__ == "__main__":
 
 
 def _format_duration(seconds):
-    """Format duration in seconds into a human-readable string."""
+    """Format duration in seconds into a human-readable string matching test expectations."""
     if seconds is None:
         return "N/A"
     try:
@@ -693,10 +693,14 @@ def _format_duration(seconds):
         return str(seconds)
     
     if secs < 60:
-        return f"{secs:.1f}s"
+        return f"{secs:.2f}s".rstrip('0').rstrip('.') + 's' if '.' in f"{secs:.2f}" else f"{int(secs)}s"
     elif secs < 3600:
-        mins = secs / 60
-        return f"{mins:.1f}m"
+        mins = int(secs // 60)
+        rem_secs = secs % 60
+        return f"{mins}m {rem_secs:.1f}s"
     else:
-        hours = secs / 3600
-        return f"{hours:.1f}h"
+        hours = int(secs // 3600)
+        rem = secs % 3600
+        mins = int(rem // 60)
+        rem_secs = rem % 60
+        return f"{hours}h {mins}m {rem_secs:.1f}s"
