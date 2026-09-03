@@ -681,3 +681,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _format_duration(seconds):
+    """Format duration in seconds into a human-readable string."""
+    if seconds is None:
+        return "N/A"
+    try:
+        secs = float(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    
+    if secs < 60:
+        return f"{secs:.1f}s"
+    elif secs < 3600:
+        mins = secs / 60
+        return f"{mins:.1f}m"
+    else:
+        hours = secs / 3600
+        return f"{hours:.1f}h"
