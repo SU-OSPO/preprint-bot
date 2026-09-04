@@ -14,7 +14,7 @@ try:
 except ImportError:
     ADMIN_EMAIL = ""
 
-DASHBOARD_URL = SITE_URL
+DASHBOARD_URL = SITE_URL.rstrip("/") + "/recommendations/"
 SU_ORANGE = "#F76900"
 SU_NAVY = "#002147"
 
