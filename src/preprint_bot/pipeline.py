@@ -159,6 +159,7 @@ async def store_fetched_papers(
             )
 
     if not skip_parse and stored_count > 0:
+        parse_start = time.time()
         print("\nParsing PDFs with GROBID...")
         await _parse_and_store_sections(api_client, corpus['id'], entries)
 
@@ -205,7 +206,7 @@ async def _parse_and_store_sections(
         except Exception as e:
             print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
 
-    print(f"Parsed {parsed} papers, stored sections to database")
+    print(f"Parsed {parsed} papers, stored sections to database (completed in {_format_duration(time.time() - parse_start)})")
 
 
 async def summarize_papers(
@@ -680,3 +681,27 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _format_duration(seconds):
+    """Format duration in seconds into a human-readable string matching test expectations."""
+    if seconds is None:
+        return "N/A"
+    try:
+        secs = float(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    
+    if secs < 60:
+        return f"{secs:.2f}s"
+    elif secs < 3600:
+        mins = int(secs // 60)
+        rem_secs = secs % 60
+        return f"{mins}m {rem_secs:.1f}s"
+    else:
+        hours = int(secs // 3600)
+        rem = secs % 3600
+        mins = int(rem // 60)
+        rem_secs = rem % 60
+        return f"{hours}h {mins}m {rem_secs:.1f}s"
+
