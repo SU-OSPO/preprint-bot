@@ -86,12 +86,10 @@
               <a href="{% url 'paper_view' p.pk paper.pk %}" target="_blank" rel="noopener noreferrer"
                  class="text-sm" style="font-weight:600;">{{ paper.title|truncatechars:80 }}</a>
               <div class="text-sm text-dim">
-                {% if paper.source == 'arxiv' and paper.source_id %}
-                  arXiv: <a href="https://arxiv.org/abs/{{ paper.source_id }}" target="_blank" rel="noopener noreferrer">{{ paper.source_id }}</a>
-                {% elif paper.source == 'arxiv' %}
-                  arXiv
+                {% if paper.landing_url %}
+                  {{ paper.source_label }}: <a href="{{ paper.landing_url }}" target="_blank" rel="noopener noreferrer">{{ paper.source_id }}</a>
                 {% else %}
-                  User upload
+                  {{ paper.source_label }}
                 {% endif %}
               </div>
             </div>

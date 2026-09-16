@@ -321,9 +321,10 @@ function renderCard(r, showDate) {
     html += '<p class="mt-1 text-dim" style="font-size:.86rem;">' + esc(truncWords(r.abstract, 50)) + '</p>';
   }
 
-  if (r.source_id) {
-    html += '<a href="https://arxiv.org/abs/' + esc(r.source_id)
-      + '" target="_blank" rel="noopener noreferrer" class="btn btn-sm mt-1">View on arXiv →</a>';
+  if (r.landing_url) {
+    html += '<a href="' + esc(r.landing_url)
+      + '" target="_blank" rel="noopener noreferrer" class="btn btn-sm mt-1">View on '
+      + esc(r.source_label || 'source') + ' →</a>';
   }
 
   /* "Add to Profile" button or dropdown */
