@@ -6,6 +6,7 @@ source-aware links without knowing server-specific details.
 """
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -36,7 +37,7 @@ class PreprintSource(ABC):
     Required: ``name``, ``label``, ``fetch_latest``, ``landing_url``,
     ``category_tree``, ``leaf_codes``. The rest are optional capabilities a
     source declares support for and implements: ``fetch_by_date``, ``search``,
-    and add-by-id (``normalize_id`` / ``fetch_one``).
+    and add-by-id (``normalize_id`` / ``fetch_one`` / ``fetch_many``).
     """
 
     # ── identity ───────────────────────────────────────────────────
@@ -52,6 +53,16 @@ class PreprintSource(ABC):
     def label(self) -> str:
         """Human-facing name for UI badges, e.g. ``'arXiv'``."""
         ...
+
+    @property
+    def request_delay_seconds(self) -> float:
+        """Minimum gap between successive requests to this server.
+
+        Servers that publish a rate limit (e.g., arXiv asks for one request every
+        three seconds) override this; consumers that loop over ids pace
+        themselves with this value instead of hardcoding a per-server number.
+        """
+        return 0.0
 
     # ── fetching ───────────────────────────────────────────────────
 
@@ -97,8 +108,9 @@ class PreprintSource(ABC):
         return False
 
     async def search(
-        self, *, title: str = "", author: str = ""
+        self, *, title: str = "", author: str = "", max_results: int = 100
     ) -> List[PaperEntry]:
+        """Find papers by title and/or author, newest first."""
         raise NotImplementedError(f"{self.name} does not support search")
 
     # ── add by id (optional) ───────────────────────────────────────
@@ -106,9 +118,34 @@ class PreprintSource(ABC):
     def supports_add_by_id(self) -> bool:
         return False
 
+    @property
+    def id_hint(self) -> str:
+        """Example ids for the add-by-id input's placeholder (optional)."""
+        return ""
+
     def normalize_id(self, raw: str) -> Optional[str]:
         """Parse a user-typed id/DOI/URL into a canonical source_id, or None."""
         raise NotImplementedError(f"{self.name} does not support add-by-id")
 
     async def fetch_one(self, source_id: str) -> Optional[PaperEntry]:
+        """Metadata for a single id, or ``None`` if the server has no record."""
         raise NotImplementedError(f"{self.name} does not support add-by-id")
+
+    async def fetch_many(
+        self, source_ids: List[str]
+    ) -> Dict[str, PaperEntry]:
+        """Metadata for several ids at once, keyed by canonical source_id.
+
+        Defaults to sequential ``fetch_one`` calls paced by
+        ``request_delay_seconds``; sources with a batch endpoint should
+        override this to avoid one round trip per id.  Ids the server does
+        not know about are simply absent from the result.
+        """
+        entries: Dict[str, PaperEntry] = {}
+        for i, source_id in enumerate(source_ids):
+            if i and self.request_delay_seconds:
+                await asyncio.sleep(self.request_delay_seconds)
+            entry = await self.fetch_one(source_id)
+            if entry is not None:
+                entries[entry.source_id] = entry
+        return entries
