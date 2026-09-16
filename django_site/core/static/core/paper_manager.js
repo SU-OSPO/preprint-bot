@@ -10,12 +10,39 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-/* ── arXiv search ───────────────────────────────────── */
+/* ── Source search ───────────────────────────────────── */
 const PER_PAGE = (window.PAPER_MANAGER && window.PAPER_MANAGER.perPage) || 10;
-const ARXIV_DELAY_MS = 3000;  /* arXiv rate limit: 3 seconds between requests */
+const SOURCES = (window.PAPER_MANAGER && window.PAPER_MANAGER.sources) || {};
+
+/* Each source publishes its own request spacing; default to no delay. */
+function sourceDelayMs(name) {
+  const s = SOURCES[name];
+  return s && s.delayMs ? s.delayMs : 0;
+}
+
+function sourceLabel(name) {
+  const s = SOURCES[name];
+  return (s && s.label) || name || 'source';
+}
+
+/* Selected source in a panel, or '' to let the server pick the only one. */
+function panelSource(panel) {
+  const el = panel && panel.querySelector('.search-source');
+  return el ? el.value : '';
+}
 
 document.querySelectorAll('.search-btn').forEach(btn => {
   btn.addEventListener('click', () => doSearch(btn));
+});
+
+/* Multi-source deployments: the ID examples belong to the chosen source. */
+document.querySelectorAll('select.add-source').forEach(sel => {
+  sel.addEventListener('change', () => {
+    const form = sel.closest('form');
+    const textarea = form && form.querySelector('textarea[name="source_ids"]');
+    const opt = sel.options[sel.selectedIndex];
+    if (textarea && opt) textarea.placeholder = opt.dataset.hint || '';
+  });
 });
 
 document.querySelectorAll('.search-title, .search-author').forEach(input => {
@@ -42,7 +69,8 @@ function doSearch(btn) {
 
   const url = btn.dataset.url
     + '?title=' + encodeURIComponent(title)
-    + '&author=' + encodeURIComponent(author);
+    + '&author=' + encodeURIComponent(author)
+    + '&source=' + encodeURIComponent(panelSource(panel));
 
   fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(r => {
@@ -77,7 +105,9 @@ function doSearch(btn) {
       box._page = 1;
       box._selectedIds = new Set();  /* persistent selection across pages */
       box._addedIds = new Set();  /* papers added during this session */
-      box._addUrl = btn.closest('.paper-tabs').querySelector('[action*="add-arxiv"]').action;
+      box._source = data.source || '';
+      const addForm = btn.closest('.paper-tabs').querySelector('[action*="add-by-id"]');
+      box._addUrl = addForm ? addForm.action : '';
 
       renderSearchResults(box);
     })
@@ -118,10 +148,11 @@ function renderSearchResults(box) {
 
   /* main results form */
   const profileId = box.closest('.paper-tabs').dataset.profile;
-  html += '<form method="post" action="' + esc(addUrl) + '" class="add-arxiv-form"'
+  html += '<form method="post" action="' + esc(addUrl) + '" class="add-by-id-form"'
     + ' data-profile="' + profileId + '">'
     + '<input type="hidden" name="csrfmiddlewaretoken" value="' + getCSRF() + '">'
-    + '<input type="hidden" name="arxiv_ids" class="bulk-ids-field">'
+    + '<input type="hidden" name="source" value="' + esc(box._source || '') + '">'
+    + '<input type="hidden" name="source_ids" class="bulk-ids-field">'
     + '<div class="search-results-scroll">';
 
   if (pageResults.length === 0) {
@@ -148,9 +179,13 @@ function renderSearchResults(box) {
     html += '</div>';
   }
 
-  html += '<button type="submit" class="btn btn-sm btn-primary" style="margin-top:.75rem;"'
-    + ' onclick="return collectBulk(this);">Add Selected to Profile</button>'
-    + '<div class="add-progress" style="display:none; margin-top:.5rem;"></div></form>';
+  /* A source can be searchable without being add-by-ID capable; then there
+     is nowhere to post the selection, so offer no add button. */
+  if (addUrl) {
+    html += '<button type="submit" class="btn btn-sm btn-primary" style="margin-top:.75rem;"'
+      + ' onclick="return collectBulk(this);">Add Selected to Profile</button>';
+  }
+  html += '<div class="add-progress" style="display:none; margin-top:.5rem;"></div></form>';
 
   /* already-added papers in collapsible section */
   if (addedResults.length > 0) {
@@ -167,7 +202,7 @@ function renderSearchResults(box) {
   box.innerHTML = html;
 
   /* wire up checkbox change events to sync with persistent selection */
-  box.querySelectorAll('.arxiv-cb:not([disabled])').forEach(cb => {
+  box.querySelectorAll('.paper-cb:not([disabled])').forEach(cb => {
     cb.addEventListener('change', () => {
       if (cb.checked) {
         box._selectedIds.add(cb.value);
@@ -205,13 +240,13 @@ function renderPaperRow(r, isAdded, isSelected, isDisabled) {
   let html = '<div style="padding:.5rem 0; border-bottom:1px solid var(--border);'
     + ' display:flex; gap:.6rem; align-items:flex-start;">';
   if (!isAdded) {
-    html += '<input type="checkbox" class="arxiv-cb" value="' + esc(r.source_id) + '"'
+    html += '<input type="checkbox" class="paper-cb" value="' + esc(r.source_id) + '"'
       + (isSelected || isDisabled ? ' checked' : '')
       + (isDisabled ? ' disabled' : '')
       + ' style="margin-top:.35rem;">';
   }
   html += '<div style="flex:1;">'
-    + '<a href="https://arxiv.org/abs/' + esc(r.source_id)
+    + '<a href="' + esc(r.landing_url || '#')
     + '" target="_blank" rel="noopener noreferrer" style="font-weight:600;">' + esc(r.title) + '</a>'
     + '<div class="text-sm text-dim" style="margin-top:.15rem;">' + esc(r.authors) + '</div>'
     + '<div class="text-sm text-dim">Published ' + esc(r.published)
@@ -227,16 +262,16 @@ function searchPage(btn, page) {
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/* ── AJAX arXiv add ────────────────────────────────── */
+/* ── AJAX add by ID ────────────────────────────────── */
 
 /* Intercept "Add by ID" form submissions */
 document.addEventListener('submit', e => {
-  const form = e.target.closest('.add-arxiv-form');
+  const form = e.target.closest('.add-by-id-form');
   if (!form) return;
   e.preventDefault();
 
   /* collect IDs: from persistent selection set (search) or textarea (Tab 2) */
-  const textarea = form.querySelector('textarea[name="arxiv_ids"]');
+  const textarea = form.querySelector('textarea[name="source_ids"]');
   let ids;
   if (textarea) {
     /* Tab 2: parse IDs from the textarea */
@@ -248,28 +283,36 @@ document.addEventListener('submit', e => {
     if (selectedIds && selectedIds.size > 0) {
       ids = Array.from(selectedIds);
     } else {
-      ids = Array.from(form.querySelectorAll('.arxiv-cb:checked:not([disabled])'))
+      ids = Array.from(form.querySelectorAll('.paper-cb:checked:not([disabled])'))
                  .map(cb => cb.value);
     }
   }
 
-  if (ids.length === 0) { alert('Enter or select at least one arXiv ID.'); return; }
+  const sourceEl = form.querySelector('[name="source"]');
+  const source = sourceEl ? sourceEl.value : '';
+
+  if (ids.length === 0) {
+    alert('Enter or select at least one ' + sourceLabel(source) + ' ID.');
+    return;
+  }
 
   const addUrl = form.action;
   const profileId = form.dataset.profile;
   const progressEl = form.querySelector('.add-progress');
   const submitBtn = form.querySelector('button[type="submit"]');
 
-  addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, form);
+  addPapersById(ids, source, addUrl, profileId, progressEl, submitBtn, form);
 });
 
-async function addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, form) {
+async function addPapersById(ids, source, addUrl, profileId, progressEl, submitBtn, form) {
   const total = ids.length;
   let successCount = 0;
   let errors = new Set();
 
+  const delayMs = sourceDelayMs(source);
+
   /* get persistent state refs for search-tab checkbox updates */
-  const textarea = form.querySelector('textarea[name="arxiv_ids"]');
+  const textarea = form.querySelector('textarea[name="source_ids"]');
   const box = !textarea ? form.closest('.search-results') : null;
   const selectedIds = box ? box._selectedIds : null;
   const addedIds = box ? box._addedIds : null;
@@ -303,7 +346,8 @@ async function addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, for
           'X-CSRFToken': getCSRF(),
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: 'arxiv_ids=' + encodeURIComponent(aid),
+        body: 'source_ids=' + encodeURIComponent(aid)
+              + '&source=' + encodeURIComponent(source),
       });
       const data = await r.json();
       if (data.ok && data.paper) {
@@ -314,7 +358,7 @@ async function addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, for
         /* immediately disable checkbox and update selection state */
         if (selectedIds) selectedIds.delete(aid);
         if (addedIds) addedIds.add(aid);
-        const cb = form.querySelector('.arxiv-cb[value="' + CSS.escape(aid) + '"]');
+        const cb = form.querySelector('.paper-cb[value="' + CSS.escape(aid) + '"]');
         if (cb) { cb.checked = true; cb.disabled = true; }
         if (box) updateSelectionCount(box);
       } else {
@@ -331,10 +375,11 @@ async function addArxivPapers(ids, addUrl, profileId, progressEl, submitBtn, for
     /* update progress bar */
     fillEl.style.width = ((i + 1) / total * 100) + '%';
 
-    /* wait between requests to respect arXiv rate limits */
-    if (i < total - 1) {
-      textEl.textContent = 'Waiting for arXiv rate limit (' + (i + 2) + ' of ' + total + ' next)...';
-      await new Promise(resolve => setTimeout(resolve, ARXIV_DELAY_MS));
+    /* wait between requests to respect the source's rate limit */
+    if (i < total - 1 && delayMs) {
+      textEl.textContent = 'Waiting for ' + sourceLabel(source) + ' rate limit ('
+        + (i + 2) + ' of ' + total + ' next)...';
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
 
@@ -369,15 +414,12 @@ function addPaperToList(profileId, paper) {
   const viewUrl = SCRIPT_PREFIX + '/profiles/' + profileId + '/papers/' + paper.id + '/';
   const deleteUrl = viewUrl + 'delete/';
 
-  let sourceHtml;
-  if (paper.source === 'arxiv' && paper.source_id) {
-    sourceHtml = 'arXiv: <a href="https://arxiv.org/abs/' + esc(paper.source_id)
-      + '" target="_blank" rel="noopener noreferrer">' + esc(paper.source_id) + '</a>';
-  } else if (paper.source === 'arxiv') {
-    sourceHtml = 'arXiv';
-  } else {
-    sourceHtml = 'User upload';
-  }
+  /* Source badge: the server hands us the label and the landing URL. */
+  const label = esc(paper.source_label || sourceLabel(paper.source));
+  const sourceHtml = paper.landing_url
+    ? label + ': <a href="' + esc(paper.landing_url)
+      + '" target="_blank" rel="noopener noreferrer">' + esc(paper.source_id) + '</a>'
+    : label;
 
   const title = paper.title || ('paper_' + paper.id);
   const truncTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
@@ -465,7 +507,7 @@ function togglePageCb(btn, checked) {
   const box = btn.closest('.search-results');
   const selectedIds = box._selectedIds;
   /* only toggle visible checkboxes on this page (skip already-added) */
-  box.querySelectorAll('.arxiv-cb:not([disabled])').forEach(cb => {
+  box.querySelectorAll('.paper-cb:not([disabled])').forEach(cb => {
     cb.checked = checked;
     if (checked) {
       selectedIds.add(cb.value);
@@ -489,7 +531,7 @@ function toggleAllCb(btn, checked) {
     selectedIds.clear();
   }
   /* update visible checkboxes on this page */
-  box.querySelectorAll('.arxiv-cb:not([disabled])')
+  box.querySelectorAll('.paper-cb:not([disabled])')
      .forEach(cb => cb.checked = checked);
   updateSelectionCount(box);
 }
@@ -501,7 +543,7 @@ function collectBulk(btn) {
   if (!selectedIds || selectedIds.size === 0) {
     /* fall back to checking visible checkboxes (Tab 2 textarea path) */
     const form = btn.closest('form');
-    const ids = Array.from(form.querySelectorAll('.arxiv-cb:checked:not([disabled])'))
+    const ids = Array.from(form.querySelectorAll('.paper-cb:checked:not([disabled])'))
                      .map(cb => cb.value);
     if (ids.length === 0) { alert('Select at least one paper.'); return false; }
   }
