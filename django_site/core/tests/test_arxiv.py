@@ -1,43 +1,51 @@
-"""Tests for the arXiv add (AJAX) and arXiv search API views."""
+"""Tests for the add-by-ID (AJAX) and source search API views.
+
+Both views are source-generic; these exercise them through the arXiv source,
+which is the one every deployment enables by default.
+"""
 
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from django.test import TestCase, override_settings
+from preprint_sources import ArxivSource, PaperEntry
 
 from core.models import PBUser, Paper, Profile
 from core.views import _get_or_create_user_corpus
 
 
-def _fake_result(short_id, title, authors, published):
-    """Build a stand-in for an arxiv.Result (only the attrs the view reads)."""
-    return SimpleNamespace(
-        get_short_id=lambda s=short_id: s,
+def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z"):
+    """Build a PaperEntry the way ArxivSource would return one."""
+    return PaperEntry(
+        source_id=source_id,
         title=title,
-        authors=[SimpleNamespace(name=n) for n in authors],
+        abstract="An abstract.",
+        url=f"https://arxiv.org/abs/{source_id}",
+        pdf_url=f"https://arxiv.org/pdf/{source_id}.pdf",
+        authors=list(authors),
+        categories=["cs.AI"],
         published=published,
+        source="arxiv",
     )
 
 
-class ArxivAddAjaxTests(TestCase):
-    """paper_add_arxiv_view AJAX path: single-ID processing, JSON contract."""
+class AddByIdAjaxTests(TestCase):
+    """paper_add_by_id_view AJAX path: single-ID processing, JSON contract."""
 
     def setUp(self):
         self.user = PBUser.objects.create_user(email="arxiv@example.com", password="SecurePass123!")
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="arxiv@example.com", password="SecurePass123!")
 
-    def _ajax_add(self, profile_id, ids):
+    def _ajax_add(self, profile_id, ids, source="arxiv"):
         return self.client.post(
-            f"/profiles/{profile_id}/add-arxiv/",
-            {"arxiv_ids": ids},
+            f"/profiles/{profile_id}/add-by-id/",
+            {"source_ids": ids, "source": source},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
-    @patch("core.views._download_arxiv_pdfs")
+    @patch("core.views._download_source_papers")
     def test_ajax_add_returns_paper_json(self, mock_dl):
         mock_dl.return_value = (1, [])
         Paper.objects.create(source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv")
@@ -48,29 +56,43 @@ class ArxivAddAjaxTests(TestCase):
         self.assertEqual(data["paper"]["source_id"], "2301.00001")
         self.assertEqual(data["paper"]["title"], "A Great Paper")
         self.assertEqual(data["paper"]["source"], "arxiv")
+        self.assertEqual(data["paper"]["source_label"], "arXiv")
+        self.assertEqual(data["paper"]["landing_url"], "https://arxiv.org/abs/2301.00001")
         self.assertIn("id", data["paper"])
 
-    @patch("core.views._download_arxiv_pdfs")
+    @patch("core.views._download_source_papers")
     def test_ajax_processes_only_first_id(self, mock_dl):
         mock_dl.return_value = (1, [])
         Paper.objects.create(source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
         self._ajax_add(self.profile.pk, "2301.00001, 2301.00002")
         # AJAX handles a single ID: only the first is downloaded.
-        self.assertEqual(mock_dl.call_args.args[2], ["2301.00001"])
+        self.assertEqual(mock_dl.call_args.args[3], ["2301.00001"])
+
+    @patch("core.views._download_source_papers")
+    def test_ajax_uses_named_source(self, mock_dl):
+        mock_dl.return_value = (1, [])
+        Paper.objects.create(source_id="2301.00001", sha256="e" * 64, title="First", source="arxiv")
+        self._ajax_add(self.profile.pk, "2301.00001")
+        self.assertEqual(mock_dl.call_args.args[2].name, "arxiv")
+
+    def test_ajax_unknown_source_returns_400(self):
+        resp = self._ajax_add(self.profile.pk, "2301.00001", source="not-a-source")
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(resp.json()["ok"])
 
     def test_ajax_no_valid_ids_returns_400(self):
         resp = self._ajax_add(self.profile.pk, "not-an-arxiv-id")
         self.assertEqual(resp.status_code, 400)
         self.assertFalse(resp.json()["ok"])
 
-    @patch("core.views._download_arxiv_pdfs")
+    @patch("core.views._download_source_papers")
     def test_ajax_download_failure_returns_400(self, mock_dl):
         mock_dl.return_value = (0, ["2301.00001"])
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 400)
         self.assertFalse(resp.json()["ok"])
 
-    @patch("core.views._download_arxiv_pdfs")
+    @patch("core.views._download_source_papers")
     def test_ajax_stored_but_missing_returns_500(self, mock_dl):
         mock_dl.return_value = (1, [])          # reports success but no Paper row exists
         resp = self._ajax_add(self.profile.pk, "2301.00001")
@@ -78,7 +100,7 @@ class ArxivAddAjaxTests(TestCase):
         self.assertFalse(resp.json()["ok"])
 
     def test_add_requires_post(self):
-        resp = self.client.get(f"/profiles/{self.profile.pk}/add-arxiv/")
+        resp = self.client.get(f"/profiles/{self.profile.pk}/add-by-id/")
         self.assertEqual(resp.status_code, 405)
 
     def test_add_requires_login(self):
@@ -87,7 +109,7 @@ class ArxivAddAjaxTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/auth/login/", resp.url)
 
-    @patch("core.views._download_arxiv_pdfs")
+    @patch("core.views._download_source_papers")
     def test_add_other_users_profile_404(self, mock_dl):
         mock_dl.return_value = (1, [])
         other = PBUser.objects.create_user(email="other@example.com", password="SecurePass123!")
@@ -96,8 +118,8 @@ class ArxivAddAjaxTests(TestCase):
         self.assertEqual(resp.status_code, 404)
 
 
-class ArxivAddDedupTests(TestCase):
-    """Duplicate handling: re-adding the same arXiv ID dedupes by SHA-256."""
+class AddByIdDedupTests(TestCase):
+    """Duplicate handling: re-adding the same ID dedupes by SHA-256."""
 
     def setUp(self):
         self._paper_storage_tmpdir = tempfile.TemporaryDirectory()
@@ -111,16 +133,20 @@ class ArxivAddDedupTests(TestCase):
         self.user = PBUser.objects.create_user(email="dedup@example.com", password="SecurePass123!")
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="dedup@example.com", password="SecurePass123!")
+
     def _ajax_add(self, ids):
         return self.client.post(
-            f"/profiles/{self.profile.pk}/add-arxiv/",
-            {"arxiv_ids": ids},
+            f"/profiles/{self.profile.pk}/add-by-id/",
+            {"source_ids": ids, "source": "arxiv"},
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
-    @patch("core.views._fetch_arxiv_metadata", return_value={})
+    @patch.object(
+        ArxivSource, "fetch_many",
+        new=AsyncMock(return_value={"2301.00001": _entry("2301.00001", "Dedup Me", ["A"])}),
+    )
     @patch("requests.get")
-    def test_ajax_duplicate_arxiv_id_dedupes_by_hash(self, mock_get, _mock_meta):
+    def test_ajax_duplicate_id_dedupes_by_hash(self, mock_get):
         resp = Mock()
         resp.content = b"%PDF-1.4 identical bytes for dedup test"
         resp.headers = {"Content-Type": "application/pdf"}
@@ -137,9 +163,16 @@ class ArxivAddDedupTests(TestCase):
         self.assertEqual(Paper.objects.filter(source_id="2301.00001").count(), 1)
         self.assertEqual(r1.json()["paper"]["id"], r2.json()["paper"]["id"])
 
+    @patch.object(ArxivSource, "fetch_many", new=AsyncMock(return_value={}))
+    @patch("requests.get")
+    def test_unknown_id_fails_without_downloading(self, mock_get):
+        resp = self._ajax_add("2301.00001")
+        self.assertEqual(resp.status_code, 400)
+        mock_get.assert_not_called()
 
-class ArxivSearchApiTests(TestCase):
-    """paper_search_arxiv_api_view: validation, response format, rate limit."""
+
+class SearchApiTests(TestCase):
+    """paper_search_api_view: validation, response format, rate limit."""
 
     def setUp(self):
         self.user = PBUser.objects.create_user(email="search@example.com", password="SecurePass123!")
@@ -147,69 +180,83 @@ class ArxivSearchApiTests(TestCase):
         self.client.login(username="search@example.com", password="SecurePass123!")
 
     def _search(self, **params):
-        return self.client.get(f"/profiles/{self.profile.pk}/search-arxiv/", params)
+        return self.client.get(f"/profiles/{self.profile.pk}/search/", params)
 
     def test_requires_title_or_author(self):
         resp = self._search()
         self.assertEqual(resp.status_code, 400)
         self.assertIn("error", resp.json())
 
-    @patch("arxiv.Client")
-    def test_search_returns_formatted_results(self, mock_client):
-        pub = datetime(2023, 1, 15, tzinfo=timezone.utc)
-        mock_client.return_value.results.return_value = [
-            _fake_result("2301.00001v2", "Deep Learning", ["Alice Smith", "Bob Jones"], pub),
-        ]
+    def test_unknown_source_returns_400(self):
+        resp = self._search(title="x", source="not-a-source")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.json())
+
+    @patch.object(
+        ArxivSource, "search",
+        new=AsyncMock(return_value=[_entry("2301.00001", "Deep Learning", ["Alice Smith", "Bob Jones"])]),
+    )
+    def test_search_returns_formatted_results(self):
         resp = self._search(title="deep learning")
         self.assertEqual(resp.status_code, 200)
-        results = resp.json()["results"]
+        payload = resp.json()
+        self.assertEqual(payload["source"], "arxiv")
+        self.assertEqual(payload["label"], "arXiv")
+        results = payload["results"]
         self.assertEqual(len(results), 1)
         r = results[0]
-        self.assertEqual(r["source_id"], "2301.00001")          # version suffix stripped
+        self.assertEqual(r["source_id"], "2301.00001")
         self.assertEqual(r["title"], "Deep Learning")
         self.assertEqual(r["authors"], "Alice Smith, Bob Jones")
         self.assertEqual(r["published"], "2023-01-15")
+        self.assertEqual(r["landing_url"], "https://arxiv.org/abs/2301.00001")
         self.assertFalse(r["already_added"])
 
-    @patch("arxiv.Client")
-    def test_search_flags_already_added(self, mock_client):
+    @patch.object(
+        ArxivSource, "search",
+        new=AsyncMock(return_value=[
+            _entry("2301.00001", "Existing", ["A"]),
+            _entry("2401.99999", "New One", ["B"]),
+        ]),
+    )
+    def test_search_flags_already_added(self):
         corpus = _get_or_create_user_corpus(self.user, self.profile)
         existing = Paper.objects.create(source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv")
         existing.corpora.add(corpus)
-        pub = datetime(2023, 1, 15, tzinfo=timezone.utc)
-        mock_client.return_value.results.return_value = [
-            _fake_result("2301.00001v1", "Existing", ["A"], pub),
-            _fake_result("2401.99999v1", "New One", ["B"], pub),
-        ]
         results = self._search(title="x").json()["results"]
         by_id = {r["source_id"]: r for r in results}
         self.assertTrue(by_id["2301.00001"]["already_added"])
         self.assertFalse(by_id["2401.99999"]["already_added"])
 
-    @patch("arxiv.Client")
-    def test_search_truncates_long_author_list(self, mock_client):
-        pub = datetime(2023, 1, 15, tzinfo=timezone.utc)
-        authors = [f"Author {i}" for i in range(30)]
-        mock_client.return_value.results.return_value = [
-            _fake_result("2301.00001v1", "Many Authors", authors, pub),
-        ]
+    @patch.object(
+        ArxivSource, "search",
+        new=AsyncMock(return_value=[
+            _entry("2301.00001", "Many Authors", [f"Author {i}" for i in range(30)]),
+        ]),
+    )
+    def test_search_truncates_long_author_list(self):
         r = self._search(title="x").json()["results"][0]
         self.assertTrue(r["authors"].endswith(" et al."))
         self.assertIn("Author 24", r["authors"])       # 25 shown (0..24), then et al.
         self.assertNotIn("Author 25", r["authors"])
 
-    @patch("arxiv.Client")
-    def test_second_search_rate_limited(self, mock_client):
-        mock_client.return_value.results.return_value = []
+    @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
+    def test_second_search_rate_limited(self):
         self._search(title="foo")                       # first: allowed
-        resp = self._search(title="foo")                # within 3s cooldown
+        resp = self._search(title="foo")                # within the source's cooldown
         self.assertEqual(resp.status_code, 429)
 
-    @patch.dict("sys.modules", {"arxiv": None})
-    def test_arxiv_not_installed_returns_500(self):
+    @patch.object(ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("boom")))
+    def test_source_failure_returns_500(self):
         resp = self._search(title="foo")
         self.assertEqual(resp.status_code, 500)
-        self.assertIn("not installed", resp.json()["error"])
+        self.assertIn("error", resp.json())
+
+    @patch.object(ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("HTTP 429 too many requests")))
+    def test_upstream_rate_limit_returns_429(self):
+        resp = self._search(title="foo")
+        self.assertEqual(resp.status_code, 429)
+        self.assertIn("arXiv", resp.json()["error"])
 
     def test_search_requires_login(self):
         self.client.logout()
@@ -217,10 +264,9 @@ class ArxivSearchApiTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/auth/login/", resp.url)
 
-    @patch("arxiv.Client")
-    def test_search_other_users_profile_404(self, mock_client):
-        mock_client.return_value.results.return_value = []
+    @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
+    def test_search_other_users_profile_404(self):
         other = PBUser.objects.create_user(email="o2@example.com", password="SecurePass123!")
         op = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
-        resp = self.client.get(f"/profiles/{op.pk}/search-arxiv/", {"title": "x"})
+        resp = self.client.get(f"/profiles/{op.pk}/search/", {"title": "x"})
         self.assertEqual(resp.status_code, 404)
