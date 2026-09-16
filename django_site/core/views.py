@@ -21,6 +21,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -50,10 +51,11 @@ from .models import (
     RecommendationRun,
     Summary,
 )
+from .sources import paper_source_context, resolve_source, run_sync
 
-ARXIV_ID_RE = re.compile(
-    r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE
-)
+# Users paste several ids at once, comma- or newline-separated; the
+# shape of each id is the source's business, not this module's.
+SOURCE_ID_SEPARATOR_RE = re.compile(r"[,\n]+")
 
 
 # ── Paper storage helpers ──────────────────────────────────────────────────
@@ -166,7 +168,7 @@ def _pdf_has_text_layer(uploaded_file, min_chars=50, max_pages=3):
 _ONBOARDING_EXEMPT = {
     "onboarding_profile", "onboarding_papers", "onboarding_finish",
     "onboarding_skip", "logout",
-    "paper_upload", "paper_add_arxiv", "paper_search_arxiv_api",
+    "paper_upload", "paper_add_by_id", "paper_search_api",
     "paper_view", "paper_delete",
 }
 
@@ -731,7 +733,8 @@ def profile_list_view(request):
         "pb_user": pb_user,
         "profile_data": profile_data,
         "code_to_label": ARXIV_CODE_TO_LABEL,
-        "arxiv_search_per_page": django_settings.ARXIV_SEARCH_PER_PAGE,
+        "search_per_page": django_settings.SOURCE_SEARCH_PER_PAGE,
+        **paper_source_context(),
     })
 
 
@@ -883,7 +886,8 @@ def onboarding_papers_view(request, profile_id):
         "papers": papers,
         "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
         "code_to_label": ARXIV_CODE_TO_LABEL,
-        "arxiv_search_per_page": django_settings.ARXIV_SEARCH_PER_PAGE,
+        "search_per_page": django_settings.SOURCE_SEARCH_PER_PAGE,
+        **paper_source_context(),
     })
 
 
@@ -1039,113 +1043,117 @@ def paper_view(request, profile_id, paper_id):
 
 @pbuser_required
 @require_POST
-def paper_add_arxiv_view(request, profile_id):
-    """Add papers from arXiv by ID – downloads the PDF into the profile dir."""
-    MAX_IDS_PER_REQUEST = 10  # cap to avoid blocking worker with time.sleep(3) delays
+def paper_add_by_id_view(request, profile_id):
+    """Add papers from a preprint source by ID – downloads each PDF.
+
+    The source comes from the ``source`` POST field; with a single source
+    enabled the UI omits it and the first add-capable source is used.
+    """
+    MAX_IDS_PER_REQUEST = 10  # cap to avoid blocking a worker on rate-limit sleeps
     pb_user = request.pb_user
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
-    raw = request.POST.get("arxiv_ids", "")
-    arxiv_ids = _parse_arxiv_ids(raw)
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    source = resolve_source(request.POST.get("source", ""), "supports_add_by_id")
+    if source is None:
+        return _add_by_id_error(request, is_ajax, "No source available to add papers by ID.")
 
-    if not arxiv_ids:
-        if is_ajax:
-            return JsonResponse({"ok": False, "error": "No valid arXiv IDs provided."}, status=400)
-        messages.error(request, "No valid arXiv IDs provided.")
-        return redirect(_safe_next(request, "profile_list"))
+    raw = request.POST.get("source_ids", "")
+    source_ids = _parse_source_ids(source, raw)
+    if not source_ids:
+        return _add_by_id_error(request, is_ajax, f"No valid {source.label} IDs provided.")
 
-    if not is_ajax and len(arxiv_ids) > MAX_IDS_PER_REQUEST:
+    if not is_ajax and len(source_ids) > MAX_IDS_PER_REQUEST:
         messages.warning(
             request,
-            f"Too many IDs ({len(arxiv_ids)}). Only the first {MAX_IDS_PER_REQUEST} will be processed.",
+            f"Too many IDs ({len(source_ids)}). Only the first {MAX_IDS_PER_REQUEST} will be processed.",
         )
-        arxiv_ids = arxiv_ids[:MAX_IDS_PER_REQUEST]
+        source_ids = source_ids[:MAX_IDS_PER_REQUEST]
 
     if is_ajax:
         # AJAX: process a single ID and return the paper info
-        aid = arxiv_ids[0]
-        success, failed = _download_arxiv_pdfs(pb_user, profile, [aid])
+        sid = source_ids[0]
+        success, failed = _download_source_papers(pb_user, profile, source, [sid])
         if failed:
-            return JsonResponse({"ok": False, "error": f"Failed to download {aid}."}, status=400)
+            return JsonResponse({"ok": False, "error": f"Failed to download {sid}."}, status=400)
         # Look up the paper to return its info for the DOM
-        paper = Paper.objects.filter(source_id=aid).order_by("-id").first()
+        rows = Paper.objects.filter(source=source.name)
+        paper = rows.filter(source_id=sid).order_by("-id").first()
         if not paper:
             # Legacy data may have version suffix (e.g., 2507.08778v1);
             # prefer the newest matching row deterministically.
-            paper = Paper.objects.filter(source_id__startswith=aid + 'v').order_by("-id").first()
+            paper = rows.filter(source_id__startswith=sid + "v").order_by("-id").first()
         if not paper:
-            return JsonResponse({"ok": False, "error": f"Paper stored but could not be retrieved for arXiv ID {aid}."}, status=500)
-        return JsonResponse({
-            "ok": True,
-            "paper": {
-                "id": paper.pk,
-                "title": paper.title,
-                "source_id": paper.source_id,
-                "source": paper.source,
-            },
-        })
+            return JsonResponse(
+                {"ok": False, "error": f"Paper stored but could not be retrieved for {source.label} ID {sid}."},
+                status=500,
+            )
+        return JsonResponse({"ok": True, "paper": _paper_json(paper)})
 
-    success, failed = _download_arxiv_pdfs(pb_user, profile, arxiv_ids)
+    success, failed = _download_source_papers(pb_user, profile, source, source_ids)
     if success:
-        messages.success(request, f"Added {success} paper(s) from arXiv.")
+        messages.success(request, f"Added {success} paper(s) from {source.label}.")
     for fid in failed:
         messages.warning(request, f"Failed to download {fid}.")
 
     return redirect(_safe_next(request, "profile_list"))
 
 
-def _parse_arxiv_ids(raw: str) -> list[str]:
-    """Extract valid arXiv IDs from free-form input."""
+def _add_by_id_error(request, is_ajax, message):
+    """Report an add-by-ID failure the way the caller expects."""
+    if is_ajax:
+        return JsonResponse({"ok": False, "error": message}, status=400)
+    messages.error(request, message)
+    return redirect(_safe_next(request, "profile_list"))
+
+
+def _paper_json(paper):
+    """Paper fields the add-paper JS needs to render a row."""
+    return {
+        "id": paper.pk,
+        "title": paper.title,
+        "source_id": paper.source_id,
+        "source": paper.source,
+        "source_label": paper.source_label,
+        "landing_url": paper.landing_url,
+    }
+
+
+def _parse_source_ids(source, raw: str) -> list[str]:
+    """Extract valid IDs for *source* from free-form input.
+
+    Each token is handed to the source's own parser, so URL, prefixed and
+    bare-ID forms are the source's business rather than the view's.
+    """
     ids = []
-    for line in raw.replace(",", "\n").splitlines():
-        token = line.strip()
-        if not token:
-            continue
-        # Strip URL prefixes
-        token = re.sub(r"https?://arxiv\.org/(abs|pdf)/", "", token)
-        if token.lower().startswith("arxiv:"):
-            token = token[6:]
-        # Strip query/fragment suffixes, then .pdf, then trailing version
-        token = re.sub(r"[?#].*$", "", token)
-        token = re.sub(r"\.pdf$", "", token, flags=re.IGNORECASE)
-        token = re.sub(r"v\d+$", "", token)
-        if ARXIV_ID_RE.match(token) and token not in ids:
-            ids.append(token)
+    for token in SOURCE_ID_SEPARATOR_RE.split(raw or ""):
+        source_id = source.normalize_id(token)
+        if source_id and source_id not in ids:
+            ids.append(source_id)
     return ids
 
 
-def _fetch_arxiv_metadata(arxiv_ids):
-    """Batch-fetch metadata (title, abstract, date) from arXiv API.
-
-    Returns a dict keyed by source_id (version-stripped).
-    Falls back gracefully if the arxiv package is unavailable.
-    """
-    metadata = {}
-    try:
-        import arxiv as arxiv_lib
-
-        client = arxiv_lib.Client()
-        search = arxiv_lib.Search(id_list=arxiv_ids)
-        for paper in client.results(search):
-            aid = paper.get_short_id().split("v")[0]  # strip version
-            metadata[aid] = {
-                "title": paper.title,
-                "abstract": paper.summary,
-                "submitted_date": paper.published,
-                "authors": [a.name for a in paper.authors],
-                "categories": [c for c in paper.categories],
-            }
-    except ImportError:
-        pass  # arxiv package not installed; titles will be arXiv IDs
-    except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Failed to fetch arXiv metadata")
-    return metadata
+def _published_datetime(raw):
+    """Parse a source's ISO published timestamp, or None."""
+    return parse_datetime(raw) if raw else None
 
 
-def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
-    """Download PDFs for a list of arXiv IDs, deduplicating by SHA-256.
+def _published_date_str(raw) -> str:
+    """YYYY-MM-DD from a source's ISO published timestamp."""
+    dt = _published_datetime(raw)
+    return dt.date().isoformat() if dt else (raw or "")[:10]
+
+
+def _format_author_list(names, cap: int = 25) -> str:
+    """Join author names, capping at *cap* names with 'et al.'."""
+    names = list(names or [])
+    if len(names) > cap:
+        return ", ".join(names[:cap]) + " et al."
+    return ", ".join(names)
+
+
+def _download_source_papers(pb_user, profile, source, source_ids):
+    """Download PDFs for a list of source IDs, deduplicating by SHA-256.
 
     Creates Paper rows and links them to the profile's corpus.
     Returns (success_count, failed_ids).
@@ -1156,32 +1164,42 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
     MAX_PDF_BYTES = 50 * 1024 * 1024  # 50 MB
     logger = logging.getLogger(__name__)
     corpus = _get_or_create_user_corpus(pb_user, profile)
+    delay = source.request_delay_seconds
 
-    # Batch-fetch metadata (title, abstract, date) from arXiv API
-    arxiv_meta = _fetch_arxiv_metadata(arxiv_ids)
+    # One batched metadata call up front, so the loop below only fetches PDFs
+    try:
+        entries = run_sync(source.fetch_many(source_ids))
+    except Exception:
+        logger.exception("Failed to fetch %s metadata", source.name)
+        entries = {}
 
     success = 0
     failed = []
-    for i, aid in enumerate(arxiv_ids):
-        # Respect arXiv rate limits: no more than one request every 3 seconds
-        if i > 0:
-            time.sleep(3)
+    for i, sid in enumerate(source_ids):
+        # Respect the source's published rate limit between requests
+        if i > 0 and delay:
+            time.sleep(delay)
+        entry = entries.get(sid)
+        if entry is None or not entry.pdf_url:
+            logger.warning("%s has no PDF for %s", source.name, sid)
+            failed.append(sid)
+            continue
         try:
-            resp = http_requests.get(f"https://arxiv.org/pdf/{aid}.pdf", timeout=30)
+            resp = http_requests.get(entry.pdf_url, timeout=30)
             resp.raise_for_status()
             # Reject early if Content-Length header exceeds limit
             content_length = resp.headers.get("Content-Length")
             if content_length and int(content_length) > MAX_PDF_BYTES:
-                logger.warning("arXiv PDF for %s too large per Content-Length (%s bytes)", aid, content_length)
-                failed.append(aid)
+                logger.warning("PDF for %s too large per Content-Length (%s bytes)", sid, content_length)
+                failed.append(sid)
                 continue
             if "application/pdf" not in resp.headers.get("Content-Type", ""):
-                logger.warning("arXiv returned non-PDF content for %s", aid)
-                failed.append(aid)
+                logger.warning("%s returned non-PDF content for %s", source.name, sid)
+                failed.append(sid)
                 continue
             if len(resp.content) > MAX_PDF_BYTES:
-                logger.warning("arXiv PDF for %s exceeds size limit (%d bytes)", aid, len(resp.content))
-                failed.append(aid)
+                logger.warning("PDF for %s exceeds size limit (%d bytes)", sid, len(resp.content))
+                failed.append(sid)
                 continue
 
             # Compute hash and check for existing paper
@@ -1195,19 +1213,18 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
 
             # New paper — store file and create DB row
             dest = _store_paper_bytes(file_hash, resp.content)
-            meta = arxiv_meta.get(aid, {})
             from django.db import IntegrityError
             try:
                 paper = Paper.objects.create(
-                    source_id=aid,
+                    source_id=entry.source_id,
                     sha256=file_hash,
-                    title=meta.get("title", aid),
-                    abstract=meta.get("abstract"),
-                    submitted_date=meta.get("submitted_date"),
-                    metadata={"categories": meta.get("categories", []),
-                              "authors": meta.get("authors", [])},
+                    title=entry.title or sid,
+                    abstract=entry.abstract or None,
+                    submitted_date=_published_datetime(entry.published),
+                    metadata={"categories": entry.categories,
+                              "authors": entry.authors},
                     pdf_path=str(dest),
-                    source="arxiv",
+                    source=source.name,
                 )
             except IntegrityError:
                 # Race condition: another request created it first
@@ -1215,99 +1232,87 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
             _link_paper_to_corpus(paper, corpus)
             success += 1
         except Exception:
-            logger.exception("Failed to download arXiv PDF %s", aid)
-            failed.append(aid)
+            logger.exception("Failed to download %s PDF %s", source.name, sid)
+            failed.append(sid)
     return success, failed
 
 
 @pbuser_required
-def paper_search_arxiv_api_view(request, profile_id):
-    """JSON API: search arXiv by title/author for inline results."""
+def paper_search_api_view(request, profile_id):
+    """JSON API: search a preprint source by title/author for inline results."""
     pb_user = request.pb_user
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
-    # Rate limit: one search per 3 seconds per session
-    SEARCH_COOLDOWN = 3  # seconds
+    source = resolve_source(request.GET.get("source", ""), "supports_search")
+    if source is None:
+        return JsonResponse({"error": "No source available to search."}, status=400)
+
+    # Rate limit: honour the source's own request spacing, per session
+    cooldown = source.request_delay_seconds
+    session_key = f"search_ts_{source.name}"
     now = time.time()
-    last_search = request.session.get("arxiv_search_ts", 0)
-    if now - last_search < SEARCH_COOLDOWN:
-        wait = int(SEARCH_COOLDOWN - (now - last_search)) + 1
+    last_search = request.session.get(session_key, 0)
+    if cooldown and now - last_search < cooldown:
+        wait = int(cooldown - (now - last_search)) + 1
         return JsonResponse(
             {"error": f"Please wait {wait}s before searching again."},
             status=429,
         )
-    request.session["arxiv_search_ts"] = now
+    request.session[session_key] = now
 
-    title_q = request.GET.get("title", "").strip().replace('"', "")
-    author_q = request.GET.get("author", "").strip().replace('"', "")
+    title_q = request.GET.get("title", "").strip()
+    author_q = request.GET.get("author", "").strip()
 
     if not title_q and not author_q:
         return JsonResponse({"error": "Enter a title or author."}, status=400)
 
     try:
-        import arxiv as arxiv_lib
-
-        parts = []
-        if title_q:
-            parts.append(f'ti:"{title_q}"')
-        if author_q:
-            parts.append(f'au:"{author_q}"')
-        query_string = " AND ".join(parts)
-
-        client = arxiv_lib.Client()
-        search = arxiv_lib.Search(
-            query=query_string,
-            max_results=django_settings.ARXIV_SEARCH_MAX_RESULTS,
-            sort_by=arxiv_lib.SortCriterion.SubmittedDate,
-            sort_order=arxiv_lib.SortOrder.Descending,
-        )
-
-        # Existing paper source_ids for this profile (to flag already-added ones)
-        corpus = _get_or_create_user_corpus(pb_user, profile)
-        existing_ids = set(
-            Paper.objects.filter(corpora=corpus, source_id__isnull=False)
-            .values_list("source_id", flat=True)
-        )
-
-        results = []
-        for paper in client.results(search):
-            aid = paper.get_short_id().split("v")[0]  # strip version
-            # Truncate author list after 25 names
-            author_names = [a.name for a in paper.authors]
-            if len(author_names) > 25:
-                authors_str = ", ".join(author_names[:25]) + " et al."
-            else:
-                authors_str = ", ".join(author_names)
-            results.append({
-                "source_id": aid,
-                "title": paper.title,
-                "authors": authors_str,
-                "published": paper.published.strftime("%Y-%m-%d"),
-                "already_added": aid in existing_ids,
-            })
-
-        return JsonResponse({"results": results})
-
-    except ImportError:
-        return JsonResponse(
-            {"error": "The 'arxiv' package is not installed. Run: pip install arxiv"},
-            status=500,
-        )
+        entries = run_sync(source.search(
+            title=title_q,
+            author=author_q,
+            max_results=django_settings.SOURCE_SEARCH_MAX_RESULTS,
+        ))
     except Exception as exc:
         import logging
         logger = logging.getLogger(__name__)
-        logger.exception("arXiv search failed")
-        # Detect upstream rate limiting from arXiv
+        logger.exception("%s search failed", source.name)
+        # Detect upstream rate limiting from the source
         is_rate_limited = (
             hasattr(exc, 'response') and getattr(exc.response, 'status_code', None) == 429
         ) or '429' in str(exc)
         if is_rate_limited:
             return JsonResponse(
-                {"error": "arXiv is rate-limiting requests. Please wait a minute and try again."},
+                {"error": f"{source.label} is rate-limiting requests. Please wait a minute and try again."},
                 status=429,
             )
         detail = str(exc) if django_settings.DEBUG else "Search failed. Please try again."
         return JsonResponse({"error": detail}, status=500)
+
+    # Existing paper source_ids for this profile (to flag already-added ones)
+    corpus = _get_or_create_user_corpus(pb_user, profile)
+    existing_ids = set(
+        Paper.objects.filter(
+            corpora=corpus, source=source.name, source_id__isnull=False
+        ).values_list("source_id", flat=True)
+    )
+
+    results = [
+        {
+            "source_id": entry.source_id,
+            "title": entry.title,
+            "authors": _format_author_list(entry.authors),
+            "published": _published_date_str(entry.published),
+            "landing_url": entry.url or source.landing_url(entry.source_id),
+            "already_added": entry.source_id in existing_ids,
+        }
+        for entry in entries
+    ]
+
+    return JsonResponse({
+        "source": source.name,
+        "label": source.label,
+        "results": results,
+    })
 
 
 # ── Recommendations ────────────────────────────────────────────────────────
@@ -1447,6 +1452,9 @@ def _query_profile_recommendations(pb_user, profile=None):
             "score": rec.score,
             "rank": rec.rank,
             "source_id": paper.source_id,
+            "source": paper.source,
+            "source_label": paper.source_label,
+            "landing_url": paper.landing_url,
             "abstract": paper.abstract or "",
             "summary_text": summaries_map.get(paper.pk, ""),
             "date_obj": date_obj,
@@ -1464,7 +1472,7 @@ def _query_profile_recommendations(pb_user, profile=None):
 def recommendation_add_to_profile_view(request, profile_id, paper_id):
     """Add a recommended paper to a profile's corpus (AJAX).
 
-    Unlike paper_add_arxiv_view, this doesn't download anything — the paper
+    Unlike paper_add_by_id_view, this doesn't download anything — the paper
     already exists in the DB from the pipeline.
     """
     pb_user = request.pb_user
@@ -1488,11 +1496,7 @@ def recommendation_add_to_profile_view(request, profile_id, paper_id):
     return JsonResponse({
         "ok": True,
         "already_linked": False,
-        "paper": {
-            "id": paper.pk,
-            "title": paper.title,
-            "source_id": paper.source_id,
-        },
+        "paper": _paper_json(paper),
     })
 
 

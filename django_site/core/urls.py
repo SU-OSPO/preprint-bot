@@ -35,8 +35,8 @@ urlpatterns = [
     path("profiles/<int:profile_id>/upload/", views.paper_upload_view, name="paper_upload"),
     path("profiles/<int:profile_id>/papers/<int:paper_id>/delete/", views.paper_delete_view, name="paper_delete"),
     path("profiles/<int:profile_id>/papers/<int:paper_id>/", views.paper_view, name="paper_view"),
-    path("profiles/<int:profile_id>/add-arxiv/", views.paper_add_arxiv_view, name="paper_add_arxiv"),
-    path("profiles/<int:profile_id>/search-arxiv/", views.paper_search_arxiv_api_view, name="paper_search_arxiv_api"),
+    path("profiles/<int:profile_id>/add-by-id/", views.paper_add_by_id_view, name="paper_add_by_id"),
+    path("profiles/<int:profile_id>/search/", views.paper_search_api_view, name="paper_search_api"),
 
     # Recommendations
     path("recommendations/", views.recommendations_view, name="recommendations"),
