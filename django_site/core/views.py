@@ -1073,26 +1073,16 @@ def paper_add_by_id_view(request, profile_id):
     if is_ajax:
         # AJAX: process a single ID and return the paper info
         sid = source_ids[0]
-        success, failed = _download_source_papers(pb_user, profile, source, [sid])
-        if failed:
+        papers, failed = _download_source_papers(pb_user, profile, source, [sid])
+        if failed or not papers:
             return JsonResponse({"ok": False, "error": f"Failed to download {sid}."}, status=400)
-        # Look up the paper to return its info for the DOM
-        rows = Paper.objects.filter(source=source.name)
-        paper = rows.filter(source_id=sid).order_by("-id").first()
-        if not paper:
-            # Legacy data may have version suffix (e.g., 2507.08778v1);
-            # prefer the newest matching row deterministically.
-            paper = rows.filter(source_id__startswith=sid + "v").order_by("-id").first()
-        if not paper:
-            return JsonResponse(
-                {"ok": False, "error": f"Paper stored but could not be retrieved for {source.label} ID {sid}."},
-                status=500,
-            )
-        return JsonResponse({"ok": True, "paper": _paper_json(paper)})
+        # The helper hands back the row it linked, which after SHA-256 dedup
+        # may be an existing paper under a different source or id.
+        return JsonResponse({"ok": True, "paper": _paper_json(papers[0])})
 
-    success, failed = _download_source_papers(pb_user, profile, source, source_ids)
-    if success:
-        messages.success(request, f"Added {success} paper(s) from {source.label}.")
+    papers, failed = _download_source_papers(pb_user, profile, source, source_ids)
+    if papers:
+        messages.success(request, f"Added {len(papers)} paper(s) from {source.label}.")
     for fid in failed:
         messages.warning(request, f"Failed to download {fid}.")
 
@@ -1156,7 +1146,7 @@ def _download_source_papers(pb_user, profile, source, source_ids):
     """Download PDFs for a list of source IDs, deduplicating by SHA-256.
 
     Creates Paper rows and links them to the profile's corpus.
-    Returns (success_count, failed_ids).
+    Returns (papers, failed_ids).
     """
     import logging
     import requests as http_requests
@@ -1173,7 +1163,7 @@ def _download_source_papers(pb_user, profile, source, source_ids):
         logger.exception("Failed to fetch %s metadata", source.name)
         entries = {}
 
-    success = 0
+    papers = []
     failed = []
     for i, sid in enumerate(source_ids):
         # Respect the source's published rate limit between requests
@@ -1208,7 +1198,7 @@ def _download_source_papers(pb_user, profile, source, source_ids):
             if existing:
                 # Paper already in DB — just link to this corpus
                 _link_paper_to_corpus(existing, corpus)
-                success += 1
+                papers.append(existing)
                 continue
 
             # New paper — store file and create DB row
@@ -1230,11 +1220,11 @@ def _download_source_papers(pb_user, profile, source, source_ids):
                 # Race condition: another request created it first
                 paper = Paper.objects.get(sha256=file_hash)
             _link_paper_to_corpus(paper, corpus)
-            success += 1
+            papers.append(paper)
         except Exception:
             logger.exception("Failed to download %s PDF %s", source.name, sid)
             failed.append(sid)
-    return success, failed
+    return papers, failed
 
 
 @pbuser_required
@@ -1302,7 +1292,7 @@ def paper_search_api_view(request, profile_id):
             "title": entry.title,
             "authors": _format_author_list(entry.authors),
             "published": _published_date_str(entry.published),
-            "landing_url": entry.url or source.landing_url(entry.source_id),
+            "landing_url": source.landing_url(entry.source_id),
             "already_added": entry.source_id in existing_ids,
         }
         for entry in entries
@@ -1429,19 +1419,19 @@ def _query_profile_recommendations(pb_user, profile=None):
         if pid:
             profile_paper_ids.setdefault(pid, set()).add(paper_pk)
 
-    # Deduplicate by source_id keeping highest score
+    # Deduplicate keeping the highest score. Keyed on (source, source_id).
     seen = {}
     for rec in recs_list:
         paper = rec.paper
-        aid = paper.source_id or f"_pk_{paper.pk}"
-        if aid in seen and rec.score <= seen[aid]["score"]:
+        key = (paper.source, paper.source_id) if paper.source_id else f"_pk_{paper.pk}"
+        if key in seen and rec.score <= seen[key]["score"]:
             continue
 
         dt = paper.submitted_date
         date_obj = dt.date() if dt else None
         date_str = dt.strftime("%d %B %Y") if dt else "Unknown Date"
 
-        seen[aid] = {
+        seen[key] = {
             "paper_id": paper.pk,
             "profile_id": corpus_to_profile.get(rec.run.user_corpus_id),
             "in_corpus": [

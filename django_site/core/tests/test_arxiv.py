@@ -12,7 +12,7 @@ from django.test import TestCase, override_settings
 from preprint_sources import ArxivSource, PaperEntry
 
 from core.models import PBUser, Paper, Profile
-from core.views import _get_or_create_user_corpus
+from core.views import _compute_sha256, _get_or_create_user_corpus
 
 
 def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z"):
@@ -21,7 +21,9 @@ def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z"):
         source_id=source_id,
         title=title,
         abstract="An abstract.",
-        url=f"https://arxiv.org/abs/{source_id}",
+        # arXiv's Atom API really does report ids as non-TLS, version-pinned
+        # URLs; keeping that shape here guards the landing_url handling.
+        url=f"http://arxiv.org/abs/{source_id}v1",
         pdf_url=f"https://arxiv.org/pdf/{source_id}.pdf",
         authors=list(authors),
         categories=["cs.AI"],
@@ -47,8 +49,10 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_add_returns_paper_json(self, mock_dl):
-        mock_dl.return_value = (1, [])
-        Paper.objects.create(source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv")
+        paper = Paper.objects.create(
+            source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv"
+        )
+        mock_dl.return_value = ([paper], [])
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -62,16 +66,16 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_processes_only_first_id(self, mock_dl):
-        mock_dl.return_value = (1, [])
-        Paper.objects.create(source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
+        paper = Paper.objects.create(source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
+        mock_dl.return_value = ([paper], [])
         self._ajax_add(self.profile.pk, "2301.00001, 2301.00002")
         # AJAX handles a single ID: only the first is downloaded.
         self.assertEqual(mock_dl.call_args.args[3], ["2301.00001"])
 
     @patch("core.views._download_source_papers")
     def test_ajax_uses_named_source(self, mock_dl):
-        mock_dl.return_value = (1, [])
-        Paper.objects.create(source_id="2301.00001", sha256="e" * 64, title="First", source="arxiv")
+        paper = Paper.objects.create(source_id="2301.00001", sha256="e" * 64, title="First", source="arxiv")
+        mock_dl.return_value = ([paper], [])
         self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(mock_dl.call_args.args[2].name, "arxiv")
 
@@ -87,16 +91,16 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_download_failure_returns_400(self, mock_dl):
-        mock_dl.return_value = (0, ["2301.00001"])
+        mock_dl.return_value = ([], ["2301.00001"])
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 400)
         self.assertFalse(resp.json()["ok"])
 
     @patch("core.views._download_source_papers")
-    def test_ajax_stored_but_missing_returns_500(self, mock_dl):
-        mock_dl.return_value = (1, [])          # reports success but no Paper row exists
+    def test_ajax_nothing_linked_returns_400(self, mock_dl):
+        mock_dl.return_value = ([], [])         # neither linked nor reported failed
         resp = self._ajax_add(self.profile.pk, "2301.00001")
-        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp.status_code, 400)
         self.assertFalse(resp.json()["ok"])
 
     def test_add_requires_post(self):
@@ -111,7 +115,7 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_add_other_users_profile_404(self, mock_dl):
-        mock_dl.return_value = (1, [])
+        mock_dl.return_value = ([], [])
         other = PBUser.objects.create_user(email="other@example.com", password="SecurePass123!")
         op = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
         resp = self._ajax_add(op.pk, "2301.00001")
@@ -162,6 +166,37 @@ class AddByIdDedupTests(TestCase):
         # Deduplicated: a single Paper row, returned both times.
         self.assertEqual(Paper.objects.filter(source_id="2301.00001").count(), 1)
         self.assertEqual(r1.json()["paper"]["id"], r2.json()["paper"]["id"])
+
+    @patch.object(
+        ArxivSource, "fetch_many",
+        new=AsyncMock(return_value={"2301.00001": _entry("2301.00001", "Dedup Me", ["A"])}),
+    )
+    @patch("requests.get")
+    def test_dedup_against_user_upload_still_succeeds(self, mock_get):
+        """A hand-uploaded copy of the same PDF must not turn the add into a 500.
+
+        SHA-256 dedup links the row that already holds those bytes — here an
+        upload whose source is "user" and whose source_id is None — so the
+        response has to describe the row that was linked rather than be looked
+        up by the requested source and id.
+        """
+        pdf = b"%PDF-1.4 bytes already uploaded by hand"
+        upload = Paper.objects.create(
+            title="Hand upload", sha256=_compute_sha256(pdf), source="user",
+        )
+        resp = Mock()
+        resp.content = pdf
+        resp.headers = {"Content-Type": "application/pdf"}
+        resp.raise_for_status = Mock()
+        mock_get.return_value = resp
+
+        r = self._ajax_add("2301.00001")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["ok"])
+        # The existing upload is what got linked — no second row, no 500.
+        self.assertEqual(r.json()["paper"]["id"], upload.pk)
+        self.assertEqual(r.json()["paper"]["source_label"], "User upload")
+        self.assertEqual(Paper.objects.count(), 1)
 
     @patch.object(ArxivSource, "fetch_many", new=AsyncMock(return_value={}))
     @patch("requests.get")

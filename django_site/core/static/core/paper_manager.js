@@ -25,6 +25,12 @@ function sourceLabel(name) {
   return (s && s.label) || name || 'source';
 }
 
+/* Whether a source accepts add-by-ID posts. */
+function sourceCanAdd(name) {
+  const s = SOURCES[name];
+  return s ? !!s.canAdd : true;
+}
+
 /* Selected source in a panel, or '' to let the server pick the only one. */
 function panelSource(panel) {
   const el = panel && panel.querySelector('.search-source');
@@ -107,7 +113,7 @@ function doSearch(btn) {
       box._addedIds = new Set();  /* papers added during this session */
       box._source = data.source || '';
       const addForm = btn.closest('.paper-tabs').querySelector('[action*="add-by-id"]');
-      box._addUrl = addForm ? addForm.action : '';
+      box._addUrl = addForm && sourceCanAdd(box._source) ? addForm.action : '';
 
       renderSearchResults(box);
     })
