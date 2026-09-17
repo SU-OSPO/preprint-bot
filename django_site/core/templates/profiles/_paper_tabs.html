@@ -1,11 +1,19 @@
-{# Add-paper interface: upload / add-by-id / search arXiv. #}
-{# Expects `p` (the profile). Optional `next_url` makes the non-AJAX #}
-{# upload return there instead of the profiles list (used by onboarding). #}
+{# Add-paper interface: upload / add-by-id / search. #}
+{# Expects `p` (the profile) plus `add_sources` and `search_sources` from #}
+{# core.sources.paper_source_context(). Optional `next_url` makes the #}
+{# non-AJAX upload return there instead of the profiles list (onboarding). #}
+{# Source pickers only appear once more than one source offers the tab. #}
 <div class="paper-tabs" data-profile="{{ p.pk }}">
   <div class="tab-bar">
     <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
-    <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
-    <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">Search arXiv</button>
+    {% if add_sources %}
+      <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
+    {% endif %}
+    {% if search_sources %}
+      <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">
+        Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}
+      </button>
+    {% endif %}
   </div>
 
   {# ── Tab 1: Upload PDF ────────────── #}
@@ -22,23 +30,52 @@
   </div>
 
   {# ── Tab 2: Add by ID ─────────────── #}
+  {% if add_sources %}
   <div class="tab-panel" id="byid-{{ p.pk }}">
-    <form method="post" action="{% url 'paper_add_arxiv' p.pk %}" class="add-arxiv-form"
+    <form method="post" action="{% url 'paper_add_by_id' p.pk %}" class="add-by-id-form"
           data-profile="{{ p.pk }}">
       {% csrf_token %}
+      {% if add_sources|length > 1 %}
+        <div class="form-group">
+          <label for="add-source-{{ p.pk }}">Source</label>
+          <select name="source" id="add-source-{{ p.pk }}" class="add-source">
+            {% for s in add_sources %}
+              <option value="{{ s.name }}" data-hint="{{ s.id_hint }}">{{ s.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% else %}
+        <input type="hidden" name="source" value="{{ add_sources.0.name }}">
+      {% endif %}
       <div class="form-group">
-        <label>arXiv IDs</label>
-        <textarea name="arxiv_ids" rows="2"
-                  placeholder="https://arxiv.org/abs/2601.19018, arXiv:2601.19018, or 2301.12345"></textarea>
-        <div class="form-help">Comma or newline separated. Accepts full URLs, arXiv:-prefixed IDs, or bare IDs.</div>
+        <label>{% if add_sources|length == 1 %}{{ add_sources.0.label }} IDs{% else %}Paper IDs{% endif %}</label>
+        <textarea name="source_ids" rows="2"
+                  placeholder="{{ add_sources.0.id_hint }}"></textarea>
+        <div class="form-help">Comma or newline separated. Accepts full URLs, prefixed IDs, or bare IDs.</div>
       </div>
-      <button type="submit" class="btn btn-sm btn-primary">Add from arXiv</button>
+      <button type="submit" class="btn btn-sm btn-primary">
+        Add{% if add_sources|length == 1 %} from {{ add_sources.0.label }}{% endif %}
+      </button>
       <div class="add-progress" style="display:none; margin-top:.5rem;"></div>
     </form>
   </div>
+  {% endif %}
 
-  {# ── Tab 3: Search arXiv ──────────── #}
+  {# ── Tab 3: Search ────────────────── #}
+  {% if search_sources %}
   <div class="tab-panel" id="search-{{ p.pk }}">
+    {% if search_sources|length > 1 %}
+      <div class="form-group">
+        <label for="search-source-{{ p.pk }}">Source</label>
+        <select id="search-source-{{ p.pk }}" class="search-source">
+          {% for s in search_sources %}
+            <option value="{{ s.name }}">{{ s.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% else %}
+      <input type="hidden" class="search-source" value="{{ search_sources.0.name }}">
+    {% endif %}
     <div class="grid-2" style="gap:.75rem;">
       <div class="form-group">
         <label>Title</label>
@@ -50,14 +87,15 @@
       </div>
     </div>
     <button type="button" class="btn btn-sm btn-primary search-btn"
-            data-url="{% url 'paper_search_arxiv_api' p.pk %}">Search</button>
+            data-url="{% url 'paper_search_api' p.pk %}">Search</button>
 
     {# spinner shown while waiting #}
     <div class="search-spinner" style="display:none; margin-top:.75rem;">
-      <span class="spinner"></span> Searching arXiv…
+      <span class="spinner"></span> Searching{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}…
     </div>
 
     {# results injected here by JS #}
     <div class="search-results" style="margin-top:.75rem;"></div>
   </div>
+  {% endif %}
 </div>{# /paper-tabs #}

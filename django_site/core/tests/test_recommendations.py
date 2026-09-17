@@ -11,7 +11,8 @@ from core.models import (
 from core.views import _get_or_create_user_corpus, _query_profile_recommendations
 
 
-def _make_paper(source_id, title, submitted_date=None, categories=None, authors=None, abstract=""):
+def _make_paper(source_id, title, submitted_date=None, categories=None, authors=None,
+                abstract="", source="arxiv"):
     """Create a Paper (sha256 left null; metadata drives categories/authors)."""
     return Paper.objects.create(
         source_id=source_id,
@@ -19,7 +20,7 @@ def _make_paper(source_id, title, submitted_date=None, categories=None, authors=
         abstract=abstract,
         submitted_date=submitted_date,
         metadata={"categories": categories or [], "authors": authors or []},
-        source="arxiv",
+        source=source,
     )
 
 
@@ -74,6 +75,27 @@ class QueryProfileRecommendationsTests(_RecTestBase):
         self.assertEqual(len(results), 1)
         self.assertAlmostEqual(results[0]["score"], 0.9)
         self.assertEqual(results[0]["title"], "High")
+
+    def test_dedup_is_per_source_not_per_id(self):
+        """The same id on two servers must yield two recommendations.
+
+        Ids are only unique within a source, so keying dedup on the id alone
+        would let the higher-scoring paper hide the other entirely. Paper.source
+        is not DB-constrained to the registry, so "biorxiv" stands in here for
+        any second server the deployment might enable.
+        """
+        pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
+        d = datetime(2023, 6, 15, tzinfo=timezone.utc)
+        run = self._run_for(pa)
+        self._rec(run, _make_paper("2301.00001", "From arXiv", submitted_date=d), 0.9, rank=1)
+        self._rec(run, _make_paper("2301.00001", "From elsewhere", submitted_date=d,
+                                   source="biorxiv"), 0.5, rank=2)
+        results = _query_profile_recommendations(self.user, pa)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(
+            {(r["source"], r["title"]) for r in results},
+            {("arxiv", "From arXiv"), ("biorxiv", "From elsewhere")},
+        )
 
     def test_paper_without_date_gets_unknown(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])

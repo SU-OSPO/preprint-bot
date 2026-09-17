@@ -11,7 +11,8 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import Dict, List, Optional
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import feedparser
@@ -32,6 +33,11 @@ _API_BASE = "https://export.arxiv.org/api/query"
 # Reused across calls; converts LaTeX text markup (e.g. ``\'e``) to Unicode.
 _LATEX2TEXT = LatexNodes2Text()
 
+# Canonical arXiv id: modern ``2401.12345`` or legacy ``hep-th/9901001``.
+ARXIV_ID_RE = re.compile(
+    r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,6 +51,11 @@ class ArxivSource(PreprintSource):
     @property
     def label(self) -> str:
         return "arXiv"
+
+    @property
+    def request_delay_seconds(self) -> float:
+        # arXiv asks for no more than one request every three seconds.
+        return 3.0
 
     def landing_url(self, source_id: str) -> str:
         return f"https://arxiv.org/abs/{source_id}"
@@ -168,33 +179,106 @@ class ArxivSource(PreprintSource):
 
             papers = await _api_fetch_all(client, query)
             for item in papers:
-                arxiv_id = _extract_arxiv_id(item.id)
-                if not arxiv_id or arxiv_id in seen_ids:
+                entry = _entry_from_api_item(item)
+                if entry is None or entry.source_id in seen_ids:
                     continue
-                seen_ids.add(arxiv_id)
-
-                entries.append(
-                    PaperEntry(
-                        source_id=arxiv_id,
-                        title=item.title.strip(),
-                        abstract=item.summary.strip(),
-                        url=item.id,
-                        pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
-                        authors=[
-                            a.name
-                            for a in getattr(item, "authors", [])
-                        ],
-                        categories=[
-                            tag.term
-                            for tag in getattr(item, "tags", [])
-                        ],
-                        published=getattr(item, "published", ""),
-                        source="arxiv",
-                        metadata={"arxiv_url": item.id},
-                    )
-                )
+                seen_ids.add(entry.source_id)
+                entries.append(entry)
 
         logger.info(f"  Total: {len(entries)} new papers")
+        return entries
+
+    # ── Search (title / author) ────────────────────────────────────
+
+    def supports_search(self) -> bool:
+        return True
+
+    async def search(
+        self, *, title: str = "", author: str = "", max_results: int = 100
+    ) -> List[PaperEntry]:
+        """Phrase-match the title and/or author fields, newest first.
+
+        Both terms are combined with AND when supplied.  Raises
+        ``ValueError`` if neither is given, since arXiv would otherwise
+        return the entire corpus.
+        """
+        parts = []
+        if title.strip():
+            parts.append(_phrase_term("ti", title))
+        if author.strip():
+            parts.append(_phrase_term("au", author))
+        if not parts:
+            raise ValueError("search requires a title or an author")
+
+        query = "+AND+".join(parts)
+        logger.info(f"\nSearching arXiv: {query} (max {max_results})")
+
+        async with httpx.AsyncClient(
+            timeout=30, headers={"User-Agent": USER_AGENT}
+        ) as client:
+            items = await _api_fetch_all(client, query, limit=max_results)
+
+        entries: List[PaperEntry] = []
+        seen_ids: set[str] = set()
+        for item in items:
+            entry = _entry_from_api_item(item)
+            if entry is None or entry.source_id in seen_ids:
+                continue
+            seen_ids.add(entry.source_id)
+            entries.append(entry)
+        return entries
+
+    # ── Add by id ──────────────────────────────────────────────────
+
+    def supports_add_by_id(self) -> bool:
+        return True
+
+    @property
+    def id_hint(self) -> str:
+        return "https://arxiv.org/abs/2601.19018, arXiv:2601.19018, or 2301.12345"
+
+    def normalize_id(self, raw: str) -> Optional[str]:
+        """Parse a user-typed arXiv id, URL, or ``arXiv:`` reference.
+
+        Accepts ``2601.19018``, ``arXiv:2601.19018``, abstract and PDF
+        URLs (with or without a version suffix, query string, fragment,
+        or ``.pdf`` extension), and legacy ``hep-th/9901001`` ids.
+        Returns the canonical, version-stripped id, or ``None`` if the
+        input is not an arXiv id.
+        """
+        token = (raw or "").strip()
+        if not token:
+            return None
+        token = re.sub(
+            r"^https?://arxiv\.org/(abs|pdf)/", "", token, flags=re.IGNORECASE
+        )
+        if token.lower().startswith("arxiv:"):
+            token = token[len("arxiv:"):]
+        # Strip query/fragment suffixes, then .pdf, then trailing version
+        token = re.sub(r"[?#].*$", "", token)
+        token = re.sub(r"\.pdf$", "", token, flags=re.IGNORECASE)
+        token = re.sub(r"v\d+$", "", token)
+        return token if ARXIV_ID_RE.match(token) else None
+
+    async def fetch_one(self, source_id: str) -> Optional[PaperEntry]:
+        """Fetch metadata for a single arXiv id, or ``None`` if unknown."""
+        return (await self.fetch_many([source_id])).get(source_id)
+
+    async def fetch_many(self, source_ids: List[str]) -> Dict[str, PaperEntry]:
+        """Fetch metadata for many ids in one id_list query."""
+        if not source_ids:
+            return {}
+
+        async with httpx.AsyncClient(
+            timeout=30, headers={"User-Agent": USER_AGENT}
+        ) as client:
+            items = await _api_fetch_by_ids(client, list(source_ids))
+
+        entries: Dict[str, PaperEntry] = {}
+        for item in items:
+            entry = _entry_from_api_item(item)
+            if entry is not None:
+                entries[entry.source_id] = entry
         return entries
 
 
@@ -208,6 +292,39 @@ def _extract_arxiv_id(link: str) -> str | None:
         return None
     raw = m.group(1)
     return re.sub(r"v\d+$", "", raw)  # strip version suffix
+
+
+def _entry_from_api_item(item) -> PaperEntry | None:
+    """Convert one arXiv API result into a PaperEntry.
+
+    Returns ``None`` for entries without a usable id — notably the error
+    entry arXiv returns for an unknown id_list member.
+    """
+    arxiv_id = _extract_arxiv_id(getattr(item, "id", ""))
+    if not arxiv_id:
+        return None
+    return PaperEntry(
+        source_id=arxiv_id,
+        title=item.title.strip(),
+        abstract=getattr(item, "summary", "").strip(),
+        url=item.id,
+        pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+        authors=[a.name for a in getattr(item, "authors", [])],
+        categories=[tag.term for tag in getattr(item, "tags", [])],
+        published=getattr(item, "published", ""),
+        source="arxiv",
+        metadata={"arxiv_url": item.id},
+    )
+
+
+def _phrase_term(field: str, value: str) -> str:
+    """Build a percent-encoded phrase term, e.g. ``ti:%22deep%20learning%22``.
+
+    Inner double quotes are dropped so a user's stray quote cannot break
+    out of the phrase.
+    """
+    phrase = '"' + value.strip().replace('"', "") + '"'
+    return f"{field}:{quote(phrase, safe='')}"
 
 
 def _clean_rss_title(raw: str) -> str:
@@ -272,17 +389,21 @@ async def _api_fetch_all(
     client: httpx.AsyncClient,
     query: str,
     page_size: int = 500,
+    limit: int | None = None,
 ) -> list:
     """Fetch all results for a query, paginating as needed.
 
     The arXiv API caps ``max_results`` at ~30 000, but practical
     pages should be ≤ 500 to avoid timeouts.  We read
     ``opensearch:totalResults`` from the first page to know how
-    many pages to fetch.
+    many pages to fetch.  Pass ``limit`` to only retrieve the
+    newest N results.
     """
     all_entries: list = []
     offset = 0
     total: int | None = None  # learned from first response
+    if limit is not None:
+        page_size = min(page_size, limit)
 
     while True:
         url = (
@@ -297,6 +418,10 @@ async def _api_fetch_all(
 
         feed_entries, feed_total = result
         all_entries.extend(feed_entries)
+
+        if limit is not None and len(all_entries) >= limit:
+            del all_entries[limit:]
+            break
 
         # Learn total from first response
         if total is None:
@@ -315,6 +440,17 @@ async def _api_fetch_all(
 
     logger.info(f"  Fetched {len(all_entries)} papers via API")
     return all_entries
+
+
+async def _api_fetch_by_ids(
+    client: httpx.AsyncClient,
+    source_ids: list,
+) -> list:
+    """Fetch metadata for specific arXiv ids via the API's id_list param."""
+    ids = ",".join(source_ids)
+    url = f"{_API_BASE}?id_list={quote(ids, safe=',')}&max_results={len(source_ids)}"
+    result = await _api_fetch_page(client, url)
+    return result[0] if result else []
 
 
 async def _api_fetch_page(

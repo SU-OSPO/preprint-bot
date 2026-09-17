@@ -1,12 +1,23 @@
-"""Unit tests for pure helpers: arXiv id parsing, SHA-256, category cleaning."""
+"""Unit tests for pure helpers: source id parsing, SHA-256, category cleaning."""
 
 from django.test import SimpleTestCase
-from core.views import _compute_sha256, _parse_arxiv_ids
+from preprint_sources import ArxivSource
+
+from core.views import _compute_sha256, _parse_source_ids
+
+
+def _parse_arxiv_ids(raw):
+    """Parse free-form input the way the add-by-ID view does for arXiv.
+
+    The view splits the box into tokens and the source normalizes each one,
+    so exercising both together is what these cases are really about.
+    """
+    return _parse_source_ids(ArxivSource(), raw)
 
 
 class ParseArxivIdsTests(SimpleTestCase):
-    """Tests for _parse_arxiv_ids(), which extracts valid arXiv IDs
-    from free-form user input."""
+    """Tests for the view splitter plus ArxivSource.normalize_id(), which
+    together extract valid arXiv IDs from free-form user input."""
 
     # ── Basic bare IDs ────────────────────────────────────
 

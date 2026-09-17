@@ -13,6 +13,7 @@ try:
     from config import ADMIN_EMAIL
 except ImportError:
     ADMIN_EMAIL = ""
+from preprint_sources import all_source_names, get_source
 
 DASHBOARD_URL = SITE_URL
 SU_ORANGE = "#F76900"
@@ -24,6 +25,19 @@ def truncate_to_sentences(text: str, n: int = 3) -> tuple[str, bool]:
     if len(sentences) <= n:
         return text.strip(), False
     return ' '.join(sentences[:n]), True
+
+
+def paper_landing_url(paper: Dict) -> str:
+    """Source-aware landing page for a digest row, or "" if there isn't one.
+
+    User uploads and papers from a source the deployment no longer registers
+    have nowhere to link to; callers fall back to the dashboard.
+    """
+    source_id = paper.get("source_id") or ""
+    source = paper.get("source") or ""
+    if not source_id or source not in all_source_names():
+        return ""
+    return get_source(source).landing_url(source_id)
 
 
 def format_authors(authors: List[str], cap: int = 25) -> str:
@@ -39,12 +53,12 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
     papers = papers[:10]
     rows = ""
     for i, paper in enumerate(papers, 1):
-        source_id = paper.get("source_id", "")
         title = paper.get("title", "No title")
         score = paper.get("score", 0)
         authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
-        arxiv_url = f"https://arxiv.org/abs/{source_id}" if source_id else "#"
+        # Papers with no public landing page point back at the dashboard
+        paper_url = paper_landing_url(paper) or DASHBOARD_URL
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
@@ -55,7 +69,7 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         <tr>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;width:30px;color:#888;">{i}</td>
             <td style="padding:12px;border-bottom:1px solid #eee;vertical-align:top;">
-                <a href="{html.escape(arxiv_url)}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{html.escape(title)}</a>{authors_html}
+                <a href="{html.escape(paper_url)}" style="font-size:15px;font-weight:bold;color:{SU_NAVY};text-decoration:none;">{html.escape(title)}</a>{authors_html}
                 <br>
                 <span style="font-size:12px;color:#888;">Score: {score:.3f}</span>
                 <p style="margin:8px 0 0;font-size:13px;color:#444;">{html.escape(truncated_summary)}{read_more}</p>

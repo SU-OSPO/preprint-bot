@@ -124,8 +124,8 @@ to browse data.
 | `SUPPORT_EMAIL`      | `support@example.com`| Shown on the help page              |
 | `SITE_NAME`          | `Preprint Bot`       | Site display name                   |
 | `SHOW_BETA_BANNER`   | `True`               | Dismissable beta feedback banner    |
-| `ARXIV_SEARCH_MAX_RESULTS` | `500`          | Max papers returned by arXiv search |
-| `ARXIV_SEARCH_PER_PAGE`    | `50`           | Results per page in arXiv search    |
+| `SOURCE_SEARCH_MAX_RESULTS` | `500`         | Max papers returned by a source search (legacy `ARXIV_SEARCH_MAX_RESULTS` treated as an alias) |
+| `SOURCE_SEARCH_PER_PAGE`    | `50`          | Results per page in source search (legacy `ARXIV_SEARCH_PER_PAGE` treated as an alias) |
 | `ACCENT_COLOR`             | (empty)        | CSS accent color override, e.g. `#e65100` |
 | `NAV_COLOR`                | (empty)        | Navbar background color override, e.g. `#1b5e20` |
 | `REGISTRATION_OPEN`        | `True`         | Set to `False` to block new account creation |

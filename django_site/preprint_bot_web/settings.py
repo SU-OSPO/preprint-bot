@@ -149,11 +149,18 @@ SITE_NAME = os.getenv("SITE_NAME", "Preprint Bot")
 SHOW_BETA_BANNER = os.getenv("SHOW_BETA_BANNER", "True").lower() in ("true", "1", "yes")
 
 # ---------------------------------------------------------------------------
-# arXiv search settings
+# Preprint source search settings
 # ---------------------------------------------------------------------------
 
-ARXIV_SEARCH_MAX_RESULTS = int(os.getenv("ARXIV_SEARCH_MAX_RESULTS", 500))
-ARXIV_SEARCH_PER_PAGE = int(os.getenv("ARXIV_SEARCH_PER_PAGE", 50))
+# Applied to whichever source the user is searching. The ARXIV_SEARCH_* names
+# predate multi-source support and are still read so existing deployments do
+# not need their environment changed.
+SOURCE_SEARCH_MAX_RESULTS = int(
+    os.getenv("SOURCE_SEARCH_MAX_RESULTS", os.getenv("ARXIV_SEARCH_MAX_RESULTS", 500))
+)
+SOURCE_SEARCH_PER_PAGE = int(
+    os.getenv("SOURCE_SEARCH_PER_PAGE", os.getenv("ARXIV_SEARCH_PER_PAGE", 50))
+)
 ACCENT_COLOR = os.getenv("ACCENT_COLOR", "")  # e.g. "#e65100" — overrides the default blue
 NAV_COLOR = os.getenv("NAV_COLOR", "")  # e.g. "#1b5e20" — overrides the dark navbar
 REGISTRATION_OPEN = os.getenv("REGISTRATION_OPEN", "True").lower() in ("true", "1", "yes")

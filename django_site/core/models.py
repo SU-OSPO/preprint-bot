@@ -17,6 +17,8 @@ from pgvector.django import VectorField
 
 from preprint_sources import all_source_names, get_source
 
+from .sources import source_label as _source_label
+
 
 # ── Users ──────────────────────────────────────────────────────────────────
 
@@ -198,6 +200,11 @@ class Paper(models.Model):
         if not self.source_id or self.source not in all_source_names():
             return ""
         return get_source(self.source).landing_url(self.source_id)
+
+    @property
+    def source_label(self):
+        """Human-facing source name for UI badges, e.g. ``arXiv``."""
+        return _source_label(self.source)
 
     @property
     def categories_list(self):

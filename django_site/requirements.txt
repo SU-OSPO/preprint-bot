@@ -1,7 +1,8 @@
 # Django site requirements
 # Install from the repo root with: pip install -r django_site/requirements.txt
 
-# Shared preprint-source package (taxonomy for the category picker).
+# Shared preprint-source package: taxonomy for the category picker, plus the
+# fetch/search/landing-URL behaviour behind the add-paper tabs.
 ./packages/preprint_sources
 
 Django>=5.1,<6.0
@@ -9,8 +10,9 @@ psycopg2-binary>=2.9.9
 python-dotenv>=1.0.0
 pgvector>=0.3.6
 
-# Only needed if you want the paper-add-from-arXiv feature to work
+# PDF downloads for the add-by-ID flow
 requests>=2.31.0
+# Only needed by the refresh_arxiv_metadata management command
 arxiv>=2.1.0
 
 # PDF text layer validation on upload
