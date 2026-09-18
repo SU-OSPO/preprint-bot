@@ -40,6 +40,7 @@ urlpatterns = [
 
     # Recommendations
     path("recommendations/", views.recommendations_view, name="recommendations"),
+    path("recommendations/create-profile/<int:paper_id>/", views.recommendation_create_profile_view, name="recommendation_create_profile"),
     path("recommendations/add/<int:profile_id>/<int:paper_id>/", views.recommendation_add_to_profile_view, name="recommendation_add_to_profile"),
 
     # Settings

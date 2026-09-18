@@ -18,6 +18,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Avg, Count, Max, Q
 from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404, JsonResponse
+from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1765,3 +1766,67 @@ def monitoring_dashboard_view(request):
         "profiles_email_on": profiles_email_on,
     }
     return render(request, "monitoring.html", context)
+
+
+@pbuser_required
+@require_POST
+def recommendation_create_profile_view(request, paper_id):
+    """Create a new profile with a recommended paper (AJAX)."""
+    pb_user = request.pb_user
+    paper = get_object_or_404(Paper, pk=paper_id)
+    
+    was_recommended = Recommendation.objects.filter(
+        paper=paper, run__user=pb_user
+    ).exists()
+    if not was_recommended:
+        return JsonResponse({"ok": False, "error": "Paper not found."}, status=404)
+        
+    name = request.POST.get("name", "").strip()
+    if not name:
+        return JsonResponse({"ok": False, "error": "Profile name is required."}, status=400)
+        
+    if Profile.objects.filter(user=pb_user, name__iexact=name).exists():
+        return JsonResponse({"ok": False, "error": f"A profile named '{name}' already exists."}, status=400)
+        
+    # Extract categories from paper metadata
+    raw_categories = []
+    if paper.metadata and isinstance(paper.metadata, dict) and "categories" in paper.metadata:
+        raw_categories = paper.metadata["categories"]
+        
+    # Validate categories using ProfileForm.clean_categories if applicable, or fallback safely
+    form = ProfileForm(data={"name": name, "categories": ",".join(raw_categories) if isinstance(raw_categories, list) else raw_categories})
+    # If form has clean_categories validation
+    categories = raw_categories
+    if hasattr(form, "clean_categories") and raw_categories:
+        try:
+            form.cleaned_data = {"categories": raw_categories}
+            categories = form.clean_categories() or raw_categories
+        except Exception:
+            categories = raw_categories
+
+    try:
+        with transaction.atomic():
+            profile = Profile.objects.create(
+                user=pb_user,
+                name=name,
+                categories=categories,
+            )
+            corpus = _get_or_create_user_corpus(pb_user, profile)
+            _link_paper_to_corpus(paper, corpus)
+    except IntegrityError:
+        return JsonResponse({"ok": False, "error": "A profile with that name already exists."}, status=400)
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        
+    return JsonResponse({
+        "ok": True,
+        "profile": {
+            "id": profile.pk,
+            "name": profile.name,
+        },
+        "paper": {
+            "id": paper.pk,
+            "title": paper.title,
+            "source_id": paper.source_id,
+        },
+    })
