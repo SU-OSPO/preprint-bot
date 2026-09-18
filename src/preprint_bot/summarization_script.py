@@ -1,4 +1,3 @@
-import os
 import re
 from pathlib import Path
 from nltk.tokenize import sent_tokenize
@@ -128,11 +127,11 @@ class LlamaSummarizer:
         if use_gpu:
             # Use GPU: offload all layers to GPU
             n_gpu_layers = -1  # -1 means offload all layers
-            print(f"LLaMA summarizer using GPU (offloading all layers)")
+            print("LLaMA summarizer using GPU (offloading all layers)")
         else:
             # Use CPU only
             n_gpu_layers = 0
-            print(f"LLaMA summarizer using CPU only")
+            print("LLaMA summarizer using CPU only")
         
         self.llm = Llama(
             model_path=str(model_path),

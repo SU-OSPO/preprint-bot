@@ -280,7 +280,7 @@ async def generate_recommendations(api_client: APIClient, arxiv_corpus_id: int, 
                 paper_ids=paper_ids,
             )
             if run_id is None:
-                print(f"    ✗ Skipped: no embeddings found")
+                print("    ✗ Skipped: no embeddings found")
                 continue
             print(f"    ✓ Created recommendation run ID: {run_id}")
 
@@ -454,7 +454,7 @@ async def run_pipeline(args):
         else:
             target_date = datetime.combine(date_type.today(), datetime.min.time())
             print("\n" + "="*80)
-            print(f"PREPRINT BOT PIPELINE - latest announcement")
+            print("PREPRINT BOT PIPELINE - latest announcement")
             print("="*80 + "\n")
 
         # Step 1 always runs — process papers uploaded since the last run
@@ -582,7 +582,7 @@ async def run_pipeline(args):
                 pdf.unlink()
                 deleted_pdfs += 1
             print(f"  ✓ Deleted {deleted_pdfs} PDFs")
-            print(f"  ✓ User paper files are safe (hash-based storage)")
+            print("  ✓ User paper files are safe (hash-based storage)")
         except Exception as e:
             print(f"  Warning: Cleanup failed: {e}")
 

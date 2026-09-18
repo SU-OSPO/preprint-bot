@@ -7,10 +7,9 @@ import time
 import random
 import requests
 from tqdm import tqdm
-from pathlib import Path
 from datetime import datetime
 from collections import deque
-from .config import DATA_DIR, USER_AGENT
+from .config import USER_AGENT
 
 HEADERS = {
     "User-Agent": USER_AGENT
@@ -201,7 +200,7 @@ def download_arxiv_pdfs(
                         time.sleep(backoff)
                         continue
                 
-            except Exception as e:
+            except Exception:
                 if attempt < max_retries - 1:
                     time.sleep(initial_backoff)
                     continue

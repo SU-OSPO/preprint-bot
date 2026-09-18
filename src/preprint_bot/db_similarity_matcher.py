@@ -38,7 +38,7 @@ async def run_similarity_matching(
         threshold_value = SIMILARITY_THRESHOLDS.get(threshold, DEFAULT_THRESHOLD)
     else:
         threshold_value = float(threshold) if threshold is not None else DEFAULT_THRESHOLD
-    print(f"\nSimilarity Matching Configuration:")
+    print("\nSimilarity Matching Configuration:")
     print(f"  Method: {method}")
     print(f"  Threshold: {threshold} ({threshold_value})")
     if target_date:
@@ -143,7 +143,7 @@ async def run_similarity_matching(
     print(f"  arXiv papers: {len(arxiv_papers)}")
     
     # Compute similarities
-    print(f"\nComputing paper-to-paper similarities...")
+    print("\nComputing paper-to-paper similarities...")
     
     paper_scores = {}
     
@@ -160,7 +160,7 @@ async def run_similarity_matching(
         paper_scores[arxiv_paper_id] = max_similarity
     
     # Show score distribution
-    print(f"\nSimilarity Score Distribution:")
+    print("\nSimilarity Score Distribution:")
     all_scores = list(paper_scores.values())
     if all_scores:
         print(f"  Max: {max(all_scores):.3f}")
@@ -173,14 +173,14 @@ async def run_similarity_matching(
             print(f"  Above {t_name} ({t_val}): {count} papers")
     
     # Show top matches regardless of threshold
-    print(f"\nTop 10 Matches (regardless of threshold):")
+    print("\nTop 10 Matches (regardless of threshold):")
     sorted_all = sorted(paper_scores.items(), key=lambda x: x[1], reverse=True)[:10]
     for rank, (paper_id, score) in enumerate(sorted_all, 1):
         try:
             paper = await api_client.get_paper_by_id(paper_id)
             if paper:
                 print(f"  {rank}. [{score:.3f}] {paper['title'][:70]}...")
-        except:
+        except Exception:
             pass
     
     # Filter by threshold

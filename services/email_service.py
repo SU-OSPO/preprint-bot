@@ -8,9 +8,9 @@ from email.mime.text import MIMEText
 from typing import List, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME, SITE_URL
+from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME, SITE_URL  # noqa: E402
 try:
-    from config import ADMIN_EMAIL
+    from config import ADMIN_EMAIL  # noqa: E402
 except ImportError:
     ADMIN_EMAIL = ""
 

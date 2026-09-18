@@ -60,7 +60,7 @@ def download_from_s3_bulk(paper_metadata, output_folder):
     }
     
     print(f"\n{'='*60}")
-    print(f"S3 Bulk Download (Fast Mode - No Rate Limits!)")
+    print("S3 Bulk Download (Fast Mode - No Rate Limits!)")
     print(f"Papers to download: {len(paper_metadata)}")
     print(f"{'='*60}\n")
     

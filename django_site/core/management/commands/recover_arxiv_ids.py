@@ -112,7 +112,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"    {mark} Found: {aid}"))
                 recovered += 1
             else:
-                self.stdout.write(self.style.WARNING(f"    ? Not found on arXiv"))
+                self.stdout.write(self.style.WARNING("    ? Not found on arXiv"))
                 not_found += 1
 
         self.stdout.write("")

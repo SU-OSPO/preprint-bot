@@ -4,7 +4,6 @@ import numpy as np
 from unittest.mock import AsyncMock, MagicMock
 
 from pathlib import Path
-import tempfile
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "preprint_bot"))
 

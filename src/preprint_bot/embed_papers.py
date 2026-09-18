@@ -122,7 +122,7 @@ async def embed_and_store_papers(
             print(f"  Failed to embed paper {paper.get('source_id', paper['id'])}: {e}")
             skipped += 1
 
-    print(f"\nEmbedding complete!")
+    print("\nEmbedding complete!")
     print(f"  Abstract embeddings: {abstract_count}")
     print(f"  Section embeddings: {section_count}")
     if skipped:

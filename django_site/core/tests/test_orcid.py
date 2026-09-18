@@ -72,7 +72,7 @@ class OrcidLoginTests(TestCase):
             "name": "Test Researcher",
             "access_token": "fake-token",
         }
-        user = PBUser.objects.create_user(
+        PBUser.objects.create_user(
             email="orcid-user@example.com",
             password="SecurePass123!",
             orcid_id="0000-0001-2345-6789",

@@ -14,8 +14,7 @@ class TestEnums:
     def test_threshold_is_float(self):
         """Test that threshold is now a float field not an enum"""
         from schemas import ProfileCreate
-        import inspect
-        
+
         fields = ProfileCreate.model_fields
         assert 'threshold' in fields
         assert fields['threshold'].default == 0.6

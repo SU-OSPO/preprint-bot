@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
-    PBUser, Profile, Corpus, Paper, Section,
-    Summary, RecommendationRun, Recommendation,
+    PBUser, Profile, Corpus, Paper,
+    RecommendationRun, Recommendation,
     ProcessingRun, EmailLog, ArxivDailyStats,
 )
 

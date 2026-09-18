@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from schemas import EmbeddingCreate, EmbeddingUpdate, EmbeddingResponse, VectorSearchRequest
+from schemas import EmbeddingCreate, EmbeddingResponse, VectorSearchRequest
 from database import get_db_pool
 
 router = APIRouter(prefix="/embeddings", tags=["embeddings"])
@@ -241,5 +241,5 @@ def parse_vector(vector_str: str) -> List[float]:
     
     try:
         return [float(x.strip()) for x in cleaned.split(',')]
-    except:
+    except Exception:
         return []

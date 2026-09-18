@@ -1,7 +1,7 @@
 # test_embed_papers.py
 """Unit tests for embedding functionality"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "preprint_bot"))

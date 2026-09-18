@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import date, datetime
+from datetime import date
 import json
 from database import get_db_pool
 from services.email_service import send_recommendations_digest, send_email, send_admin_alert

@@ -74,7 +74,7 @@ class ArxivSource(PreprintSource):
         cat_str = "+".join(categories)
         url = f"{_RSS_BASE}/{cat_str}"
 
-        logger.info(f"\nFetching latest arXiv papers via RSS")
+        logger.info("\nFetching latest arXiv papers via RSS")
         logger.info(f"  Feed: {url}")
         logger.info(f"  Categories: {categories}")
 
@@ -233,7 +233,7 @@ def _latex_to_unicode(text: str) -> str:
         return text
     try:
         return _LATEX2TEXT.latex_to_text(text).strip()
-    except Exception as e:
+    except Exception:
         logger.info(f"Could not convert assumed LaTeX {text} to unicode")
         return text
 

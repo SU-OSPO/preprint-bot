@@ -118,7 +118,7 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
             if result.get('metadata'):
                 try:
                     result['metadata'] = json.loads(result['metadata'])
-                except:
+                except Exception:
                     pass
             results.append(result)
         return results
@@ -168,7 +168,7 @@ async def get_recommendations_by_profile(profile_id: int, limit: int = Query(500
             if result.get('metadata'):
                 try:
                     result['metadata'] = json.loads(result['metadata'])
-                except:
+                except Exception:
                     pass
             results.append(result)
         return results

@@ -3,7 +3,6 @@ from typing import List
 from schemas import ProfileCreate, ProfileUpdate, ProfileResponse
 from database import get_db_pool
 from datetime import datetime
-from typing import Optional
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 

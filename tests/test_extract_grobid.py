@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from preprint_bot.extract_grobid import extract_grobid_sections
+from preprint_bot.extract_grobid import extract_grobid_sections  # noqa: E402
 
 
 # A complete TEI document like GROBID returns: header metadata plus body
