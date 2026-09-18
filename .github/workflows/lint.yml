@@ -19,8 +19,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # flake8 only parses the source, so the project's own dependencies are
-      # not needed — this job stays fast and independent of the test jobs.
       - name: Install flake8
         run: |
           python -m pip install --upgrade pip

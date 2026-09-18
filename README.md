@@ -892,7 +892,7 @@ pip install black isort
 black src/ tests/
 isort src/ tests/
 
-# Lint — settings (line length, excludes, ignores) come from .flake8
+# Lint (settings come from .flake8)
 pip install flake8
 flake8 .
 
@@ -900,11 +900,6 @@ flake8 .
 pip install mypy
 mypy src/
 ```
-
-`flake8 .` is what the `Lint` workflow (`.github/workflows/lint.yml`) runs on
-every push and pull request to `main`, so running it locally reproduces CI
-exactly. The rule set lives in `.flake8`: 120-character lines, with the
-whitespace and wrapping codes still ignored pending a repo-wide `black` pass.
 
 ## Deployment
 

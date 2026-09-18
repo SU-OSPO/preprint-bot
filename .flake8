@@ -13,10 +13,7 @@ exclude =
     *.egg-info,
     migrations
 
-# Codes waiting on a repo-wide `black`/`isort` pass. Everything else — unused
-# imports and variables, undefined names, bare excepts, import placement — is
-# enforced. Shrink this list as the formatting is cleaned up.
-#
+# Codes waiting on a repo-wide `black`/`isort` pass
 # E203 and W503 disagree with black by design and stay ignored permanently.
 extend-ignore =
     E128,
