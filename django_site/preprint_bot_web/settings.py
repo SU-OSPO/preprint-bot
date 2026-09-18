@@ -125,7 +125,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # PDF storage paths (mirrors FastAPI config)
 PDF_DATA_DIR = Path(os.getenv("PDF_DATA_DIR", BASE_DIR.parent / "pdf_data"))
-USER_PDF_DIR = PDF_DATA_DIR / "user_pdfs"          # legacy — used by FastAPI pipeline only
+USER_PDF_DIR = PDF_DATA_DIR / "user_pdfs"  # legacy — used by FastAPI pipeline only
 USER_PROCESSED_DIR = PDF_DATA_DIR / "user_processed"  # legacy — used by FastAPI pipeline only
 PAPER_STORAGE_DIR = PDF_DATA_DIR / "papers"  # hash-based deduplicated storage
 

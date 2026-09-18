@@ -27,7 +27,7 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -68,8 +68,8 @@ async def root():
             "Semantic embedding generation",
             "Vector similarity search",
             "Personalized recommendations",
-            "PostgreSQL with pgvector"
-        ]
+            "PostgreSQL with pgvector",
+        ],
     }
 
 
@@ -79,17 +79,9 @@ async def health_check():
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "api": "operational"
-        }
+        return {"status": "healthy", "database": "connected", "api": "operational"}
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e)
-        }
+        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
 
 
 @app.get("/stats")
@@ -105,7 +97,7 @@ async def get_stats():
                 "users": users_count,
                 "papers": papers_count,
                 "embeddings": embeddings_count,
-                "recommendations": recommendations_count
+                "recommendations": recommendations_count,
             }
     except Exception as e:
         return {"error": str(e)}
@@ -113,10 +105,5 @@ async def get_stats():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

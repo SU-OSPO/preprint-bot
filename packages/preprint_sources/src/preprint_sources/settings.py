@@ -2,6 +2,7 @@
 
 Self-contained so the package has no dependency on preprint_bot.config.
 """
+
 import os
 
 # Sent as the User-Agent header on outbound requests to preprint servers.

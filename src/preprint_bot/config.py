@@ -8,20 +8,15 @@ DATABASE VERSION: Stores metadata in PostgreSQL, files in local directories.
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 # List of arXiv subject categories to query
 ARXIV_CATEGORIES = [
-    "cs.LG", 
+    "cs.LG",
 ]
 
 # Predefined similarity thresholds for filtering paper recommendations
 DEFAULT_THRESHOLD = 0.6
 
-SIMILARITY_THRESHOLDS = {
-    "low": 0.4,
-    "medium": 0.6,
-    "high": 0.75
-}
+SIMILARITY_THRESHOLDS = {"low": 0.4, "medium": 0.6, "high": 0.75}
 
 # Default SentenceTransformer model used for embedding abstracts and sections
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -31,7 +26,7 @@ DATA_DIR = Path("pdf_data")
 
 # Subdirectories for different file types
 PDF_DIR = DATA_DIR / "pdfs"
-PAPER_STORAGE_DIR = DATA_DIR / "papers"    # hash-based deduplicated storage
+PAPER_STORAGE_DIR = DATA_DIR / "papers"  # hash-based deduplicated storage
 
 
 # Create all necessary directories

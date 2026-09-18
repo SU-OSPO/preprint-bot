@@ -5,6 +5,7 @@ Primary method: RSS feed (contains exactly the latest announcement).
 Fallback: arXiv search API with submission-window calculation (for
 backfilling historical dates).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -60,9 +61,7 @@ class ArxivSource(PreprintSource):
 
     # ── RSS (primary) ──────────────────────────────────────────────
 
-    async def fetch_latest(
-        self, categories: List[str]
-    ) -> List[PaperEntry]:
+    async def fetch_latest(self, categories: List[str]) -> List[PaperEntry]:
         """Fetch the current announcement via the arXiv RSS feed.
 
         The RSS feed is updated daily at midnight EST and contains
@@ -78,9 +77,7 @@ class ArxivSource(PreprintSource):
         logger.info(f"  Feed: {url}")
         logger.info(f"  Categories: {categories}")
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 
@@ -104,10 +101,7 @@ class ArxivSource(PreprintSource):
                 PaperEntry(
                     source_id=arxiv_id,
                     title=_clean_rss_title(item.title),
-                    abstract=_clean_html(
-                        getattr(item, "description", "")
-                        or getattr(item, "summary", "")
-                    ),
+                    abstract=_clean_html(getattr(item, "description", "") or getattr(item, "summary", "")),
                     url=item.link,
                     pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
                     authors=_parse_rss_authors(item),
@@ -138,29 +132,21 @@ class ArxivSource(PreprintSource):
         """
         window = _get_announcement_window(target_date)
         if window is None:
-            logger.info(
-                f"\nNo arXiv announcement on "
-                f"{target_date.strftime('%A %Y-%m-%d')} — skipping fetch."
-            )
+            logger.info(f"\nNo arXiv announcement on " f"{target_date.strftime('%A %Y-%m-%d')} — skipping fetch.")
             return []
 
         start_dt, end_dt = window
         start = start_dt.strftime("%Y%m%d%H%M")
         end = end_dt.strftime("%Y%m%d%H%M")
 
-        logger.info(
-            f"\nFetching arXiv papers via API for "
-            f"{target_date.strftime('%A %Y-%m-%d')}"
-        )
+        logger.info(f"\nFetching arXiv papers via API for " f"{target_date.strftime('%A %Y-%m-%d')}")
         logger.info(f"  Submission window: {start_dt} → {end_dt} (UTC)")
         logger.info(f"  Categories: {categories}")
 
         entries: List[PaperEntry] = []
         seen_ids: set[str] = set()
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             # Combine all categories into a single OR query to avoid
             # per-category rate limiting (26 categories = 26 requests)
             cat_query = "+OR+".join(f"cat:{cat}" for cat in categories)
@@ -180,14 +166,8 @@ class ArxivSource(PreprintSource):
                         abstract=item.summary.strip(),
                         url=item.id,
                         pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
-                        authors=[
-                            a.name
-                            for a in getattr(item, "authors", [])
-                        ],
-                        categories=[
-                            tag.term
-                            for tag in getattr(item, "tags", [])
-                        ],
+                        authors=[a.name for a in getattr(item, "authors", [])],
+                        categories=[tag.term for tag in getattr(item, "tags", [])],
                         published=getattr(item, "published", ""),
                         source="arxiv",
                         metadata={"arxiv_url": item.id},
@@ -332,28 +312,17 @@ async def _api_fetch_page(
             resp = await client.get(url)
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                wait = (
-                    int(retry_after)
-                    if retry_after
-                    else backoff * (2**attempt)
-                )
-                logger.info(
-                    f"  429 rate limited, waiting {wait}s "
-                    f"(attempt {attempt + 1}/{max_retries})"
-                )
+                wait = int(retry_after) if retry_after else backoff * (2**attempt)
+                logger.info(f"  429 rate limited, waiting {wait}s " f"(attempt {attempt + 1}/{max_retries})")
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
             feed = feedparser.parse(resp.text)
-            total = int(
-                feed.feed.get("opensearch_totalresults", 0)
-            ) or None
+            total = int(feed.feed.get("opensearch_totalresults", 0)) or None
             return feed.entries, total
         except Exception as e:
             wait = backoff * (2**attempt)
-            logger.info(
-                f"  API error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}"
-            )
+            logger.info(f"  API error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(wait)
 
@@ -398,14 +367,18 @@ def _get_announcement_window(target_date):
         year=start_day.year,
         month=start_day.month,
         day=start_day.day,
-        hour=14, minute=0, second=0,
+        hour=14,
+        minute=0,
+        second=0,
         tzinfo=eastern,
     )
     end_dt = datetime(
         year=end_day.year,
         month=end_day.month,
         day=end_day.day,
-        hour=14, minute=0, second=0,
+        hour=14,
+        minute=0,
+        second=0,
         tzinfo=eastern,
     )
     return start_dt.astimezone(timezone.utc), end_dt.astimezone(timezone.utc)

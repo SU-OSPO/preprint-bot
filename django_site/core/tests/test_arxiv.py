@@ -72,7 +72,7 @@ class ArxivAddAjaxTests(TestCase):
 
     @patch("core.views._download_arxiv_pdfs")
     def test_ajax_stored_but_missing_returns_500(self, mock_dl):
-        mock_dl.return_value = (1, [])          # reports success but no Paper row exists
+        mock_dl.return_value = (1, [])  # reports success but no Paper row exists
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 500)
         self.assertFalse(resp.json()["ok"])
@@ -102,15 +102,14 @@ class ArxivAddDedupTests(TestCase):
     def setUp(self):
         self._paper_storage_tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._paper_storage_tmpdir.cleanup)
-        self._override_settings = override_settings(
-            PAPER_STORAGE_DIR=Path(self._paper_storage_tmpdir.name)
-        )
+        self._override_settings = override_settings(PAPER_STORAGE_DIR=Path(self._paper_storage_tmpdir.name))
         self._override_settings.enable()
         self.addCleanup(self._override_settings.disable)
 
         self.user = PBUser.objects.create_user(email="dedup@example.com", password="SecurePass123!")
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="dedup@example.com", password="SecurePass123!")
+
     def _ajax_add(self, ids):
         return self.client.post(
             f"/profiles/{self.profile.pk}/add-arxiv/",
@@ -130,7 +129,7 @@ class ArxivAddDedupTests(TestCase):
         r1 = self._ajax_add("2301.00001")
         self.assertEqual(r1.status_code, 200)
         self.assertTrue(r1.json()["ok"])
-        r2 = self._ajax_add("2301.00001")        # same ID -> same bytes -> same hash
+        r2 = self._ajax_add("2301.00001")  # same ID -> same bytes -> same hash
         self.assertEqual(r2.status_code, 200)
         self.assertTrue(r2.json()["ok"])
         # Deduplicated: a single Paper row, returned both times.
@@ -165,7 +164,7 @@ class ArxivSearchApiTests(TestCase):
         results = resp.json()["results"]
         self.assertEqual(len(results), 1)
         r = results[0]
-        self.assertEqual(r["source_id"], "2301.00001")          # version suffix stripped
+        self.assertEqual(r["source_id"], "2301.00001")  # version suffix stripped
         self.assertEqual(r["title"], "Deep Learning")
         self.assertEqual(r["authors"], "Alice Smith, Bob Jones")
         self.assertEqual(r["published"], "2023-01-15")
@@ -195,14 +194,14 @@ class ArxivSearchApiTests(TestCase):
         ]
         r = self._search(title="x").json()["results"][0]
         self.assertTrue(r["authors"].endswith(" et al."))
-        self.assertIn("Author 24", r["authors"])       # 25 shown (0..24), then et al.
+        self.assertIn("Author 24", r["authors"])  # 25 shown (0..24), then et al.
         self.assertNotIn("Author 25", r["authors"])
 
     @patch("arxiv.Client")
     def test_second_search_rate_limited(self, mock_client):
         mock_client.return_value.results.return_value = []
-        self._search(title="foo")                       # first: allowed
-        resp = self._search(title="foo")                # within 3s cooldown
+        self._search(title="foo")  # first: allowed
+        resp = self._search(title="foo")  # within 3s cooldown
         self.assertEqual(resp.status_code, 429)
 
     @patch.dict("sys.modules", {"arxiv": None})

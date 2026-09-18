@@ -40,7 +40,7 @@ class MonitoringDashboardTests(TestCase):
         self.assertEqual(ctx["total_papers"], 0)
         self.assertEqual(ctx["email_sent"], 0)
         self.assertEqual(ctx["email_failed"], 0)
-        self.assertEqual(ctx["user_total"], 1)          # just the staff user
+        self.assertEqual(ctx["user_total"], 1)  # just the staff user
 
     def test_reflects_email_delivery_counts(self):
         EmailLog.objects.create(user=self.staff, status="sent")
@@ -61,4 +61,4 @@ class MonitoringDashboardTests(TestCase):
         self._login_staff()
         ctx = self.client.get("/monitoring/").context
         self.assertEqual(ctx["total_papers"], 2)
-        self.assertEqual(ctx["user_total"], 2)          # staff + extra
+        self.assertEqual(ctx["user_total"], 2)  # staff + extra

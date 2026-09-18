@@ -4,6 +4,7 @@ Adding a source: implement PreprintSource in a new module, then add it to
 ``_CLASSES`` below. Enablement is env-driven (PREPRINT_ENABLED_SOURCES) so
 every consumer resolves the same set.
 """
+
 from __future__ import annotations
 
 import os

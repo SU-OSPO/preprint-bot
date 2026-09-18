@@ -4,6 +4,7 @@ Each preprint server (arXiv, bioRxiv, ...) implements PreprintSource so the
 pipeline can fetch new papers and the web app can render category pickers and
 source-aware links without knowing server-specific details.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -18,15 +19,16 @@ class PaperEntry:
     Every source converts its native format (RSS, API JSON, ...) into this
     common shape before the pipeline touches it.
     """
-    source_id: str          # server-specific id, e.g. "2401.12345" or a DOI
+
+    source_id: str  # server-specific id, e.g. "2401.12345" or a DOI
     title: str
     abstract: str
-    url: str                # landing page (abstract URL)
-    pdf_url: str            # direct link to the PDF
+    url: str  # landing page (abstract URL)
+    pdf_url: str  # direct link to the PDF
     authors: List[str]
-    categories: List[str]   # in this source's taxonomy
-    published: str          # ISO datetime string (original submission)
-    source: str             # "arxiv", "biorxiv", ...
+    categories: List[str]  # in this source's taxonomy
+    published: str  # ISO datetime string (original submission)
+    source: str  # "arxiv", "biorxiv", ...
     metadata: dict = field(default_factory=dict)  # extra server-specific data
 
 
@@ -60,13 +62,9 @@ class PreprintSource(ABC):
         """Fetch papers from the most recent announcement."""
         ...
 
-    async def fetch_by_date(
-        self, target_date, categories: List[str]
-    ) -> List[PaperEntry]:
+    async def fetch_by_date(self, target_date, categories: List[str]) -> List[PaperEntry]:
         """Fetch papers for a specific historical date (optional)."""
-        raise NotImplementedError(
-            f"{self.name} does not support fetching by date"
-        )
+        raise NotImplementedError(f"{self.name} does not support fetching by date")
 
     # ── identity URLs ──────────────────────────────────────────────
 
@@ -96,9 +94,7 @@ class PreprintSource(ABC):
     def supports_search(self) -> bool:
         return False
 
-    async def search(
-        self, *, title: str = "", author: str = ""
-    ) -> List[PaperEntry]:
+    async def search(self, *, title: str = "", author: str = "") -> List[PaperEntry]:
         raise NotImplementedError(f"{self.name} does not support search")
 
     # ── add by id (optional) ───────────────────────────────────────

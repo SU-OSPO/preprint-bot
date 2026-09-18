@@ -5,6 +5,7 @@
 running GROBID server and assert exactly on the parsed title, abstract,
 authors, date, and body sections (including back-matter header exclusion).
 """
+
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -14,7 +15,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from preprint_bot.extract_grobid import extract_grobid_sections  # noqa: E402
-
 
 # A complete TEI document like GROBID returns: header metadata plus body
 # sections — including back-matter sections that extraction excludes, a
@@ -104,8 +104,9 @@ class TestGrobidParsing:
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_extracts_abstract(self, mock_post):
         mock_post.return_value = _grobid_response()
-        assert (extract_grobid_sections(b"x")["abstract"]
-                == "We present a deterministic method for testing GROBID parsing.")
+        assert (
+            extract_grobid_sections(b"x")["abstract"] == "We present a deterministic method for testing GROBID parsing."
+        )
 
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_extracts_authors_and_date(self, mock_post):
@@ -125,15 +126,13 @@ class TestGrobidParsing:
     def test_excludes_back_matter_headers(self, mock_post):
         mock_post.return_value = _grobid_response()
         headers = [s["header"] for s in extract_grobid_sections(b"x")["sections"]]
-        for excluded in ["Acknowledgements", "References", "Bibliography",
-                         "Appendix A", "Supplementary Material"]:
+        for excluded in ["Acknowledgements", "References", "Bibliography", "Appendix A", "Supplementary Material"]:
             assert excluded not in headers
 
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_headless_div_is_untitled_section(self, mock_post):
         mock_post.return_value = _grobid_response()
-        untitled = [s for s in extract_grobid_sections(b"x")["sections"]
-                    if s["header"] == "Untitled Section"]
+        untitled = [s for s in extract_grobid_sections(b"x")["sections"] if s["header"] == "Untitled Section"]
         assert len(untitled) == 1
         assert untitled[0]["text"] == "A section with no header."
 
@@ -147,8 +146,10 @@ class TestGrobidParsing:
 
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_missing_metadata_yields_empty(self, mock_post):
-        minimal = (b'<?xml version="1.0" encoding="UTF-8"?>'
-                   b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body></body></text></TEI>')
+        minimal = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body></body></text></TEI>'
+        )
         mock_post.return_value = _grobid_response(minimal)
         result = extract_grobid_sections(b"x")
         assert result["title"] == ""

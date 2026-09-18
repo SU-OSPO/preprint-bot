@@ -1,4 +1,5 @@
 """Tests for the source registry."""
+
 import pytest
 
 from preprint_sources import (

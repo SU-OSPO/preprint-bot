@@ -26,11 +26,7 @@ ARXIV_CATEGORIES = [
 # low: more results, less precise
 # medium: balanced (recommended starting point)
 # high: fewer results, more precise
-SIMILARITY_THRESHOLDS = {
-    "low": 0.4,
-    "medium": 0.6,
-    "high": 0.75
-}
+SIMILARITY_THRESHOLDS = {"low": 0.4, "medium": 0.6, "high": 0.75}
 
 # ==================== MODEL SETTINGS ====================
 
@@ -101,6 +97,7 @@ ADMIN_EMAIL = ""  # TODO: address to alert when the pipeline errors (defaults to
 
 # ==================== DATABASE SETTINGS ====================
 
+
 class Settings(BaseSettings):
     # TODO: change all values below to match your PostgreSQL setup
     DATABASE_HOST: str = "localhost"
@@ -119,4 +116,3 @@ def get_settings():
 
 
 settings = get_settings()
-

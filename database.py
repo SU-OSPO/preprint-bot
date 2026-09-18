@@ -1,8 +1,10 @@
 import asyncpg
 from config import settings
 
+
 class Database:
     pool = None
+
 
 async def get_db_pool():
     if Database.pool is None:
@@ -11,9 +13,10 @@ async def get_db_pool():
             port=settings.DATABASE_PORT,
             database=settings.DATABASE_NAME,
             user=settings.DATABASE_USER,
-            password=settings.DATABASE_PASSWORD
+            password=settings.DATABASE_PASSWORD,
         )
     return Database.pool
+
 
 async def close_db_pool():
     if Database.pool:

@@ -1,4 +1,5 @@
 """Unit tests for the pure arXiv parsing + date-window helpers."""
+
 from datetime import date, timedelta
 from types import SimpleNamespace
 

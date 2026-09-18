@@ -3,6 +3,7 @@
 A light, dependency-lean package (httpx / feedparser / pylatexenc) shared by
 the pipeline and the web app so neither hardcodes server-specific details.
 """
+
 from .arxiv import ArxivSource
 from .base import PaperEntry, PreprintSource
 from .registry import (

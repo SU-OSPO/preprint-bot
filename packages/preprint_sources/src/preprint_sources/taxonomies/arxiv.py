@@ -178,7 +178,10 @@ ARXIV_CATEGORY_TREE: List[Dict] = [
                     {"label": "Chemical Physics (physics.chem-ph)", "value": "physics.chem-ph"},
                     {"label": "Classical Physics (physics.class-ph)", "value": "physics.class-ph"},
                     {"label": "Computational Physics (physics.comp-ph)", "value": "physics.comp-ph"},
-                    {"label": "Data Analysis, Statistics and Probability (physics.data-an)", "value": "physics.data-an"},
+                    {
+                        "label": "Data Analysis, Statistics and Probability (physics.data-an)",
+                        "value": "physics.data-an",
+                    },
                     {"label": "Physics Education (physics.ed-ph)", "value": "physics.ed-ph"},
                     {"label": "Fluid Dynamics (physics.flu-dyn)", "value": "physics.flu-dyn"},
                     {"label": "General Physics (physics.gen-ph)", "value": "physics.gen-ph"},

@@ -1,4 +1,5 @@
 """Tests for the env-overridable USER_AGENT setting."""
+
 import importlib
 
 import preprint_sources.settings as settings

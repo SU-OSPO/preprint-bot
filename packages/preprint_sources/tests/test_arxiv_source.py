@@ -1,4 +1,5 @@
 """Tests for ArxivSource identity, URLs, and taxonomy (no network)."""
+
 from preprint_sources import ArxivSource
 
 
@@ -17,7 +18,7 @@ def test_category_tree_is_nested_and_nonempty():
     assert isinstance(tree, list) and tree
     top = tree[0]
     assert {"label", "value"} <= set(top)
-    assert "children" in top and top["children"]      # nested taxonomy
+    assert "children" in top and top["children"]  # nested taxonomy
 
 
 def test_leaf_codes_and_labels():

@@ -1,9 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
-    PBUser, Profile, Corpus, Paper,
-    RecommendationRun, Recommendation,
-    ProcessingRun, EmailLog, ArxivDailyStats,
+    PBUser,
+    Profile,
+    Corpus,
+    Paper,
+    RecommendationRun,
+    Recommendation,
+    ProcessingRun,
+    EmailLog,
+    ArxivDailyStats,
 )
 
 
@@ -24,10 +30,13 @@ class PBUserAdmin(BaseUserAdmin):
 
     # Fields shown when creating a new user via admin
     add_fieldsets = (
-        (None, {
-            "classes": ("wide",),
-            "fields": ("email", "name", "password1", "password2", "is_staff", "is_superuser"),
-        }),
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": ("email", "name", "password1", "password2", "is_staff", "is_superuser"),
+            },
+        ),
     )
 
 
@@ -68,8 +77,15 @@ class RecommendationAdmin(admin.ModelAdmin):
 @admin.register(RecommendationRun)
 class RecommendationRunAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "user", "profile", "method", "threshold",
-        "total_papers_fetched", "target_date", "created_at", "completed_at",
+        "id",
+        "user",
+        "profile",
+        "method",
+        "threshold",
+        "total_papers_fetched",
+        "target_date",
+        "created_at",
+        "completed_at",
     )
     list_filter = ("method", "created_at")
     date_hierarchy = "created_at"
@@ -78,11 +94,17 @@ class RecommendationRunAdmin(admin.ModelAdmin):
 
 # ── Monitoring / operational tables ─────────────────────────────────────────
 
+
 @admin.register(ProcessingRun)
 class ProcessingRunAdmin(admin.ModelAdmin):
     list_display = (
-        "id", "run_type", "category", "status",
-        "papers_processed", "started_at", "completed_at",
+        "id",
+        "run_type",
+        "category",
+        "status",
+        "papers_processed",
+        "started_at",
+        "completed_at",
     )
     list_filter = ("status", "run_type", "category", "started_at")
     date_hierarchy = "started_at"

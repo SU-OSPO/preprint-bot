@@ -22,15 +22,14 @@ async def send_digest(req: DigestRequest):
     run_date = req.run_date or str(date.today())
 
     async with pool.acquire() as conn:
-        user = await conn.fetchrow(
-            "SELECT id, email, name FROM users WHERE id = $1", req.user_id
-        )
+        user = await conn.fetchrow("SELECT id, email, name FROM users WHERE id = $1", req.user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         profile = await conn.fetchrow(
             "SELECT id, name, email_notify, top_x, frequency FROM profiles WHERE id = $1 AND user_id = $2",
-            req.profile_id, req.user_id
+            req.profile_id,
+            req.user_id,
         )
         if not profile:
             raise HTTPException(status_code=404, detail="Profile not found")
@@ -55,7 +54,8 @@ async def send_digest(req: DigestRequest):
             ORDER BY r.score DESC
             LIMIT $2
             """,
-            req.profile_id, top_x
+            req.profile_id,
+            top_x,
         )
 
         if not rows:
@@ -94,7 +94,11 @@ async def send_digest(req: DigestRequest):
             INSERT INTO email_logs (user_id, profile_id, subject, body, status)
             VALUES ($1, $2, $3, $4, $5)
             """,
-            req.user_id, req.profile_id, subject, html_body, status
+            req.user_id,
+            req.profile_id,
+            subject,
+            html_body,
+            status,
         )
 
         # Only mark recommendations as sent if the email actually succeeded
@@ -116,7 +120,7 @@ async def test_email(to_email: str):
         send_email,
         to_address=to_email,
         subject="Preprint Bot — Test Email",
-        html_body="<p>If you received this, your SMTP relay is configured correctly.</p>"
+        html_body="<p>If you received this, your SMTP relay is configured correctly.</p>",
     )
     if not success:
         raise HTTPException(status_code=500, detail="Test email failed")

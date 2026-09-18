@@ -14,10 +14,7 @@ from django.core.management.base import BaseCommand
 
 from core.models import Paper
 
-
-ARXIV_ID_RE = re.compile(
-    r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE
-)
+ARXIV_ID_RE = re.compile(r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE)
 
 
 def _search_arxiv_by_title(title):
@@ -29,7 +26,7 @@ def _search_arxiv_by_title(title):
 
     # Strip HTML tags and double quotes from title
     clean_title = re.sub(r"<[^>]+>", "", title).strip()
-    clean_title = clean_title.replace('"', '')
+    clean_title = clean_title.replace('"', "")
 
     client = arxiv_lib.Client()
     search = arxiv_lib.Search(
@@ -117,11 +114,13 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         if apply:
-            self.stdout.write(self.style.SUCCESS(
-                f"Recovered {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}."
-            ))
+            self.stdout.write(
+                self.style.SUCCESS(f"Recovered {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}.")
+            )
         else:
-            self.stdout.write(self.style.WARNING(
-                f"Dry run: would recover {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}. "
-                f"Run with --apply to execute."
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Dry run: would recover {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}. "
+                    f"Run with --apply to execute."
+                )
+            )

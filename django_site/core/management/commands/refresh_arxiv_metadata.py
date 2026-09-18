@@ -14,11 +14,8 @@ from django.core.management.base import BaseCommand
 
 from core.models import Paper
 
-
 BATCH_SIZE = 50  # arXiv API supports up to 200, but smaller batches are safer
-ARXIV_ID_RE = re.compile(
-    r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE
-)
+ARXIV_ID_RE = re.compile(r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE)
 
 
 def _fetch_batch(arxiv_ids):
@@ -57,9 +54,8 @@ class Command(BaseCommand):
 
         # Only include papers with valid arXiv IDs (skip legacy citation-style IDs)
         papers = [
-            p for p in Paper.objects.filter(source_id__isnull=False)
-            .exclude(source_id="")
-            .order_by("id")
+            p
+            for p in Paper.objects.filter(source_id__isnull=False).exclude(source_id="").order_by("id")
             if ARXIV_ID_RE.match(re.sub(r"v\d+$", "", p.source_id))
         ]
 
@@ -69,7 +65,7 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Found {len(papers)} paper(s) with valid arXiv IDs.")
 
-        batches = [papers[i:i + BATCH_SIZE] for i in range(0, len(papers), BATCH_SIZE)]
+        batches = [papers[i : i + BATCH_SIZE] for i in range(0, len(papers), BATCH_SIZE)]
 
         updated = 0
         skipped = 0
@@ -99,9 +95,7 @@ class Command(BaseCommand):
 
                 changes = []
                 if meta["title"] and meta["title"] != paper.title:
-                    changes.append(
-                        f"title: {paper.title[:40]}... -> {meta['title'][:40]}..."
-                    )
+                    changes.append(f"title: {paper.title[:40]}... -> {meta['title'][:40]}...")
                 if meta["abstract"] and meta["abstract"] != paper.abstract:
                     changes.append("abstract updated")
 
@@ -109,6 +103,7 @@ class Command(BaseCommand):
                 new_metadata = paper.metadata or {}
                 if isinstance(new_metadata, str):
                     import json
+
                     try:
                         new_metadata = json.loads(new_metadata)
                     except Exception:
@@ -141,11 +136,11 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         if apply:
-            self.stdout.write(self.style.SUCCESS(
-                f"Updated {updated} paper(s). Skipped {skipped}. Failed {failed}."
-            ))
+            self.stdout.write(self.style.SUCCESS(f"Updated {updated} paper(s). Skipped {skipped}. Failed {failed}."))
         else:
-            self.stdout.write(self.style.WARNING(
-                f"Dry run: would update {updated} paper(s). Skipped {skipped}. Failed {failed}. "
-                f"Run with --apply to execute."
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Dry run: would update {updated} paper(s). Skipped {skipped}. Failed {failed}. "
+                    f"Run with --apply to execute."
+                )
+            )

@@ -8,7 +8,16 @@ from email.mime.text import MIMEText
 from typing import List, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME, SITE_URL  # noqa: E402
+from config import (  # noqa: E402
+    EMAIL_HOST,
+    EMAIL_PORT,
+    EMAIL_USER,
+    EMAIL_PASSWORD,
+    EMAIL_FROM_ADDRESS,
+    EMAIL_FROM_NAME,
+    SITE_URL,
+)
+
 try:
     from config import ADMIN_EMAIL  # noqa: E402
 except ImportError:
@@ -20,10 +29,10 @@ SU_NAVY = "#002147"
 
 
 def truncate_to_sentences(text: str, n: int = 3) -> tuple[str, bool]:
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     if len(sentences) <= n:
         return text.strip(), False
-    return ' '.join(sentences[:n]), True
+    return " ".join(sentences[:n]), True
 
 
 def format_authors(authors: List[str], cap: int = 25) -> str:
@@ -35,7 +44,9 @@ def format_authors(authors: List[str], cap: int = 25) -> str:
     return ", ".join(authors)
 
 
-def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, shown: int, total: int, frequency: str = "daily") -> str:
+def build_digest_html(
+    profile_name: str, papers: List[Dict], run_date: str, shown: int, total: int, frequency: str = "daily"
+) -> str:
     papers = papers[:10]
     rows = ""
     for i, paper in enumerate(papers, 1):
@@ -47,9 +58,13 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         arxiv_url = f"https://arxiv.org/abs/{source_id}" if source_id else "#"
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
-        read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
+        read_more = (
+            f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>'
+            if was_truncated
+            else ""
+        )
 
-        authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ''
+        authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ""
 
         rows += f"""
         <tr>
@@ -63,7 +78,11 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         </tr>
         """
 
-    count_line = f"Showing {shown} out of {total} recommendations" if total > 10 else f"Showing {total} out of {total} recommendations"
+    count_line = (
+        f"Showing {shown} out of {total} recommendations"
+        if total > 10
+        else f"Showing {total} out of {total} recommendations"
+    )
 
     header_label = {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly"}.get(frequency, "New")
 
@@ -122,8 +141,8 @@ def send_admin_alert(subject: str, detail: str) -> bool:
     subject = subject.replace("\r", " ").replace("\n", " ")[:300]
     html_body = (
         "<p>The Preprint Bot pipeline reported an error:</p>"
-        "<pre style=\"white-space:pre-wrap;font-size:13px;background:#f6f6f6;"
-        "padding:12px;border-radius:6px;overflow-x:auto;\">"
+        '<pre style="white-space:pre-wrap;font-size:13px;background:#f6f6f6;'
+        'padding:12px;border-radius:6px;overflow-x:auto;">'
         f"{html.escape(detail)}</pre>"
     )
     return send_email(recipient, subject, html_body)
@@ -138,7 +157,11 @@ def send_recommendations_digest(
 ) -> tuple[bool, str, str]:
     total = len(papers)
     shown = min(total, 10)
-    digest_label = {"daily": run_date, "weekly": f"weekly digest \u00b7 {run_date}", "monthly": f"monthly digest \u00b7 {run_date}"}.get(frequency, run_date)
+    digest_label = {
+        "daily": run_date,
+        "weekly": f"weekly digest \u00b7 {run_date}",
+        "monthly": f"monthly digest \u00b7 {run_date}",
+    }.get(frequency, run_date)
     subject = f"Preprint Bot: {total} new recommendations for '{profile_name}' ({digest_label})"
     html_body = build_digest_html(profile_name, papers, run_date, shown, total, frequency)
     success = send_email(to_address, subject, html_body)

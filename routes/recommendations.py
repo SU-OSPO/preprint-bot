@@ -54,8 +54,12 @@ async def create_recommendation(rec: RecommendationCreate):
                               (SELECT rank FROM ins), (SELECT summary FROM ins),
                               (SELECT created_at FROM ins)
                     """,
-                    rec.run_id, profile_id, rec.paper_id,
-                    rec.score, rec.rank, rec.summary,
+                    rec.run_id,
+                    profile_id,
+                    rec.paper_id,
+                    rec.score,
+                    rec.rank,
+                    rec.summary,
                 )
                 if not row:
                     # Either the recommendation already existed (conflict on
@@ -66,7 +70,8 @@ async def create_recommendation(rec: RecommendationCreate):
                         """SELECT id, run_id, paper_id, score, rank, summary, created_at
                            FROM recommendations
                            WHERE profile_id = $1 AND paper_id = $2""",
-                        profile_id, rec.paper_id,
+                        profile_id,
+                        rec.paper_id,
                     )
                 if not row:
                     raise HTTPException(status_code=400, detail="Insert failed")
@@ -84,7 +89,7 @@ async def get_recommendations(run_id: Optional[int] = Query(None)):
         if run_id is not None:
             rows = await conn.fetch(
                 "SELECT id, run_id, paper_id, score, rank, summary, created_at FROM recommendations WHERE run_id = $1 ORDER BY rank",
-                run_id
+                run_id,
             )
         else:
             rows = await conn.fetch(
@@ -110,14 +115,15 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
             ORDER BY r.rank
             LIMIT $2
             """,
-            run_id, limit
+            run_id,
+            limit,
         )
         results = []
         for row in rows:
             result = dict(row)
-            if result.get('metadata'):
+            if result.get("metadata"):
                 try:
-                    result['metadata'] = json.loads(result['metadata'])
+                    result["metadata"] = json.loads(result["metadata"])
                 except Exception:
                     pass
             results.append(result)
@@ -128,23 +134,17 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
 async def get_recommendations_by_profile(profile_id: int, limit: int = Query(5000)):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        profile = await conn.fetchrow(
-            "SELECT user_id, top_x FROM profiles WHERE id = $1",
-            profile_id
-        )
+        profile = await conn.fetchrow("SELECT user_id, top_x FROM profiles WHERE id = $1", profile_id)
         if not profile:
             return []
 
-        user_id = profile['user_id']
+        user_id = profile["user_id"]
         corpus_name = f"user_{user_id}_profile_{profile_id}"
-        corpus = await conn.fetchrow(
-            "SELECT id FROM corpora WHERE user_id = $1 AND name = $2",
-            user_id, corpus_name
-        )
+        corpus = await conn.fetchrow("SELECT id FROM corpora WHERE user_id = $1 AND name = $2", user_id, corpus_name)
         if not corpus:
             return []
 
-        user_corpus_id = corpus['id']
+        user_corpus_id = corpus["id"]
         rows = await conn.fetch(
             """
             SELECT DISTINCT ON (p.source_id)
@@ -160,14 +160,15 @@ async def get_recommendations_by_profile(profile_id: int, limit: int = Query(500
             ORDER BY p.source_id, r.score DESC, p.submitted_date DESC
             LIMIT $2
             """,
-            user_corpus_id, limit
+            user_corpus_id,
+            limit,
         )
         results = []
         for row in rows:
             result = dict(row)
-            if result.get('metadata'):
+            if result.get("metadata"):
                 try:
-                    result['metadata'] = json.loads(result['metadata'])
+                    result["metadata"] = json.loads(result["metadata"])
                 except Exception:
                     pass
             results.append(result)
@@ -179,8 +180,7 @@ async def get_recommendation(rec_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, run_id, paper_id, score, rank, summary, created_at FROM recommendations WHERE id = $1",
-            rec_id
+            "SELECT id, run_id, paper_id, score, rank, summary, created_at FROM recommendations WHERE id = $1", rec_id
         )
         if not row:
             raise HTTPException(status_code=404, detail="Recommendation not found")
