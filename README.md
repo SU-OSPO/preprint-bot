@@ -887,9 +887,10 @@ Solution: System automatically handles this with exponential backoff. If persist
 
 ### Code Style
 ```bash
-# Format code (settings come from pyproject.toml); black is enforced in CI
+# Format code (settings come from pyproject.toml); black is enforced in CI.
+# Pass the tracked files: plain `black .` skips paths matched by .gitignore.
 pip install black isort
-black .
+black $(git ls-files '*.py')
 isort src/ tests/
 
 # Lint (settings come from .flake8)
