@@ -14,7 +14,7 @@ try:
 except ImportError:
     ADMIN_EMAIL = ""
 
-DASHBOARD_URL = SITE_URL
+RECOMMENDATIONS_URL = SITE_URL.rstrip("/") + "/recommendations/"
 SU_ORANGE = "#F76900"
 SU_NAVY = "#002147"
 
@@ -47,7 +47,7 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
         arxiv_url = f"https://arxiv.org/abs/{source_id}" if source_id else "#"
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
-        read_more = f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
+        read_more = f' <a href="{RECOMMENDATIONS_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>' if was_truncated else ''
 
         authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ''
 
@@ -71,7 +71,7 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
     <html><body style="font-family:Arial,sans-serif;background:#f9f9f9;margin:0;padding:0;">
     <div style="max-width:700px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
         <div style="background:{SU_NAVY};padding:24px 32px;">
-            <h1 style="margin:0;font-size:22px;"><a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
+            <h1 style="margin:0;font-size:22px;"><a href="{RECOMMENDATIONS_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
             <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {html.escape(run_date)}</p>
         </div>
         <div style="padding:24px 32px;">
@@ -81,7 +81,7 @@ def build_digest_html(profile_name: str, papers: List[Dict], run_date: str, show
                 {rows}
             </table>
             <div style="text-align:center;margin-top:24px;">
-                <a href="{DASHBOARD_URL}" style="display:inline-block;padding:12px 28px;background:{SU_ORANGE};color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">See all recommendations →</a>
+                <a href="{RECOMMENDATIONS_URL}" style="display:inline-block;padding:12px 28px;background:{SU_ORANGE};color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">See all recommendations →</a>
             </div>
         </div>
         <div style="padding:16px 32px;background:#f1f1f1;font-size:12px;color:#888;text-align:center;">
