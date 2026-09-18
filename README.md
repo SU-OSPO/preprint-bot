@@ -1052,7 +1052,7 @@ pre-commit install
 2. Create feature branch: `git checkout -b feature/new-feature`
 3. Make changes and add tests
 4. Run test suites: `pytest -v` and `cd django_site && python manage.py test core`
-5. Format code: `black src/ tests/`
+5. Format and lint: `black $(git ls-files '*.py')` and `flake8 .` — both gate CI
 6. Commit changes: `git commit -m "Add new feature"`
 7. Push to branch: `git push origin feature/new-feature`
 8. Submit pull request with description

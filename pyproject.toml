@@ -128,8 +128,7 @@ where = ["src"]
 # resolves even without an editable install.
 pythonpath = ["src"]
 
-# Line length matches `max-line-length` in .flake8. Django regenerates
-# migrations, so they are left alone.
+# Line length matches `max-line-length` in .flake8.
 [tool.black]
 line-length = 120
 # Pinned to the minimum supported Python so formatting does not vary with the
