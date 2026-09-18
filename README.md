@@ -887,9 +887,9 @@ Solution: System automatically handles this with exponential backoff. If persist
 
 ### Code Style
 ```bash
-# Format code
+# Format code (settings come from pyproject.toml); black is enforced in CI
 pip install black isort
-black src/ tests/
+black .
 isort src/ tests/
 
 # Lint (settings come from .flake8)
