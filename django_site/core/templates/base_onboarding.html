@@ -25,12 +25,13 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js" id="MathJax-script" async crossorigin="anonymous"></script>
 
-  {% if ACCENT_COLOR or NAV_COLOR %}
+  {% if ACCENT_COLOR or NAV_COLOR or FONT_FAMILY %}
   <style>
     :root {
       {% if ACCENT_COLOR %}--accent: {{ ACCENT_COLOR }};
       --accent-dim: color-mix(in srgb, {{ ACCENT_COLOR }} 15%, white);{% endif %}
       {% if NAV_COLOR %}--bg-nav: {{ NAV_COLOR }};{% endif %}
+      {% if FONT_FAMILY %}--font-body: {{ FONT_FAMILY|safe }};{% endif %}
     }
   </style>
   {% endif %}

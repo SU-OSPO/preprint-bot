@@ -149,6 +149,11 @@ SITE_NAME = os.getenv("SITE_NAME", "Preprint Bot")
 SHOW_BETA_BANNER = os.getenv("SHOW_BETA_BANNER", "True").lower() in ("true", "1", "yes")
 
 # ---------------------------------------------------------------------------
+# Optional font-family override; empty keeps the default font
+# ---------------------------------------------------------------------------
+FONT_FAMILY = ""
+
+# ---------------------------------------------------------------------------
 # arXiv search settings
 # ---------------------------------------------------------------------------
 

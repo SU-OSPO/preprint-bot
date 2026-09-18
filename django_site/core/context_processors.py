@@ -29,4 +29,5 @@ def site_settings(request):
         "NAV_COLOR": getattr(django_settings, "NAV_COLOR", ""),
         "REGISTRATION_OPEN": getattr(django_settings, "REGISTRATION_OPEN", True),
         "SCRIPT_PREFIX": getattr(django_settings, "FORCE_SCRIPT_NAME", "") or "",
+        "FONT_FAMILY": getattr(django_settings, "FONT_FAMILY", ""),
     }
