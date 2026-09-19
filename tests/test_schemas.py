@@ -54,7 +54,9 @@ class TestThreshold:
         """Test that threshold defaults to 0.6"""
         from schemas import ProfileCreate
 
-        profile = ProfileCreate(user_id=1, name="test", keywords=["ml"], categories=["cs.LG"], frequency="weekly")
+        profile = ProfileCreate(
+            user_id=1, name="test", keywords=["ml"], categories=["cs.LG"], frequency="weekly"
+        )
         assert profile.threshold == 0.6
 
     def test_threshold_accepts_float(self):
@@ -62,7 +64,12 @@ class TestThreshold:
         from schemas import ProfileCreate
 
         profile = ProfileCreate(
-            user_id=1, name="test", keywords=["ml"], categories=["cs.LG"], frequency="weekly", threshold=0.55
+            user_id=1,
+            name="test",
+            keywords=["ml"],
+            categories=["cs.LG"],
+            frequency="weekly",
+            threshold=0.55,
         )
         assert profile.threshold == 0.55
 
@@ -72,7 +79,12 @@ class TestThreshold:
 
         for val in [0.4, 0.5, 0.6, 0.75]:
             profile = ProfileCreate(
-                user_id=1, name="test", keywords=["ml"], categories=["cs.LG"], frequency="weekly", threshold=val
+                user_id=1,
+                name="test",
+                keywords=["ml"],
+                categories=["cs.LG"],
+                frequency="weekly",
+                threshold=val,
             )
             assert profile.threshold == val
 

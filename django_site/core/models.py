@@ -164,7 +164,9 @@ class Paper(models.Model):
     """
 
     # User uploads plus all sources derived from the source registry
-    SOURCE_CHOICES = [("user", "User")] + [(name, get_source(name).label) for name in all_source_names()]
+    SOURCE_CHOICES = [("user", "User")] + [
+        (name, get_source(name).label) for name in all_source_names()
+    ]
 
     # Legacy FK — no longer populated or queried; kept for schema compat
     corpus = models.ForeignKey(
@@ -272,7 +274,9 @@ class Embedding(models.Model):
     TYPE_CHOICES = [("abstract", "Abstract"), ("section", "Section")]
 
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="embeddings")
-    section = models.ForeignKey(Section, on_delete=models.CASCADE, blank=True, null=True, related_name="embeddings")
+    section = models.ForeignKey(
+        Section, on_delete=models.CASCADE, blank=True, null=True, related_name="embeddings"
+    )
     embedding = VectorField(dimensions=384)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default="abstract")
     model_name = models.CharField(max_length=100)
@@ -314,7 +318,9 @@ class ProcessingRun(models.Model):
 
 
 class RecommendationRun(models.Model):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, blank=True, null=True, related_name="runs")
+    profile = models.ForeignKey(
+        Profile, on_delete=models.CASCADE, blank=True, null=True, related_name="runs"
+    )
     user = models.ForeignKey(PBUser, on_delete=models.CASCADE, related_name="recommendation_runs")
     user_corpus = models.ForeignKey(Corpus, on_delete=models.CASCADE, related_name="user_runs")
     ref_corpus = models.ForeignKey(Corpus, on_delete=models.CASCADE, related_name="ref_runs")
@@ -333,7 +339,9 @@ class RecommendationRun(models.Model):
 
 
 class Recommendation(models.Model):
-    run = models.ForeignKey(RecommendationRun, on_delete=models.CASCADE, related_name="recommendations")
+    run = models.ForeignKey(
+        RecommendationRun, on_delete=models.CASCADE, related_name="recommendations"
+    )
     # Denormalized from run.profile to enforce a DB-level uniqueness
     # constraint of one recommendation per (profile, paper). Backfilled in
     # migration 0011; always equals self.run.profile by construction.

@@ -14,7 +14,9 @@ def _feed(entries):
 def _mock_async_client():
     """A stand-in for httpx.AsyncClient usable as an async context manager."""
     client = AsyncMock()
-    client.get.return_value = Mock(text="<rss/>", status_code=200, headers={}, raise_for_status=Mock())
+    client.get.return_value = Mock(
+        text="<rss/>", status_code=200, headers={}, raise_for_status=Mock()
+    )
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=client)
     cm.__aexit__ = AsyncMock(return_value=False)
@@ -22,7 +24,12 @@ def _mock_async_client():
 
 
 def _rss_item(
-    link, announce="new", title="arXiv:x A Title", description="<p>Body.</p>", author="Ada Lovelace", tags=("cs.AI",)
+    link,
+    announce="new",
+    title="arXiv:x A Title",
+    description="<p>Body.</p>",
+    author="Ada Lovelace",
+    tags=("cs.AI",),
 ):
     return SimpleNamespace(
         link=link,

@@ -33,7 +33,9 @@ async def create_summary(summary: SummaryCreate):
 async def get_summaries():
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, paper_id, mode, summary_text, summarizer, created_at FROM summaries")
+        rows = await conn.fetch(
+            "SELECT id, paper_id, mode, summary_text, summarizer, created_at FROM summaries"
+        )
         return [dict(row) for row in rows]
 
 
@@ -42,7 +44,8 @@ async def get_summary(summary_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, paper_id, mode, summary_text, summarizer, created_at FROM summaries WHERE id = $1", summary_id
+            "SELECT id, paper_id, mode, summary_text, summarizer, created_at FROM summaries WHERE id = $1",
+            summary_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Summary not found")

@@ -152,7 +152,9 @@ class TestCandidateSelection:
         client = AsyncMock()
         client.base_url = "http://testserver"
         client.client.get = AsyncMock(
-            return_value=MagicMock(json=MagicMock(return_value={"categories": profile_categories or []}))
+            return_value=MagicMock(
+                json=MagicMock(return_value={"categories": profile_categories or []})
+            )
         )
         client.get_papers_by_corpus = AsyncMock(return_value=papers or [])
         client.create_recommendation_run = AsyncMock(return_value={"id": run_id})

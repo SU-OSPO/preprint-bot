@@ -91,7 +91,11 @@ class AdaptiveRateLimiter:
     def get_stats(self):
         """Get rate limiter statistics."""
         if not self.request_history:
-            return {"total_requests": 0, "requests_last_hour": 0, "current_delay": self.current_delay}
+            return {
+                "total_requests": 0,
+                "requests_last_hour": 0,
+                "current_delay": self.current_delay,
+            }
 
         now = time.time()
         recent = [t for t in self.request_history if now - t < 3600]
@@ -101,7 +105,9 @@ class AdaptiveRateLimiter:
             "requests_last_hour": len(recent),
             "current_delay": self.current_delay,
             "oldest_request": (
-                datetime.fromtimestamp(self.request_history[0]).strftime("%H:%M:%S") if self.request_history else "N/A"
+                datetime.fromtimestamp(self.request_history[0]).strftime("%H:%M:%S")
+                if self.request_history
+                else "N/A"
             ),
         }
 
@@ -129,14 +135,19 @@ def download_arxiv_pdfs(
         from .download_s3_bulk import download_from_s3_bulk, _BOTO3_AVAILABLE
 
         if not _BOTO3_AVAILABLE:
-            print("  use_s3=True but boto3 is not installed " "(pip install '.[s3]'); falling back to HTTP download.")
+            print(
+                "  use_s3=True but boto3 is not installed "
+                "(pip install '.[s3]'); falling back to HTTP download."
+            )
         else:
             try:
                 s3_stats = download_from_s3_bulk(paper_metadata, output_folder)
                 failed_papers = [
                     p
                     for p in paper_metadata
-                    if not os.path.exists(os.path.join(output_folder, f"{p['arxiv_url'].split('/')[-1]}.pdf"))
+                    if not os.path.exists(
+                        os.path.join(output_folder, f"{p['arxiv_url'].split('/')[-1]}.pdf")
+                    )
                 ]
 
                 if not failed_papers:

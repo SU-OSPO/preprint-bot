@@ -61,7 +61,9 @@ class Command(BaseCommand):
                 deleted_rows += 1
 
         if apply:
-            self.stdout.write(self.style.SUCCESS(f"Deleted {deleted_rows} paper(s) and {deleted_files} file(s)."))
+            self.stdout.write(
+                self.style.SUCCESS(f"Deleted {deleted_rows} paper(s) and {deleted_files} file(s).")
+            )
         else:
             self.stdout.write(
                 self.style.WARNING(

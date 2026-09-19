@@ -32,7 +32,9 @@ async def create_email_log(log: EmailLogCreate):
 async def get_email_logs():
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, user_id, profile_id, subject, body, sent_at, status FROM email_logs")
+        rows = await conn.fetch(
+            "SELECT id, user_id, profile_id, subject, body, sent_at, status FROM email_logs"
+        )
         return [dict(row) for row in rows]
 
 
@@ -41,7 +43,8 @@ async def get_email_log(log_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, user_id, profile_id, subject, body, sent_at, status FROM email_logs WHERE id = $1", log_id
+            "SELECT id, user_id, profile_id, subject, body, sent_at, status FROM email_logs WHERE id = $1",
+            log_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Email log not found")

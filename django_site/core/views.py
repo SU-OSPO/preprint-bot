@@ -224,7 +224,9 @@ def _send_verification_email(request, pb_user):
 
     uid = urlsafe_base64_encode(force_bytes(pb_user.pk))
     token = default_token_generator.make_token(pb_user)
-    verify_url = request.build_absolute_uri(reverse("verify_email", kwargs={"uidb64": uid, "token": token}))
+    verify_url = request.build_absolute_uri(
+        reverse("verify_email", kwargs={"uidb64": uid, "token": token})
+    )
 
     send_mail(
         subject=f"Verify your email – {django_settings.SITE_NAME}",
@@ -521,7 +523,8 @@ def orcid_complete_view(request):
         if PBUser.objects.filter(email__iexact=email).exists():
             messages.error(
                 request,
-                "An account with that email already exists. " "Sign in with your password to link your ORCID later.",
+                "An account with that email already exists. "
+                "Sign in with your password to link your ORCID later.",
             )
         else:
             from django.db import IntegrityError
@@ -618,7 +621,9 @@ def forgot_password_view(request):
 
             uid = urlsafe_base64_encode(force_bytes(pb_user.pk))
             token = default_token_generator.make_token(pb_user)
-            reset_url = request.build_absolute_uri(reverse("reset_password", kwargs={"uidb64": uid, "token": token}))
+            reset_url = request.build_absolute_uri(
+                reverse("reset_password", kwargs={"uidb64": uid, "token": token})
+            )
 
             # Send the reset link via email
             from django.core.mail import send_mail
@@ -830,7 +835,9 @@ def profile_edit_view(request, profile_id):
             initial={
                 "name": profile.name,
                 "frequency": profile.frequency,
-                "threshold": max(0.40, min(0.75, profile.threshold if profile.threshold is not None else 0.6)),
+                "threshold": max(
+                    0.40, min(0.75, profile.threshold if profile.threshold is not None else 0.6)
+                ),
                 "top_x": profile.top_x or 10,
                 "categories": ",".join(profile.categories or []),
             }
@@ -1061,7 +1068,9 @@ def paper_delete_view(request, profile_id, paper_id):
         messages.success(request, f"Removed '{paper.title[:60]}' from this profile.")
     else:
         if is_ajax:
-            return JsonResponse({"ok": False, "error": "Paper not linked to this profile."}, status=400)
+            return JsonResponse(
+                {"ok": False, "error": "Paper not linked to this profile."}, status=400
+            )
         messages.error(request, "Paper not linked to this profile.")
 
     return redirect(_safe_next(request, "profile_list"))
@@ -1128,7 +1137,11 @@ def paper_add_arxiv_view(request, profile_id):
             paper = Paper.objects.filter(source_id__startswith=aid + "v").order_by("-id").first()
         if not paper:
             return JsonResponse(
-                {"ok": False, "error": f"Paper stored but could not be retrieved for arXiv ID {aid}."}, status=500
+                {
+                    "ok": False,
+                    "error": f"Paper stored but could not be retrieved for arXiv ID {aid}.",
+                },
+                status=500,
             )
         return JsonResponse(
             {
@@ -1229,7 +1242,9 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
             # Reject early if Content-Length header exceeds limit
             content_length = resp.headers.get("Content-Length")
             if content_length and int(content_length) > MAX_PDF_BYTES:
-                logger.warning("arXiv PDF for %s too large per Content-Length (%s bytes)", aid, content_length)
+                logger.warning(
+                    "arXiv PDF for %s too large per Content-Length (%s bytes)", aid, content_length
+                )
                 failed.append(aid)
                 continue
             if "application/pdf" not in resp.headers.get("Content-Type", ""):
@@ -1237,7 +1252,9 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
                 failed.append(aid)
                 continue
             if len(resp.content) > MAX_PDF_BYTES:
-                logger.warning("arXiv PDF for %s exceeds size limit (%d bytes)", aid, len(resp.content))
+                logger.warning(
+                    "arXiv PDF for %s exceeds size limit (%d bytes)", aid, len(resp.content)
+                )
                 failed.append(aid)
                 continue
 
@@ -1262,7 +1279,10 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
                     title=meta.get("title", aid),
                     abstract=meta.get("abstract"),
                     submitted_date=meta.get("submitted_date"),
-                    metadata={"categories": meta.get("categories", []), "authors": meta.get("authors", [])},
+                    metadata={
+                        "categories": meta.get("categories", []),
+                        "authors": meta.get("authors", []),
+                    },
                     pdf_path=str(dest),
                     source="arxiv",
                 )
@@ -1322,7 +1342,9 @@ def paper_search_arxiv_api_view(request, profile_id):
         # Existing paper source_ids for this profile (to flag already-added ones)
         corpus = _get_or_create_user_corpus(pb_user, profile)
         existing_ids = set(
-            Paper.objects.filter(corpora=corpus, source_id__isnull=False).values_list("source_id", flat=True)
+            Paper.objects.filter(corpora=corpus, source_id__isnull=False).values_list(
+                "source_id", flat=True
+            )
         )
 
         results = []
@@ -1448,7 +1470,9 @@ def _query_profile_recommendations(pb_user, profile=None):
             return []
     else:
         # All profiles: collect every user corpus
-        user_corpora = list(Corpus.objects.filter(user=pb_user, name__startswith=f"user_{pb_user.pk}_profile_"))
+        user_corpora = list(
+            Corpus.objects.filter(user=pb_user, name__startswith=f"user_{pb_user.pk}_profile_")
+        )
         if not user_corpora:
             return []
 
@@ -1473,15 +1497,16 @@ def _query_profile_recommendations(pb_user, profile=None):
     # Prefetch summaries for all papers in one query
     paper_ids = {rec.paper_id for rec in recs_list}
     summaries_map = {
-        s.paper_id: s.summary_text or "" for s in Summary.objects.filter(paper_id__in=paper_ids, mode="abstract")
+        s.paper_id: s.summary_text or ""
+        for s in Summary.objects.filter(paper_id__in=paper_ids, mode="abstract")
     }
 
     # Check which recommended papers are already in each profile's corpus
     # (restricted to paper_ids in this batch for efficiency)
     profile_paper_ids = {}  # {profile_id: set of paper_ids}
-    for paper_pk, corpus_pk in Paper.objects.filter(pk__in=paper_ids, corpora__in=user_corpora).values_list(
-        "pk", "corpora__pk"
-    ):
+    for paper_pk, corpus_pk in Paper.objects.filter(
+        pk__in=paper_ids, corpora__in=user_corpora
+    ).values_list("pk", "corpora__pk"):
         pid = corpus_to_profile.get(corpus_pk)
         if pid:
             profile_paper_ids.setdefault(pid, set()).add(paper_pk)
@@ -1501,7 +1526,9 @@ def _query_profile_recommendations(pb_user, profile=None):
         seen[aid] = {
             "paper_id": paper.pk,
             "profile_id": corpus_to_profile.get(rec.run.user_corpus_id),
-            "in_corpus": [prof_id for prof_id, paper_set in profile_paper_ids.items() if paper.pk in paper_set],
+            "in_corpus": [
+                prof_id for prof_id, paper_set in profile_paper_ids.items() if paper.pk in paper_set
+            ],
             "title": paper.title,
             "score": rec.score,
             "rank": rec.rank,
@@ -1760,7 +1787,9 @@ def monitoring_dashboard_view(request):
 
     # ── Ingestion (real; ArxivDailyStats is empty, so derive from Paper) ──
     total_papers = Paper.objects.count()
-    papers_by_source = {row["source"]: row["n"] for row in Paper.objects.values("source").annotate(n=Count("id"))}
+    papers_by_source = {
+        row["source"]: row["n"] for row in Paper.objects.values("source").annotate(n=Count("id"))
+    }
     papers_with_abstract_emb = Paper.objects.filter(embeddings__type="abstract").distinct().count()
     papers_missing_embeddings = total_papers - papers_with_abstract_emb
     papers_per_day = _daily_series(Paper.objects.all(), window_days)
@@ -1769,8 +1798,12 @@ def monitoring_dashboard_view(request):
     # ── Recommendations (real) ──
     runs_in_window = RecommendationRun.objects.filter(created_at__gte=since).count()
     recs_in_window = Recommendation.objects.filter(created_at__gte=since).count()
-    avg_fetched = RecommendationRun.objects.filter(created_at__gte=since).aggregate(a=Avg("total_papers_fetched"))["a"]
-    recs_sent_per_day = _daily_series(Recommendation.objects.filter(sent_in_email=True), window_days)
+    avg_fetched = RecommendationRun.objects.filter(created_at__gte=since).aggregate(
+        a=Avg("total_papers_fetched")
+    )["a"]
+    recs_sent_per_day = _daily_series(
+        Recommendation.objects.filter(sent_in_email=True), window_days
+    )
     recs_sent_window_total = sum(r["n"] for r in recs_sent_per_day)
 
     # ── User activity (real) ──

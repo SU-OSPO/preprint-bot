@@ -53,7 +53,9 @@ def extract_sections_from_txt_markdown(txt, exclude_sections=None):
         if line.startswith("### "):
             if current_header and current_text:
                 if not any(excl in current_header.lower() for excl in exclude_sections):
-                    sections.append({"header": current_header.lower(), "text": " ".join(current_text)})
+                    sections.append(
+                        {"header": current_header.lower(), "text": " ".join(current_text)}
+                    )
             current_header = line[4:].strip()
             current_text = []
         else:
@@ -99,7 +101,9 @@ class TransformerSummarizer:
             if len(chunk.split()) < 20:
                 continue
             try:
-                result = self.summarizer(chunk, max_length=max_length, min_length=60, do_sample=False)
+                result = self.summarizer(
+                    chunk, max_length=max_length, min_length=60, do_sample=False
+                )
                 summaries.append(result[0]["summary_text"])
             except Exception as e:
                 print(f"Chunk summarization error: {e}")
@@ -107,9 +111,9 @@ class TransformerSummarizer:
         if len(summaries) > 1:
             try:
                 combined = " ".join(summaries)
-                final_summary = self.summarizer(combined, max_length=max_length, min_length=60, do_sample=False)[0][
-                    "summary_text"
-                ]
+                final_summary = self.summarizer(
+                    combined, max_length=max_length, min_length=60, do_sample=False
+                )[0]["summary_text"]
                 return final_summary
             except Exception:
                 return " ".join(summaries)
@@ -140,7 +144,13 @@ class LlamaSummarizer:
             n_gpu_layers = 0
             print("LLaMA summarizer using CPU only")
 
-        self.llm = Llama(model_path=str(model_path), n_ctx=2048, n_threads=8, n_gpu_layers=n_gpu_layers, verbose=False)
+        self.llm = Llama(
+            model_path=str(model_path),
+            n_ctx=2048,
+            n_threads=8,
+            n_gpu_layers=n_gpu_layers,
+            verbose=False,
+        )
 
     def summarize(self, text: str, max_length: int = 200, mode: str = "abstract") -> str:
         tokens = self.llm.tokenize(text.encode("utf-8"))
@@ -160,7 +170,9 @@ class LlamaSummarizer:
             "Summary:\n"
         )
 
-        result = self.llm(prompt_text, max_tokens=max_length, temperature=0.3, top_p=0.9, echo=False)
+        result = self.llm(
+            prompt_text, max_tokens=max_length, temperature=0.3, top_p=0.9, echo=False
+        )
         if isinstance(result, dict):
             if "choices" in result and len(result["choices"]) > 0:
                 return result["choices"][0].get("text", "").strip()
@@ -220,7 +232,9 @@ def process_folder(input_folder, output_folder, summarizer, max_length=180):
             with open(input_file, "r", encoding="utf-8") as f:
                 txt = f.read()
             sections = extract_sections_from_txt_markdown(txt)
-            summary = summarize_sections_single_paragraph(sections, summarizer, max_length=max_length)
+            summary = summarize_sections_single_paragraph(
+                sections, summarizer, max_length=max_length
+            )
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(summary)
         except Exception as e:
@@ -244,7 +258,9 @@ def process_metadata(metadata_path, output_path, summarizer, max_length=120, mod
             tqdm.write(f"Skipped (no abstract): {paper_title}...")
         else:
             try:
-                concise_summary = summarizer.summarize(original_summary, max_length=max_length, mode=mode)
+                concise_summary = summarizer.summarize(
+                    original_summary, max_length=max_length, mode=mode
+                )
                 paper["llm_summary"] = concise_summary
                 tqdm.write(f"Summarized: {paper_title}...")
             except Exception as e:

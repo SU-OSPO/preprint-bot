@@ -29,7 +29,9 @@ async def create_profile_recommendation(pr: ProfileRecommendationCreate):
 async def get_profile_recommendations():
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, profile_id, recommendation_id, created_at FROM profile_recommendations")
+        rows = await conn.fetch(
+            "SELECT id, profile_id, recommendation_id, created_at FROM profile_recommendations"
+        )
         return [dict(row) for row in rows]
 
 
@@ -38,7 +40,8 @@ async def get_profile_recommendation(pr_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, profile_id, recommendation_id, created_at FROM profile_recommendations WHERE id = $1", pr_id
+            "SELECT id, profile_id, recommendation_id, created_at FROM profile_recommendations WHERE id = $1",
+            pr_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Profile recommendation not found")

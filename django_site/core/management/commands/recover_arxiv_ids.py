@@ -81,7 +81,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("No papers with missing arXiv IDs found."))
             return
 
-        self.stdout.write(f"Found {len(papers)} paper(s) with missing arXiv IDs (source={source}).\n")
+        self.stdout.write(
+            f"Found {len(papers)} paper(s) with missing arXiv IDs (source={source}).\n"
+        )
 
         recovered = 0
         not_found = 0
@@ -115,7 +117,9 @@ class Command(BaseCommand):
         self.stdout.write("")
         if apply:
             self.stdout.write(
-                self.style.SUCCESS(f"Recovered {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}.")
+                self.style.SUCCESS(
+                    f"Recovered {recovered} arXiv ID(s). Not found: {not_found}. Failed: {failed}."
+                )
             )
         else:
             self.stdout.write(

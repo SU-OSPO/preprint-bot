@@ -40,7 +40,9 @@ async def embed_single_paper(
     # If title+abstract is too short, supplement with early section text
     sections = await api_client.get_sections_by_paper(paper["id"])
     if len(abstract_text.split()) <= 5 and sections:
-        section_text = " ".join(s.get("text") or "" for s in sections[:3]).strip()  # first 3 sections
+        section_text = " ".join(
+            s.get("text") or "" for s in sections[:3]  # first 3 sections
+        ).strip()
         abstract_text = f"{abstract_text} {section_text}".strip()
 
     if len(abstract_text.split()) > 5:  # need some content to embed

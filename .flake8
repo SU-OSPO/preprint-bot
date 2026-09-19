@@ -1,7 +1,7 @@
 # flake8 does not read pyproject.toml, so its configuration lives here.
 # Enforced in CI by .github/workflows/lint.yml.
 [flake8]
-max-line-length = 120
+max-line-length = 100
 
 exclude =
     .git,

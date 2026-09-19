@@ -121,27 +121,60 @@ ARXIV_CATEGORY_TREE: List[Dict] = [
                 "label": "Astrophysics",
                 "value": "astro-ph",
                 "children": [
-                    {"label": "Cosmology and Nongalactic Astrophysics (astro-ph.CO)", "value": "astro-ph.CO"},
-                    {"label": "Earth and Planetary Astrophysics (astro-ph.EP)", "value": "astro-ph.EP"},
+                    {
+                        "label": "Cosmology and Nongalactic Astrophysics (astro-ph.CO)",
+                        "value": "astro-ph.CO",
+                    },
+                    {
+                        "label": "Earth and Planetary Astrophysics (astro-ph.EP)",
+                        "value": "astro-ph.EP",
+                    },
                     {"label": "Astrophysics of Galaxies (astro-ph.GA)", "value": "astro-ph.GA"},
-                    {"label": "High Energy Astrophysical Phenomena (astro-ph.HE)", "value": "astro-ph.HE"},
-                    {"label": "Instrumentation and Methods for Astrophysics (astro-ph.IM)", "value": "astro-ph.IM"},
-                    {"label": "Solar and Stellar Astrophysics (astro-ph.SR)", "value": "astro-ph.SR"},
+                    {
+                        "label": "High Energy Astrophysical Phenomena (astro-ph.HE)",
+                        "value": "astro-ph.HE",
+                    },
+                    {
+                        "label": "Instrumentation and Methods for Astrophysics (astro-ph.IM)",
+                        "value": "astro-ph.IM",
+                    },
+                    {
+                        "label": "Solar and Stellar Astrophysics (astro-ph.SR)",
+                        "value": "astro-ph.SR",
+                    },
                 ],
             },
             {
                 "label": "Condensed Matter",
                 "value": "cond-mat",
                 "children": [
-                    {"label": "Disordered Systems and Neural Networks (cond-mat.dis-nn)", "value": "cond-mat.dis-nn"},
-                    {"label": "Mesoscale and Nanoscale Physics (cond-mat.mes-hall)", "value": "cond-mat.mes-hall"},
-                    {"label": "Materials Science (cond-mat.mtrl-sci)", "value": "cond-mat.mtrl-sci"},
+                    {
+                        "label": "Disordered Systems and Neural Networks (cond-mat.dis-nn)",
+                        "value": "cond-mat.dis-nn",
+                    },
+                    {
+                        "label": "Mesoscale and Nanoscale Physics (cond-mat.mes-hall)",
+                        "value": "cond-mat.mes-hall",
+                    },
+                    {
+                        "label": "Materials Science (cond-mat.mtrl-sci)",
+                        "value": "cond-mat.mtrl-sci",
+                    },
                     {"label": "Other Condensed Matter (cond-mat.other)", "value": "cond-mat.other"},
                     {"label": "Quantum Gases (cond-mat.quant-gas)", "value": "cond-mat.quant-gas"},
                     {"label": "Soft Condensed Matter (cond-mat.soft)", "value": "cond-mat.soft"},
-                    {"label": "Statistical Mechanics (cond-mat.stat-mech)", "value": "cond-mat.stat-mech"},
-                    {"label": "Strongly Correlated Electrons (cond-mat.str-el)", "value": "cond-mat.str-el"},
-                    {"label": "Superconductivity (cond-mat.supr-con)", "value": "cond-mat.supr-con"},
+                    {
+                        "label": "Statistical Mechanics (cond-mat.stat-mech)",
+                        "value": "cond-mat.stat-mech",
+                    },
+                    {
+                        "label": "Strongly Correlated Electrons (cond-mat.str-el)",
+                        "value": "cond-mat.str-el",
+                    },
+                    {
+                        "label": "Superconductivity (cond-mat.supr-con)",
+                        "value": "cond-mat.supr-con",
+                    },
                 ],
             },
             {
@@ -158,11 +191,17 @@ ARXIV_CATEGORY_TREE: List[Dict] = [
                 "label": "Nonlinear Sciences",
                 "value": "nlin",
                 "children": [
-                    {"label": "Adaptation and Self-Organizing Systems (nlin.AO)", "value": "nlin.AO"},
+                    {
+                        "label": "Adaptation and Self-Organizing Systems (nlin.AO)",
+                        "value": "nlin.AO",
+                    },
                     {"label": "Chaotic Dynamics (nlin.CD)", "value": "nlin.CD"},
                     {"label": "Cellular Automata and Lattice Gases (nlin.CG)", "value": "nlin.CG"},
                     {"label": "Pattern Formation and Solitons (nlin.PS)", "value": "nlin.PS"},
-                    {"label": "Exactly Solvable and Integrable Systems (nlin.SI)", "value": "nlin.SI"},
+                    {
+                        "label": "Exactly Solvable and Integrable Systems (nlin.SI)",
+                        "value": "nlin.SI",
+                    },
                 ],
             },
             {
@@ -170,14 +209,23 @@ ARXIV_CATEGORY_TREE: List[Dict] = [
                 "value": "physics",
                 "children": [
                     {"label": "Accelerator Physics (physics.acc-ph)", "value": "physics.acc-ph"},
-                    {"label": "Atmospheric and Oceanic Physics (physics.ao-ph)", "value": "physics.ao-ph"},
+                    {
+                        "label": "Atmospheric and Oceanic Physics (physics.ao-ph)",
+                        "value": "physics.ao-ph",
+                    },
                     {"label": "Applied Physics (physics.app-ph)", "value": "physics.app-ph"},
-                    {"label": "Atomic and Molecular Clusters (physics.atm-clus)", "value": "physics.atm-clus"},
+                    {
+                        "label": "Atomic and Molecular Clusters (physics.atm-clus)",
+                        "value": "physics.atm-clus",
+                    },
                     {"label": "Atomic Physics (physics.atom-ph)", "value": "physics.atom-ph"},
                     {"label": "Biological Physics (physics.bio-ph)", "value": "physics.bio-ph"},
                     {"label": "Chemical Physics (physics.chem-ph)", "value": "physics.chem-ph"},
                     {"label": "Classical Physics (physics.class-ph)", "value": "physics.class-ph"},
-                    {"label": "Computational Physics (physics.comp-ph)", "value": "physics.comp-ph"},
+                    {
+                        "label": "Computational Physics (physics.comp-ph)",
+                        "value": "physics.comp-ph",
+                    },
                     {
                         "label": "Data Analysis, Statistics and Probability (physics.data-an)",
                         "value": "physics.data-an",
@@ -186,8 +234,14 @@ ARXIV_CATEGORY_TREE: List[Dict] = [
                     {"label": "Fluid Dynamics (physics.flu-dyn)", "value": "physics.flu-dyn"},
                     {"label": "General Physics (physics.gen-ph)", "value": "physics.gen-ph"},
                     {"label": "Geophysics (physics.geo-ph)", "value": "physics.geo-ph"},
-                    {"label": "History and Philosophy of Physics (physics.hist-ph)", "value": "physics.hist-ph"},
-                    {"label": "Instrumentation and Detectors (physics.ins-det)", "value": "physics.ins-det"},
+                    {
+                        "label": "History and Philosophy of Physics (physics.hist-ph)",
+                        "value": "physics.hist-ph",
+                    },
+                    {
+                        "label": "Instrumentation and Detectors (physics.ins-det)",
+                        "value": "physics.ins-det",
+                    },
                     {"label": "Medical Physics (physics.med-ph)", "value": "physics.med-ph"},
                     {"label": "Optics (physics.optics)", "value": "physics.optics"},
                     {"label": "Plasma Physics (physics.plasm-ph)", "value": "physics.plasm-ph"},

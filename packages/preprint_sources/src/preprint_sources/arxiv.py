@@ -101,7 +101,9 @@ class ArxivSource(PreprintSource):
                 PaperEntry(
                     source_id=arxiv_id,
                     title=_clean_rss_title(item.title),
-                    abstract=_clean_html(getattr(item, "description", "") or getattr(item, "summary", "")),
+                    abstract=_clean_html(
+                        getattr(item, "description", "") or getattr(item, "summary", "")
+                    ),
                     url=item.link,
                     pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
                     authors=_parse_rss_authors(item),
@@ -132,14 +134,19 @@ class ArxivSource(PreprintSource):
         """
         window = _get_announcement_window(target_date)
         if window is None:
-            logger.info(f"\nNo arXiv announcement on " f"{target_date.strftime('%A %Y-%m-%d')} — skipping fetch.")
+            logger.info(
+                f"\nNo arXiv announcement on "
+                f"{target_date.strftime('%A %Y-%m-%d')} — skipping fetch."
+            )
             return []
 
         start_dt, end_dt = window
         start = start_dt.strftime("%Y%m%d%H%M")
         end = end_dt.strftime("%Y%m%d%H%M")
 
-        logger.info(f"\nFetching arXiv papers via API for " f"{target_date.strftime('%A %Y-%m-%d')}")
+        logger.info(
+            f"\nFetching arXiv papers via API for " f"{target_date.strftime('%A %Y-%m-%d')}"
+        )
         logger.info(f"  Submission window: {start_dt} → {end_dt} (UTC)")
         logger.info(f"  Categories: {categories}")
 
@@ -313,7 +320,9 @@ async def _api_fetch_page(
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
                 wait = int(retry_after) if retry_after else backoff * (2**attempt)
-                logger.info(f"  429 rate limited, waiting {wait}s " f"(attempt {attempt + 1}/{max_retries})")
+                logger.info(
+                    f"  429 rate limited, waiting {wait}s " f"(attempt {attempt + 1}/{max_retries})"
+                )
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
@@ -322,7 +331,9 @@ async def _api_fetch_page(
             return feed.entries, total
         except Exception as e:
             wait = backoff * (2**attempt)
-            logger.info(f"  API error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
+            logger.info(
+                f"  API error (attempt {attempt + 1}/{max_retries}): {type(e).__name__}: {e}"
+            )
             if attempt < max_retries - 1:
                 await asyncio.sleep(wait)
 

@@ -35,7 +35,9 @@ async def list_users():
     pool = await get_db_pool()
 
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, email, name, created_at FROM users ORDER BY created_at DESC")
+        rows = await conn.fetch(
+            "SELECT id, email, name, created_at FROM users ORDER BY created_at DESC"
+        )
         return [dict(row) for row in rows]
 
 
@@ -45,7 +47,9 @@ async def get_user(user_id: int):
     pool = await get_db_pool()
 
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT id, email, name, created_at FROM users WHERE id = $1", user_id)
+        row = await conn.fetchrow(
+            "SELECT id, email, name, created_at FROM users WHERE id = $1", user_id
+        )
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         return dict(row)

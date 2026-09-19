@@ -17,7 +17,9 @@ class APIClient:
         await self.client.aclose()
 
     async def create_user(self, email: str, name: Optional[str] = None) -> Dict:
-        response = await self.client.post(f"{self.base_url}/users/", json={"email": email, "name": name})
+        response = await self.client.post(
+            f"{self.base_url}/users/", json={"email": email, "name": name}
+        )
         response.raise_for_status()
         return response.json()
 
@@ -89,7 +91,8 @@ class APIClient:
 
     async def create_corpus(self, user_id: int, name: str, description: str = None) -> Dict:
         response = await self.client.post(
-            f"{self.base_url}/corpora/", json={"user_id": user_id, "name": name, "description": description}
+            f"{self.base_url}/corpora/",
+            json={"user_id": user_id, "name": name, "description": description},
         )
         response.raise_for_status()
         return response.json()
@@ -108,7 +111,8 @@ class APIClient:
     async def link_profile_corpus(self, profile_id: int, corpus_id: int):
         try:
             response = await self.client.post(
-                f"{self.base_url}/profile-corpora/", json={"profile_id": profile_id, "corpus_id": corpus_id}
+                f"{self.base_url}/profile-corpora/",
+                json={"profile_id": profile_id, "corpus_id": corpus_id},
             )
             return response.status_code == 201
         except Exception:
@@ -148,12 +152,16 @@ class APIClient:
         return paper
 
     async def update_paper_processed_path(self, paper_id: int, path: str) -> Dict:
-        response = await self.client.post(f"{self.base_url}/papers/{paper_id}/processed-text", params={"path": path})
+        response = await self.client.post(
+            f"{self.base_url}/papers/{paper_id}/processed-text", params={"path": path}
+        )
         response.raise_for_status()
         return response.json()
 
     async def get_paper_by_source_id(self, source_id: str) -> Optional[Dict]:
-        response = await self.client.get(f"{self.base_url}/papers/", params={"source_id": source_id})
+        response = await self.client.get(
+            f"{self.base_url}/papers/", params={"source_id": source_id}
+        )
         response.raise_for_status()
         papers = response.json()
         return papers[0] if papers else None
@@ -193,7 +201,8 @@ class APIClient:
 
     async def create_section(self, paper_id: int, header: str, text: str) -> Dict:
         response = await self.client.post(
-            f"{self.base_url}/sections/", json={"paper_id": paper_id, "header": header, "text": text}
+            f"{self.base_url}/sections/",
+            json={"paper_id": paper_id, "header": header, "text": text},
         )
         response.raise_for_status()
         return response.json()
@@ -204,7 +213,12 @@ class APIClient:
         return response.json()
 
     async def create_embedding(
-        self, paper_id: int, embedding: List[float], type: str, model_name: str, section_id: Optional[int] = None
+        self,
+        paper_id: int,
+        embedding: List[float],
+        type: str,
+        model_name: str,
+        section_id: Optional[int] = None,
     ) -> Dict:
         response = await self.client.post(
             f"{self.base_url}/embeddings/",
@@ -243,7 +257,9 @@ class APIClient:
             results: List[Dict] = []
             for i in range(0, len(paper_ids), _EMBED_ID_CHUNK):
                 chunk = paper_ids[i : i + _EMBED_ID_CHUNK]
-                results.extend(await self._get_embeddings_retry(client, {**params, "paper_ids": chunk}))
+                results.extend(
+                    await self._get_embeddings_retry(client, {**params, "paper_ids": chunk})
+                )
             return results
 
     async def _get_embeddings_retry(
@@ -284,10 +300,17 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    async def create_summary(self, paper_id: int, mode: str, summary_text: str, summarizer: str) -> Dict:
+    async def create_summary(
+        self, paper_id: int, mode: str, summary_text: str, summarizer: str
+    ) -> Dict:
         response = await self.client.post(
             f"{self.base_url}/summaries/",
-            json={"paper_id": paper_id, "mode": mode, "summary_text": summary_text, "summarizer": summarizer},
+            json={
+                "paper_id": paper_id,
+                "mode": mode,
+                "summary_text": summary_text,
+                "summarizer": summarizer,
+            },
         )
         response.raise_for_status()
         return response.json()
@@ -320,7 +343,11 @@ class APIClient:
         return response.json()
 
     async def create_processing_run(
-        self, run_type: str, category: Optional[str] = None, status: str = "started", papers_processed: int = 0
+        self,
+        run_type: str,
+        category: Optional[str] = None,
+        status: str = "started",
+        papers_processed: int = 0,
     ) -> Dict:
         response = await self.client.post(
             f"{self.base_url}/processing-runs/",
@@ -357,7 +384,13 @@ class APIClient:
     ) -> Dict:
         response = await self.client.post(
             f"{self.base_url}/recommendations/",
-            json={"run_id": run_id, "paper_id": paper_id, "score": score, "rank": rank, "summary": summary},
+            json={
+                "run_id": run_id,
+                "paper_id": paper_id,
+                "score": score,
+                "rank": rank,
+                "summary": summary,
+            },
         )
         response.raise_for_status()
         return response.json()
@@ -378,7 +411,11 @@ class APIClient:
         """Record arXiv fetch statistics"""
         response = await self.client.post(
             f"{self.base_url}/papers/arxiv-stats",
-            params={"submission_date": submission_date, "category": category, "total_papers": total_papers},
+            params={
+                "submission_date": submission_date,
+                "category": category,
+                "total_papers": total_papers,
+            },
         )
         response.raise_for_status()
         return response.json()

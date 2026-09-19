@@ -55,7 +55,9 @@ class Command(BaseCommand):
         # Only include papers with valid arXiv IDs (skip legacy citation-style IDs)
         papers = [
             p
-            for p in Paper.objects.filter(source_id__isnull=False).exclude(source_id="").order_by("id")
+            for p in Paper.objects.filter(source_id__isnull=False)
+            .exclude(source_id="")
+            .order_by("id")
             if ARXIV_ID_RE.match(re.sub(r"v\d+$", "", p.source_id))
         ]
 
@@ -136,7 +138,11 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         if apply:
-            self.stdout.write(self.style.SUCCESS(f"Updated {updated} paper(s). Skipped {skipped}. Failed {failed}."))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Updated {updated} paper(s). Skipped {skipped}. Failed {failed}."
+                )
+            )
         else:
             self.stdout.write(
                 self.style.WARNING(

@@ -40,7 +40,9 @@ class ArxivAddAjaxTests(TestCase):
     @patch("core.views._download_arxiv_pdfs")
     def test_ajax_add_returns_paper_json(self, mock_dl):
         mock_dl.return_value = (1, [])
-        Paper.objects.create(source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv")
+        Paper.objects.create(
+            source_id="2301.00001", sha256="a" * 64, title="A Great Paper", source="arxiv"
+        )
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -102,7 +104,9 @@ class ArxivAddDedupTests(TestCase):
     def setUp(self):
         self._paper_storage_tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._paper_storage_tmpdir.cleanup)
-        self._override_settings = override_settings(PAPER_STORAGE_DIR=Path(self._paper_storage_tmpdir.name))
+        self._override_settings = override_settings(
+            PAPER_STORAGE_DIR=Path(self._paper_storage_tmpdir.name)
+        )
         self._override_settings.enable()
         self.addCleanup(self._override_settings.disable)
 
@@ -141,7 +145,9 @@ class ArxivSearchApiTests(TestCase):
     """paper_search_arxiv_api_view: validation, response format, rate limit."""
 
     def setUp(self):
-        self.user = PBUser.objects.create_user(email="search@example.com", password="SecurePass123!")
+        self.user = PBUser.objects.create_user(
+            email="search@example.com", password="SecurePass123!"
+        )
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="search@example.com", password="SecurePass123!")
 
@@ -173,7 +179,9 @@ class ArxivSearchApiTests(TestCase):
     @patch("arxiv.Client")
     def test_search_flags_already_added(self, mock_client):
         corpus = _get_or_create_user_corpus(self.user, self.profile)
-        existing = Paper.objects.create(source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv")
+        existing = Paper.objects.create(
+            source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv"
+        )
         existing.corpora.add(corpus)
         pub = datetime(2023, 1, 15, tzinfo=timezone.utc)
         mock_client.return_value.results.return_value = [

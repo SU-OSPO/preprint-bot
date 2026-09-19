@@ -25,7 +25,9 @@ def site_settings(request):
         "SHOW_BETA_BANNER": getattr(django_settings, "SHOW_BETA_BANNER", True),
         "ORCID_ENABLED": bool(getattr(django_settings, "ORCID_CLIENT_ID", "")),
         "ORCID_BASE_URL": (
-            "https://sandbox.orcid.org" if getattr(django_settings, "ORCID_SANDBOX", False) else "https://orcid.org"
+            "https://sandbox.orcid.org"
+            if getattr(django_settings, "ORCID_SANDBOX", False)
+            else "https://orcid.org"
         ),
         "ACCENT_COLOR": getattr(django_settings, "ACCENT_COLOR", ""),
         "NAV_COLOR": getattr(django_settings, "NAV_COLOR", ""),

@@ -6,7 +6,9 @@ from database import get_db_pool
 router = APIRouter(prefix="/processing-runs", tags=["processing-runs"])
 
 # started_at is Django auto_now_add (no DB default), so it is set explicitly.
-_COLS = "id, run_type, category, status, papers_processed, " "error_message, started_at, completed_at"
+_COLS = (
+    "id, run_type, category, status, papers_processed, " "error_message, started_at, completed_at"
+)
 
 
 @router.post("/", response_model=ProcessingRunResponse, status_code=201)

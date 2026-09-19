@@ -9,7 +9,9 @@ class MonitoringDashboardTests(TestCase):
     """Access control (@staff_member_required) and aggregated context."""
 
     def setUp(self):
-        self.staff = PBUser.objects.create_user(email="staff@example.com", password="SecurePass123!")
+        self.staff = PBUser.objects.create_user(
+            email="staff@example.com", password="SecurePass123!"
+        )
         self.staff.is_staff = True
         self.staff.save(update_fields=["is_staff"])
 

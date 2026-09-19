@@ -45,7 +45,12 @@ def format_authors(authors: List[str], cap: int = 25) -> str:
 
 
 def build_digest_html(
-    profile_name: str, papers: List[Dict], run_date: str, shown: int, total: int, frequency: str = "daily"
+    profile_name: str,
+    papers: List[Dict],
+    run_date: str,
+    shown: int,
+    total: int,
+    frequency: str = "daily",
 ) -> str:
     papers = papers[:10]
     rows = ""
@@ -64,7 +69,11 @@ def build_digest_html(
             else ""
         )
 
-        authors_html = f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>' if authors else ""
+        authors_html = (
+            f'<br><span style="font-size:12px;color:#666;">{html.escape(authors)}</span>'
+            if authors
+            else ""
+        )
 
         rows += f"""
         <tr>
@@ -84,7 +93,9 @@ def build_digest_html(
         else f"Showing {total} out of {total} recommendations"
     )
 
-    header_label = {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly"}.get(frequency, "New")
+    header_label = {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly"}.get(
+        frequency, "New"
+    )
 
     return f"""
     <html><body style="font-family:Arial,sans-serif;background:#f9f9f9;margin:0;padding:0;">

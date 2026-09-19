@@ -36,7 +36,9 @@ async def get_profile_corpora():
 async def get_corpora_by_profile(profile_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT profile_id, corpus_id FROM profile_corpora WHERE profile_id = $1", profile_id)
+        rows = await conn.fetch(
+            "SELECT profile_id, corpus_id FROM profile_corpora WHERE profile_id = $1", profile_id
+        )
         return [dict(row) for row in rows]
 
 
@@ -45,7 +47,9 @@ async def delete_profile_corpus(profile_id: int, corpus_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM profile_corpora WHERE profile_id = $1 AND corpus_id = $2", profile_id, corpus_id
+            "DELETE FROM profile_corpora WHERE profile_id = $1 AND corpus_id = $2",
+            profile_id,
+            corpus_id,
         )
         if result == "DELETE 0":
             raise HTTPException(status_code=404, detail="Profile-Corpus association not found")

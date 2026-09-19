@@ -52,7 +52,9 @@ async def run_similarity_matching(
     profile_categories = []
     if profile_id:
         try:
-            profile_resp = await api_client.client.get(f"{api_client.base_url}/profiles/{profile_id}")
+            profile_resp = await api_client.client.get(
+                f"{api_client.base_url}/profiles/{profile_id}"
+            )
             profile = profile_resp.json()
             profile_categories = profile.get("categories", [])
 
@@ -115,7 +117,9 @@ async def run_similarity_matching(
     # Fetch embeddings based on mode
     # Fetch embeddings for user's papers
     emb_type = None if use_sections else "abstract"
-    print(f"\nFetching embeddings ({'abstract + sections' if use_sections else 'abstract only'})...")
+    print(
+        f"\nFetching embeddings ({'abstract + sections' if use_sections else 'abstract only'})..."
+    )
     user_embeddings = await api_client.get_embeddings_by_corpus(user_corpus_id, type=emb_type)
 
     # Fetch embeddings for new arXiv papers
@@ -186,7 +190,9 @@ async def run_similarity_matching(
             pass
 
     # Filter by threshold
-    filtered_papers = {pid: score for pid, score in paper_scores.items() if score >= threshold_value}
+    filtered_papers = {
+        pid: score for pid, score in paper_scores.items() if score >= threshold_value
+    }
 
     print(f"\nPapers above threshold ({threshold_value}): {len(filtered_papers)}")
 
@@ -205,7 +211,11 @@ async def run_similarity_matching(
                 continue
 
             await api_client.create_recommendation(
-                run_id=run_id, paper_id=paper_id, score=score, rank=rank, summary=paper.get("abstract", "")[:500]
+                run_id=run_id,
+                paper_id=paper_id,
+                score=score,
+                rank=rank,
+                summary=paper.get("abstract", "")[:500],
             )
             stored_count += 1
 

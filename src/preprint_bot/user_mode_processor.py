@@ -100,7 +100,9 @@ async def process_unprocessed_papers(
 
             for paper in papers:
                 try:
-                    abs_stored, sec_stored = await embed_single_paper(api_client, paper, model, DEFAULT_MODEL_NAME)
+                    abs_stored, sec_stored = await embed_single_paper(
+                        api_client, paper, model, DEFAULT_MODEL_NAME
+                    )
                     stored = abs_stored + sec_stored
                     if stored > 0:
                         embed_count += 1

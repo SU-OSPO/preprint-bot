@@ -39,7 +39,8 @@ async def get_corpus(corpus_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, user_id, name, description, created_at FROM corpora WHERE id = $1", corpus_id
+            "SELECT id, user_id, name, description, created_at FROM corpora WHERE id = $1",
+            corpus_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Corpus not found")

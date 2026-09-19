@@ -42,7 +42,9 @@ async def get_all_profile_categories(api_client: APIClient) -> List[str]:
         for profile in profiles:
             all_categories.update(profile.get("categories", []))
         categories_list = list(all_categories)
-        print(f"Found {len(categories_list)} unique categories from user profiles: {categories_list}")
+        print(
+            f"Found {len(categories_list)} unique categories from user profiles: {categories_list}"
+        )
         return categories_list
     except Exception as e:
         print(f"Error fetching profile categories: {e}")
@@ -85,7 +87,9 @@ async def store_fetched_papers(
     print(f"Using system user: {user['email']}")
 
     corpus = await api_client.get_or_create_corpus(
-        user_id=user["id"], name=REFERENCE_CORPUS_NAME, description="Automatically fetched preprint papers"
+        user_id=user["id"],
+        name=REFERENCE_CORPUS_NAME,
+        description="Automatically fetched preprint papers",
     )
     print(f"Using corpus: {corpus['name']} (ID: {corpus['id']})")
 
@@ -163,7 +167,9 @@ async def store_fetched_papers(
     return corpus["id"], paper_ids, new_paper_ids, stored_count
 
 
-async def _parse_and_store_sections(api_client: APIClient, corpus_id: int, entries: List[PaperEntry]):
+async def _parse_and_store_sections(
+    api_client: APIClient, corpus_id: int, entries: List[PaperEntry]
+):
     """Run GROBID on each paper's PDF and store sections directly to DB.
 
     Unlike the old process_folder → _output.txt → store_sections flow,
@@ -232,7 +238,10 @@ async def summarize_papers(
         try:
             summary_text = summarizer.summarize(paper["abstract"], max_length=150, mode=mode)
             await api_client.create_summary(
-                paper_id=paper["id"], mode=mode, summary_text=summary_text, summarizer=type(summarizer).__name__
+                paper_id=paper["id"],
+                mode=mode,
+                summary_text=summary_text,
+                summarizer=type(summarizer).__name__,
             )
             summarized_count += 1
             print(f"  {paper['title'][:60]}...")
@@ -243,7 +252,11 @@ async def summarize_papers(
 
 
 async def generate_recommendations(
-    api_client: APIClient, arxiv_corpus_id: int, user_corpora: List, target_date: datetime, paper_ids: set[int] = None
+    api_client: APIClient,
+    arxiv_corpus_id: int,
+    user_corpora: List,
+    target_date: datetime,
+    paper_ids: set[int] = None,
 ) -> set:
     if not user_corpora:
         print("No user corpora to generate recommendations for")
@@ -334,7 +347,9 @@ async def send_all_digests(api_client: APIClient, run_date: str = None):
             result = resp.json()
             status = result.get("status")
             if status == "sent":
-                print(f"  ✓ [{profile['name']}] → {result.get('to')} ({result.get('papers_count')} papers)")
+                print(
+                    f"  ✓ [{profile['name']}] → {result.get('to')} ({result.get('papers_count')} papers)"
+                )
             else:
                 print(f"  - [{profile['name']}] skipped: {result.get('reason')}")
         except Exception as e:
@@ -366,13 +381,18 @@ def _preflight_checks(args):
             test_file.touch()
             test_file.unlink()
         except PermissionError:
-            errors.append(f"Cannot write to {d} — are you running as the correct user? " f"(current uid={os.getuid()})")
+            errors.append(
+                f"Cannot write to {d} — are you running as the correct user? "
+                f"(current uid={os.getuid()})"
+            )
 
     # ── FastAPI reachable ──────────────────────────────────────────────
     try:
         r = requests.get(f"{API_BASE_URL}/health", timeout=5)
         if r.status_code != 200:
-            errors.append(f"FastAPI at {API_BASE_URL} returned status {r.status_code} " f"(expected 200)")
+            errors.append(
+                f"FastAPI at {API_BASE_URL} returned status {r.status_code} " f"(expected 200)"
+            )
     except requests.ConnectionError:
         errors.append(f"Cannot connect to FastAPI at {API_BASE_URL}")
     except Exception as e:
@@ -385,7 +405,9 @@ def _preflight_checks(args):
             if r.status_code != 200:
                 errors.append(f"GROBID at localhost:8070 returned status {r.status_code}")
         except requests.ConnectionError:
-            errors.append("Cannot connect to GROBID at localhost:8070 — " "is the grobid service running?")
+            errors.append(
+                "Cannot connect to GROBID at localhost:8070 — " "is the grobid service running?"
+            )
         except Exception as e:
             errors.append(f"GROBID health check failed: {e}")
 
@@ -401,7 +423,8 @@ def _preflight_checks(args):
             )
         if not Path(args.llm_model).exists():
             errors.append(
-                f"LLM model not found at {args.llm_model} — " f"use --summarizer transformer or --skip-summarize"
+                f"LLM model not found at {args.llm_model} — "
+                f"use --summarizer transformer or --skip-summarize"
             )
 
     if errors:
@@ -509,15 +532,21 @@ async def run_pipeline(args):
             if not args.skip_summarize and stored_count > 0:
                 if args.summarizer == "llama":
                     if not Path(args.llm_model).exists():
-                        print(f"Warning: LLM model not found at {args.llm_model}. Skipping summarization.")
+                        print(
+                            f"Warning: LLM model not found at {args.llm_model}. Skipping summarization."
+                        )
                     else:
                         from .summarization_script import LlamaSummarizer
 
                         summarizer = LlamaSummarizer(model_path=args.llm_model)
-                        await summarize_papers(api_client, corpus_id, summarizer, entries, mode="abstract")
+                        await summarize_papers(
+                            api_client, corpus_id, summarizer, entries, mode="abstract"
+                        )
                 else:
                     summarizer = TransformerSummarizer()
-                    await summarize_papers(api_client, corpus_id, summarizer, entries, mode="abstract")
+                    await summarize_papers(
+                        api_client, corpus_id, summarizer, entries, mode="abstract"
+                    )
             elif stored_count == 0:
                 print("No new papers — skipping.")
             else:
@@ -553,7 +582,9 @@ async def run_pipeline(args):
             print("\n" + "=" * 60)
             print("STEP 6: Generating Recommendations")
             print("=" * 60)
-            await generate_recommendations(api_client, corpus_id, user_corpora, target_date, paper_ids=paper_ids)
+            await generate_recommendations(
+                api_client, corpus_id, user_corpora, target_date, paper_ids=paper_ids
+            )
 
             print("\n" + "=" * 60)
             print("STEP 7: Sending Email Digests")
@@ -579,7 +610,9 @@ async def run_pipeline(args):
         print("PIPELINE COMPLETE!")
         print("=" * 80)
         print(f"  • Date: {target_date.strftime('%Y-%m-%d')}")
-        print(f"  • User papers: {user_result['parsed']} parsed, {user_result['embedded']} embedded")
+        print(
+            f"  • User papers: {user_result['parsed']} parsed, {user_result['embedded']} embedded"
+        )
         print(f"  • Preprint papers: {len(entries)} fetched")
         print("=" * 80 + "\n")
 
@@ -643,15 +676,24 @@ def main():
     )
     parser = argparse.ArgumentParser(description="Preprint Bot Pipeline")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--latest", action="store_true", default=True, help="Fetch the latest announcement (default)")
+    mode.add_argument(
+        "--latest",
+        action="store_true",
+        default=True,
+        help="Fetch the latest announcement (default)",
+    )
     mode.add_argument("--date", help="Fetch papers for a specific historical date (YYYY-MM-DD)")
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME, help="Embedding model name")
     parser.add_argument("--skip-download", action="store_true", help="Skip PDF download")
     parser.add_argument("--skip-parse", action="store_true", help="Skip GROBID parsing")
     parser.add_argument("--skip-embed", action="store_true", help="Skip embedding generation")
     parser.add_argument("--skip-summarize", action="store_true", help="Skip summarization")
-    parser.add_argument("--summarizer", default="llama", choices=["transformer", "llama"], help="Summarizer to use")
-    parser.add_argument("--llm-model", default="models/llama-3.2-3b-instruct-q4_k_m.gguf", help="Path to LLM model")
+    parser.add_argument(
+        "--summarizer", default="llama", choices=["transformer", "llama"], help="Summarizer to use"
+    )
+    parser.add_argument(
+        "--llm-model", default="models/llama-3.2-3b-instruct-q4_k_m.gguf", help="Path to LLM model"
+    )
 
     args = parser.parse_args()
     try:
@@ -659,7 +701,9 @@ def main():
     except SystemExit as e:
         # Preflight/validation aborts (e.g. no categories, unreachable services).
         if e.code not in (0, None):
-            _notify_admin_of_failure(f"Pipeline aborted early (exit code {e.code}). See pipeline logs for details.")
+            _notify_admin_of_failure(
+                f"Pipeline aborted early (exit code {e.code}). See pipeline logs for details."
+            )
         raise
     except Exception:
         _notify_admin_of_failure(traceback.format_exc())

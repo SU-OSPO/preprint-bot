@@ -138,5 +138,7 @@ class ProfileForm(forms.Form):
 
 
 class UserSettingsForm(forms.Form):
-    name = forms.CharField(required=False, widget=forms.TextInput(attrs={"placeholder": "Your name"}))
+    name = forms.CharField(
+        required=False, widget=forms.TextInput(attrs={"placeholder": "Your name"})
+    )
     email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@example.com"}))

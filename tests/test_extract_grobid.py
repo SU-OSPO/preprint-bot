@@ -105,7 +105,8 @@ class TestGrobidParsing:
     def test_extracts_abstract(self, mock_post):
         mock_post.return_value = _grobid_response()
         assert (
-            extract_grobid_sections(b"x")["abstract"] == "We present a deterministic method for testing GROBID parsing."
+            extract_grobid_sections(b"x")["abstract"]
+            == "We present a deterministic method for testing GROBID parsing."
         )
 
     @patch("preprint_bot.extract_grobid.requests.post")
@@ -119,20 +120,35 @@ class TestGrobidParsing:
     def test_extracts_body_sections_in_order(self, mock_post):
         mock_post.return_value = _grobid_response()
         sections = extract_grobid_sections(b"x")["sections"]
-        assert [s["header"] for s in sections] == ["Introduction", "Methods", "Untitled Section", "Conclusion"]
+        assert [s["header"] for s in sections] == [
+            "Introduction",
+            "Methods",
+            "Untitled Section",
+            "Conclusion",
+        ]
         assert sections[0]["text"] == "Intro paragraph one.\n\nIntro paragraph two."
 
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_excludes_back_matter_headers(self, mock_post):
         mock_post.return_value = _grobid_response()
         headers = [s["header"] for s in extract_grobid_sections(b"x")["sections"]]
-        for excluded in ["Acknowledgements", "References", "Bibliography", "Appendix A", "Supplementary Material"]:
+        for excluded in [
+            "Acknowledgements",
+            "References",
+            "Bibliography",
+            "Appendix A",
+            "Supplementary Material",
+        ]:
             assert excluded not in headers
 
     @patch("preprint_bot.extract_grobid.requests.post")
     def test_headless_div_is_untitled_section(self, mock_post):
         mock_post.return_value = _grobid_response()
-        untitled = [s for s in extract_grobid_sections(b"x")["sections"] if s["header"] == "Untitled Section"]
+        untitled = [
+            s
+            for s in extract_grobid_sections(b"x")["sections"]
+            if s["header"] == "Untitled Section"
+        ]
         assert len(untitled) == 1
         assert untitled[0]["text"] == "A section with no header."
 

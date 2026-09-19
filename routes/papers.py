@@ -64,7 +64,9 @@ async def create_paper(paper: PaperCreate):
     pool = await get_db_pool()
     try:
         # Convert timezone-aware to naive datetime for PostgreSQL TIMESTAMP
-        submitted_date_naive = paper.submitted_date.replace(tzinfo=None) if paper.submitted_date else None
+        submitted_date_naive = (
+            paper.submitted_date.replace(tzinfo=None) if paper.submitted_date else None
+        )
 
         async with pool.acquire() as conn:
             # Wrap in a transaction so the paper + junction insert are atomic
@@ -131,7 +133,9 @@ async def update_processed_text_path(paper_id: int, path: str = Query(...)):
 
 
 @router.get("/", response_model=List[PaperResponse])
-async def get_papers(corpus_id: Optional[int] = Query(None), source_id: Optional[str] = Query(None)):
+async def get_papers(
+    corpus_id: Optional[int] = Query(None), source_id: Optional[str] = Query(None)
+):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         if source_id is not None:

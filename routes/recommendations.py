@@ -134,13 +134,17 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
 async def get_recommendations_by_profile(profile_id: int, limit: int = Query(5000)):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        profile = await conn.fetchrow("SELECT user_id, top_x FROM profiles WHERE id = $1", profile_id)
+        profile = await conn.fetchrow(
+            "SELECT user_id, top_x FROM profiles WHERE id = $1", profile_id
+        )
         if not profile:
             return []
 
         user_id = profile["user_id"]
         corpus_name = f"user_{user_id}_profile_{profile_id}"
-        corpus = await conn.fetchrow("SELECT id FROM corpora WHERE user_id = $1 AND name = $2", user_id, corpus_name)
+        corpus = await conn.fetchrow(
+            "SELECT id FROM corpora WHERE user_id = $1 AND name = $2", user_id, corpus_name
+        )
         if not corpus:
             return []
 
@@ -180,7 +184,8 @@ async def get_recommendation(rec_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, run_id, paper_id, score, rank, summary, created_at FROM recommendations WHERE id = $1", rec_id
+            "SELECT id, run_id, paper_id, score, rank, summary, created_at FROM recommendations WHERE id = $1",
+            rec_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Recommendation not found")

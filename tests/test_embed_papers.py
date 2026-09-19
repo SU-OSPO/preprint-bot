@@ -34,7 +34,9 @@ class TestEmbedSinglePaper:
         from preprint_bot.embed_papers import embed_single_paper
 
         paper = {"id": 1, "title": "", "abstract": ""}
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         assert abs_stored + sec_stored == 0
         mock_api_client.create_embedding.assert_not_called()
 
@@ -48,7 +50,9 @@ class TestEmbedSinglePaper:
             "title": "Test Paper Title",
             "abstract": "This is the abstract of the test paper with enough words.",
         }
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         assert abs_stored == 1
         # Verify the model was called with title + abstract
         call_args = mock_model.encode.call_args_list[0]
@@ -72,7 +76,9 @@ class TestEmbedSinglePaper:
         )
 
         paper = {"id": 1, "title": "Title", "abstract": "A sufficient abstract here for testing."}
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         # 1 abstract + 1 eligible section
         assert abs_stored == 1
         assert sec_stored == 1
