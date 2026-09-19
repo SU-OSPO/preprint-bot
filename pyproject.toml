@@ -134,8 +134,7 @@ line-length = 100
 # Pinned to the minimum supported Python so formatting does not vary with the
 # interpreter black happens to run under.
 target-version = ["py310"]
-# force-exclude (not extend-exclude) so migrations stay out even when paths are
-# passed explicitly, as the lint workflow does.
+# django rerenders migrations, so skip them.
 force-exclude = "/migrations/"
 
 # `profile = "black"` keeps isort from fighting the formatter black enforces.

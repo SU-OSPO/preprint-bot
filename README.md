@@ -887,8 +887,7 @@ Solution: System automatically handles this with exponential backoff. If persist
 
 ### Code Style
 ```bash
-# Format code (settings come from pyproject.toml); black is enforced in CI.
-# Pass the tracked files: plain `black .` skips paths matched by .gitignore.
+# Format code (settings come from pyproject.toml). Pass only the tracked files.
 pip install black isort
 black $(git ls-files '*.py')
 isort src/ tests/
@@ -1052,7 +1051,7 @@ pre-commit install
 2. Create feature branch: `git checkout -b feature/new-feature`
 3. Make changes and add tests
 4. Run test suites: `pytest -v` and `cd django_site && python manage.py test core`
-5. Format and lint: `black $(git ls-files '*.py')` and `flake8 .` — both gate CI
+5. Format and lint: `black $(git ls-files '*.py')` and `flake8 .`
 6. Commit changes: `git commit -m "Add new feature"`
 7. Push to branch: `git push origin feature/new-feature`
 8. Submit pull request with description
