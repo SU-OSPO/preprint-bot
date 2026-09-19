@@ -157,7 +157,7 @@ async def get_embedding(embedding_id: int):
             """
             SELECT id, paper_id, section_id, type, model_name, created_at,
                    embedding::text as embedding_text
-            FROM embeddings 
+            FROM embeddings
             WHERE id = $1
             """,
             embedding_id,

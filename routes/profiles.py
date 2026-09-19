@@ -99,8 +99,8 @@ async def update_profile(profile_id: int, profile: ProfileUpdate):
     idx += 1
 
     values.append(profile_id)
-    query = f"""UPDATE profiles SET {', '.join(updates)} 
-                WHERE id = ${idx} 
+    query = f"""UPDATE profiles SET {', '.join(updates)}
+                WHERE id = ${idx}
                 RETURNING id, user_id, name, keywords, categories, email_notify, frequency, threshold, top_x, created_at, updated_at"""
 
     async with pool.acquire() as conn:

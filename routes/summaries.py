@@ -15,7 +15,7 @@ async def create_summary(summary: SummaryCreate):
                 """
                 INSERT INTO summaries (paper_id, mode, summary_text, summarizer)
                 VALUES ($1, $2, $3, $4)
-                ON CONFLICT (paper_id, mode) DO UPDATE 
+                ON CONFLICT (paper_id, mode) DO UPDATE
                 SET summary_text = EXCLUDED.summary_text, summarizer = EXCLUDED.summarizer
                 RETURNING id, paper_id, mode, summary_text, summarizer, created_at
                 """,

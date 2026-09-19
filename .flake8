@@ -13,10 +13,9 @@ exclude =
     *.egg-info,
     migrations
 
-# E203/W503 disagree with black by design. E501/W291 are only ever tripped
-# inside SQL and HTML string literals, which black does not reformat.
+# E203/W503 disagree with black by design. E501 is only ever tripped inside
+# SQL and HTML string literals, which black does not reformat.
 extend-ignore =
     E203,
     E501,
-    W291,
     W503

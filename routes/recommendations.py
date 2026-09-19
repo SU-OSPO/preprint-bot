@@ -104,7 +104,7 @@ async def get_recommendations_with_papers(run_id: int, limit: int = Query(50, ge
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT 
+            SELECT
                 r.id, r.run_id, r.paper_id, r.score, r.rank, r.summary, r.created_at,
                 p.source_id, p.title, p.abstract, p.metadata, p.source, p.submitted_date,
                 s.summary_text

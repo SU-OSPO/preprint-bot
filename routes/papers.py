@@ -116,8 +116,8 @@ async def update_processed_text_path(paper_id: int, path: str = Query(...)):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            UPDATE papers 
-            SET processed_text_path = $1 
+            UPDATE papers
+            SET processed_text_path = $1
             WHERE id = $2
             RETURNING id, corpus_id, source_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at
             """,
@@ -150,8 +150,8 @@ async def get_papers(
         elif corpus_id is not None:
             rows = await conn.fetch(
                 """
-                SELECT DISTINCT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata, p.pdf_path, 
-                       p.processed_text_path, p.submitted_date, p.source, p.created_at 
+                SELECT DISTINCT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata, p.pdf_path,
+                       p.processed_text_path, p.submitted_date, p.source, p.created_at
                 FROM papers p
                 JOIN papers_corpora pc ON p.id = pc.paper_id
                 WHERE pc.corpus_id = $1
@@ -160,8 +160,8 @@ async def get_papers(
             )
         else:
             rows = await conn.fetch("""
-                SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path, 
-                       processed_text_path, submitted_date, source, created_at 
+                SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
+                       processed_text_path, submitted_date, source, created_at
                 FROM papers
                 """)
         results = []
@@ -179,8 +179,8 @@ async def get_paper(paper_id: int):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path, 
-                   processed_text_path, submitted_date, source, created_at 
+            SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
+                   processed_text_path, submitted_date, source, created_at
             FROM papers WHERE id = $1
             """,
             paper_id,
@@ -229,8 +229,8 @@ async def update_paper(paper_id: int, paper: PaperUpdate):
         raise HTTPException(status_code=400, detail="No fields to update")
 
     values.append(paper_id)
-    query = f"""UPDATE papers SET {', '.join(updates)} 
-                WHERE id = ${idx} 
+    query = f"""UPDATE papers SET {', '.join(updates)}
+                WHERE id = ${idx}
                 RETURNING id, corpus_id, source_id, title, abstract, metadata, pdf_path, processed_text_path, submitted_date, source, created_at"""
 
     async with pool.acquire() as conn:
@@ -263,7 +263,7 @@ async def record_arxiv_stats(
             """
             INSERT INTO arxiv_daily_stats (submission_date, category, total_papers)
             VALUES ($1, $2, $3)
-            ON CONFLICT (submission_date, category) 
+            ON CONFLICT (submission_date, category)
             DO UPDATE SET total_papers = EXCLUDED.total_papers
             """,
             submission_date,
@@ -280,8 +280,8 @@ async def get_arxiv_stats_for_date(date: str):
     async with pool.acquire() as conn:
         total = await conn.fetchval(
             """
-            SELECT SUM(total_papers) 
-            FROM arxiv_daily_stats 
+            SELECT SUM(total_papers)
+            FROM arxiv_daily_stats
             WHERE submission_date = $1
             """,
             date,

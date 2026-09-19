@@ -46,16 +46,16 @@ async def list_sections(paper_id: Optional[int] = Query(None)):
 
     if paper_id is not None:
         query = """
-            SELECT id, paper_id, section_header, section_text, section_order, created_at 
-            FROM sections 
-            WHERE paper_id = $1 
+            SELECT id, paper_id, section_header, section_text, section_order, created_at
+            FROM sections
+            WHERE paper_id = $1
             ORDER BY section_order, id
         """
         params = [paper_id]
     else:
         query = """
-            SELECT id, paper_id, section_header, section_text, section_order, created_at 
-            FROM sections 
+            SELECT id, paper_id, section_header, section_text, section_order, created_at
+            FROM sections
             ORDER BY paper_id, section_order, id
         """
         params = []
