@@ -174,5 +174,27 @@ class TestGrobidParsing:
         assert result["sections"] == []
 
 
+class TestGrobidOutputRobustness:
+    """Robustness tests to ensure the parser detects structural changes and namespace drift in GROBID XML output."""
+
+    @patch("preprint_bot.extract_grobid.requests.post")
+    def test_xml_structure_drift_raises_error(self, mock_post):
+        # Well-formed XML with unexpected root element
+        drifted_xml = b'<?xml version="1.0" encoding="UTF-8"?><InvalidRoot><badNode/></InvalidRoot>'
+        mock_post.return_value = _grobid_response(drifted_xml)
+
+        with pytest.raises(ValueError, match="Unexpected GROBID XML root element"):
+            extract_grobid_sections(b"x")
+
+    @patch("preprint_bot.extract_grobid.requests.post")
+    def test_xml_namespace_drift_raises_error(self, mock_post):
+        # TEI element but with an unrecognized/wrong namespace
+        wrong_ns_xml = b'<?xml version="1.0" encoding="UTF-8"?><TEI xmlns="http://wrong.namespace.org/ns/1.0"><text/></TEI>'
+        mock_post.return_value = _grobid_response(wrong_ns_xml)
+
+        with pytest.raises(ValueError, match="Unexpected GROBID XML root element"):
+            extract_grobid_sections(b"x")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

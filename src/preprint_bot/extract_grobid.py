@@ -31,6 +31,10 @@ def extract_grobid_sections(src):
         raise
 
     root = etree.fromstring(resp.content)
+    if root.tag != f"{{{NS['tei']}}}TEI":
+        raise ValueError(
+            f"Unexpected GROBID XML root element or unrecognized namespace: {root.tag}"
+        )
 
     # 3. Convenience helper
     def _txt(el, path):
