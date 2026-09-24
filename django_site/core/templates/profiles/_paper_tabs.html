@@ -1,4 +1,4 @@
-{# Add-paper interface: upload / add-by-id / search arXiv. #}
+{# Add-paper interface: upload / add-by-id / search arXiv / copy from existing profile. #}
 {# Expects `p` (the profile). Optional `next_url` makes the non-AJAX #}
 {# upload return there instead of the profiles list (used by onboarding). #}
 <div class="paper-tabs" data-profile="{{ p.pk }}">
@@ -6,6 +6,7 @@
     <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
     <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
     <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">Search arXiv</button>
+    <button type="button" class="tab-btn" data-tab="existing-{{ p.pk }}">Copy from Existing Profile</button>
   </div>
 
   {# ── Tab 1: Upload PDF ────────────── #}
@@ -60,4 +61,16 @@
     {# results injected here by JS #}
     <div class="search-results" style="margin-top:.75rem;"></div>
   </div>
+
+  {# ── Tab 4: Copy from existing profile ─ #}
+  <div class="tab-panel" id="existing-{{ p.pk }}">
+    <div class="form-group">
+      <label>Title or author</label>
+      <input type="text" class="existing-search-input" placeholder="e.g. neural network…">
+    </div>
+
+    {# results injected here by JS #}
+    <div class="existing-results" style="margin-top:.75rem;"></div>
+  </div>
+
 </div>{# /paper-tabs #}
