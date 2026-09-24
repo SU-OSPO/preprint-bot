@@ -1,5 +1,8 @@
 """Tests for the source registry."""
 
+import importlib
+import sys
+
 import pytest
 
 from preprint_sources import (
@@ -47,27 +50,36 @@ def test_enabled_dedupes_preserving_order(monkeypatch):
 # ── The development-only demo source ───────────────────────────────
 
 
+def _package_modules():
+    return [
+        name
+        for name in list(sys.modules)
+        if name == "preprint_sources" or name.startswith("preprint_sources.")
+    ]
+
+
 def _import_fresh():
     """Import the package with module-level registration re-run."""
-    import importlib
-    import sys
-
-    for name in [m for m in list(sys.modules) if m.startswith("preprint_sources")]:
+    for name in _package_modules():
         del sys.modules[name]
     return importlib.import_module("preprint_sources")
 
 
 @pytest.fixture
-def reimport_registry(monkeypatch):
-    """Re-import the package, then restore a demo-free import afterwards.
+def reimport_registry():
+    """Re-import the package, then put the original modules back.
 
     Registration happens at import time, so these tests have to reload the
-    module. Without the teardown a demo-enabled module object would leak into
-    every test that runs after them.
+    package. Re-importing again on teardown is not enough: other modules hold
+    references to the original module objects, and ``importlib.reload`` on a
+    stale reference fails once ``sys.modules`` holds a different object under
+    the same name. So snapshot the real entries and restore them verbatim.
     """
+    saved = {name: sys.modules[name] for name in _package_modules()}
     yield _import_fresh
-    monkeypatch.delenv("PREPRINT_ENABLED_SOURCES", raising=False)
-    _import_fresh()
+    for name in _package_modules():
+        del sys.modules[name]
+    sys.modules.update(saved)
 
 
 def test_demo_source_is_absent_by_default(monkeypatch, reimport_registry):
