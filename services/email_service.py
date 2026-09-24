@@ -25,7 +25,7 @@ try:
 except ImportError:
     ADMIN_EMAIL = ""
 
-DASHBOARD_URL = SITE_URL
+RECOMMENDATIONS_URL = SITE_URL.rstrip("/") + "/recommendations/"
 SU_ORANGE = "#F76900"
 SU_NAVY = "#002147"
 
@@ -75,11 +75,11 @@ def build_digest_html(
         authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
         # Papers with no public landing page point back at the dashboard
-        paper_url = paper_landing_url(paper) or DASHBOARD_URL
+        arxiv_url = paper.get("landing_url") or RECOMMENDATIONS_URL
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = (
-            f' <a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>'
+            f' <a href="{RECOMMENDATIONS_URL}" style="color:{SU_ORANGE};font-size:12px;text-decoration:none;">Read more →</a>'
             if was_truncated
             else ""
         )
@@ -116,7 +116,7 @@ def build_digest_html(
     <html><body style="font-family:Arial,sans-serif;background:#f9f9f9;margin:0;padding:0;">
     <div style="max-width:700px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
         <div style="background:{SU_NAVY};padding:24px 32px;">
-            <h1 style="margin:0;font-size:22px;"><a href="{DASHBOARD_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
+            <h1 style="margin:0;font-size:22px;"><a href="{RECOMMENDATIONS_URL}" style="color:{SU_ORANGE};text-decoration:none;">Preprint Bot</a></h1>
             <p style="color:#cce0ff;margin:4px 0 0;font-size:14px;">{header_label} Recommendations &mdash; {html.escape(run_date)}</p>
         </div>
         <div style="padding:24px 32px;">
@@ -126,7 +126,7 @@ def build_digest_html(
                 {rows}
             </table>
             <div style="text-align:center;margin-top:24px;">
-                <a href="{DASHBOARD_URL}" style="display:inline-block;padding:12px 28px;background:{SU_ORANGE};color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">See all recommendations →</a>
+                <a href="{RECOMMENDATIONS_URL}" style="display:inline-block;padding:12px 28px;background:{SU_ORANGE};color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">See all recommendations →</a>
             </div>
         </div>
         <div style="padding:16px 32px;background:#f1f1f1;font-size:12px;color:#888;text-align:center;">
@@ -158,12 +158,10 @@ def send_email(to_address: str, subject: str, html_body: str) -> bool:
 
 def send_admin_alert(subject: str, detail: str) -> bool:
     """Email the admin about a pipeline failure."""
-    # Fall back to EMAIL_FROM_ADDRESS when ADMIN_EMAIL is not configured
     recipient = ADMIN_EMAIL or EMAIL_FROM_ADDRESS
     if not recipient:
         print("Admin alert skipped: no ADMIN_EMAIL or EMAIL_FROM_ADDRESS set.")
         return False
-    # Strip CR/LF to prevent header injection, and bound the subject length.
     subject = subject.replace("\r", " ").replace("\n", " ")[:300]
     html_body = (
         "<p>The Preprint Bot pipeline reported an error:</p>"
