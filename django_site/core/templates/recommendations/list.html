@@ -111,6 +111,7 @@ const PROFILES = JSON.parse('{{ profiles_json|escapejs }}');
 const PROFILE_PARAM = '{{ profile_param }}';
 const SELECTED_PROFILE_ID = {{ selected_profile.pk|default:'null' }};
 const ADD_URL_BASE = '{% url "recommendations" %}add/';
+const CREATE_PROFILE_URL_BASE = '{% url "recommendations" %}create-profile/';
 const PER_PAGE = 20;
 
 let currentPage = 1;
@@ -472,15 +473,55 @@ function restoreFromURL() {
 
 /* ── Build profile dropdown for a paper ─────────── */
 function buildProfileDropdown(paperId, linkedIds) {
-  let html = '<select class="btn btn-sm" style="padding:0.25rem 0.4rem;" onchange="if(this.value) addToProfile(+this.value,' + paperId + ')">';
+  let html = '<select class="btn btn-sm" style="padding:0.25rem 0.4rem;" onchange="handleDropdownChange(this, ' + paperId + ')">';
   html += '<option value="">+ Add to…</option>';
   PROFILES.forEach(p => {
     const alreadyIn = linkedIds.has(p.id);
     html += '<option value="' + p.id + '"' + (alreadyIn ? ' disabled' : '') + '>'
       + esc(p.name) + (alreadyIn ? ' (✓)' : '') + '</option>';
   });
+  html += '<option value="create_new">+ Make new profile…</option>';
   html += '</select>';
   return html;
+}
+
+function handleDropdownChange(selectEl, paperId) {
+  const val = selectEl.value;
+  if (!val) return;
+  if (val === 'create_new') {
+    selectEl.value = '';
+    createNewProfileAndAdd(paperId);
+  } else {
+    addToProfile(+val, paperId);
+  }
+}
+
+function createNewProfileAndAdd(paperId) {
+  const name = prompt("Enter new profile name:");
+  if (!name || !name.trim()) return;
+
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+  fetch(CREATE_PROFILE_URL_BASE + paperId + '/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRFToken': csrf ? csrf.value : '',
+    },
+    body: 'name=' + encodeURIComponent(name.trim())
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to create profile.');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert('An error occurred.');
+  });
 }
 
 /* ── Add recommendation to profile (AJAX) ─────────── */

@@ -18,13 +18,18 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Avg, Count, Max, Q
 from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404, JsonResponse
+from django.db import transaction, IntegrityError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from preprint_sources.taxonomies.arxiv import ARXIV_CODE_TO_LABEL, ARXIV_CATEGORY_TREE, label_for
+from preprint_sources.taxonomies.arxiv import (
+    ARXIV_CODE_TO_LABEL,
+    ARXIV_CATEGORY_TREE,
+    label_for,
+)
 from .auth_backend import (
     authenticate_pbuser,
     login_pbuser,
@@ -303,8 +308,6 @@ def register_view(request):
         if PBUser.objects.filter(email__iexact=email).exists():
             messages.error(request, "An account with that email already exists.")
         else:
-            from django.db import IntegrityError
-
             try:
                 pb_user = PBUser.objects.create_user(
                     email=email,
@@ -527,8 +530,6 @@ def orcid_complete_view(request):
                 "Sign in with your password to link your ORCID later.",
             )
         else:
-            from django.db import IntegrityError
-
             try:
                 pb_user = PBUser.objects.create_user(
                     email=email,
@@ -616,8 +617,8 @@ def forgot_password_view(request):
         try:
             pb_user = PBUser.objects.get(email__iexact=email)
             from django.contrib.auth.tokens import default_token_generator
-            from django.utils.http import urlsafe_base64_encode
             from django.utils.encoding import force_bytes
+            from django.utils.http import urlsafe_base64_encode
 
             uid = urlsafe_base64_encode(force_bytes(pb_user.pk))
             token = default_token_generator.make_token(pb_user)
@@ -836,7 +837,11 @@ def profile_edit_view(request, profile_id):
                 "name": profile.name,
                 "frequency": profile.frequency,
                 "threshold": max(
-                    0.40, min(0.75, profile.threshold if profile.threshold is not None else 0.6)
+                    0.40,
+                    min(
+                        0.75,
+                        profile.threshold if profile.threshold is not None else 0.6,
+                    ),
                 ),
                 "top_x": profile.top_x or 10,
                 "categories": ",".join(profile.categories or []),
@@ -1026,7 +1031,6 @@ def paper_upload_view(request, profile_id):
 
         # New paper — store file and create DB row
         dest = _store_paper_upload(file_hash, f)
-        from django.db import IntegrityError
 
         try:
             paper = Paper.objects.create(
@@ -1106,26 +1110,26 @@ def paper_add_arxiv_view(request, profile_id):
     pb_user = request.pb_user
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
-    raw = request.POST.get("arxiv_ids", "")
-    arxiv_ids = _parse_arxiv_ids(raw)
+    raw = request.POST.get("source_ids", "")
+    source_ids = _parse_source_ids(raw)
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
-    if not arxiv_ids:
+    if not source_ids:
         if is_ajax:
             return JsonResponse({"ok": False, "error": "No valid arXiv IDs provided."}, status=400)
         messages.error(request, "No valid arXiv IDs provided.")
         return redirect(_safe_next(request, "profile_list"))
 
-    if not is_ajax and len(arxiv_ids) > MAX_IDS_PER_REQUEST:
+    if not is_ajax and len(source_ids) > MAX_IDS_PER_REQUEST:
         messages.warning(
             request,
-            f"Too many IDs ({len(arxiv_ids)}). Only the first {MAX_IDS_PER_REQUEST} will be processed.",
+            f"Too many IDs ({len(source_ids)}). Only the first {MAX_IDS_PER_REQUEST} will be processed.",
         )
-        arxiv_ids = arxiv_ids[:MAX_IDS_PER_REQUEST]
+        source_ids = source_ids[:MAX_IDS_PER_REQUEST]
 
     if is_ajax:
         # AJAX: process a single ID and return the paper info
-        aid = arxiv_ids[0]
+        aid = source_ids[0]
         success, failed = _download_arxiv_pdfs(pb_user, profile, [aid])
         if failed:
             return JsonResponse({"ok": False, "error": f"Failed to download {aid}."}, status=400)
@@ -1155,7 +1159,7 @@ def paper_add_arxiv_view(request, profile_id):
             }
         )
 
-    success, failed = _download_arxiv_pdfs(pb_user, profile, arxiv_ids)
+    success, failed = _download_arxiv_pdfs(pb_user, profile, source_ids)
     if success:
         messages.success(request, f"Added {success} paper(s) from arXiv.")
     for fid in failed:
@@ -1164,7 +1168,7 @@ def paper_add_arxiv_view(request, profile_id):
     return redirect(_safe_next(request, "profile_list"))
 
 
-def _parse_arxiv_ids(raw: str) -> list[str]:
+def _parse_source_ids(raw: str) -> list[str]:
     """Extract valid arXiv IDs from free-form input."""
     ids = []
     for line in raw.replace(",", "\n").splitlines():
@@ -1184,7 +1188,7 @@ def _parse_arxiv_ids(raw: str) -> list[str]:
     return ids
 
 
-def _fetch_arxiv_metadata(arxiv_ids):
+def _fetch_arxiv_metadata(source_ids):
     """Batch-fetch metadata (title, abstract, date) from arXiv API.
 
     Returns a dict keyed by source_id (version-stripped).
@@ -1195,7 +1199,7 @@ def _fetch_arxiv_metadata(arxiv_ids):
         import arxiv as arxiv_lib
 
         client = arxiv_lib.Client()
-        search = arxiv_lib.Search(id_list=arxiv_ids)
+        search = arxiv_lib.Search(id_list=source_ids)
         for paper in client.results(search):
             aid = paper.get_short_id().split("v")[0]  # strip version
             metadata[aid] = {
@@ -1214,7 +1218,7 @@ def _fetch_arxiv_metadata(arxiv_ids):
     return metadata
 
 
-def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
+def _download_arxiv_pdfs(pb_user, profile, source_ids):
     """Download PDFs for a list of arXiv IDs, deduplicating by SHA-256.
 
     Creates Paper rows and links them to the profile's corpus.
@@ -1228,11 +1232,11 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
     corpus = _get_or_create_user_corpus(pb_user, profile)
 
     # Batch-fetch metadata (title, abstract, date) from arXiv API
-    arxiv_meta = _fetch_arxiv_metadata(arxiv_ids)
+    arxiv_meta = _fetch_arxiv_metadata(source_ids)
 
     success = 0
     failed = []
-    for i, aid in enumerate(arxiv_ids):
+    for i, aid in enumerate(source_ids):
         # Respect arXiv rate limits: no more than one request every 3 seconds
         if i > 0:
             time.sleep(3)
@@ -1243,7 +1247,9 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
             content_length = resp.headers.get("Content-Length")
             if content_length and int(content_length) > MAX_PDF_BYTES:
                 logger.warning(
-                    "arXiv PDF for %s too large per Content-Length (%s bytes)", aid, content_length
+                    "arXiv PDF for %s too large per Content-Length (%s bytes)",
+                    aid,
+                    content_length,
                 )
                 failed.append(aid)
                 continue
@@ -1253,7 +1259,9 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
                 continue
             if len(resp.content) > MAX_PDF_BYTES:
                 logger.warning(
-                    "arXiv PDF for %s exceeds size limit (%d bytes)", aid, len(resp.content)
+                    "arXiv PDF for %s exceeds size limit (%d bytes)",
+                    aid,
+                    len(resp.content),
                 )
                 failed.append(aid)
                 continue
@@ -1270,7 +1278,6 @@ def _download_arxiv_pdfs(pb_user, profile, arxiv_ids):
             # New paper — store file and create DB row
             dest = _store_paper_bytes(file_hash, resp.content)
             meta = arxiv_meta.get(aid, {})
-            from django.db import IntegrityError
 
             try:
                 paper = Paper.objects.create(
@@ -1855,3 +1862,79 @@ def monitoring_dashboard_view(request):
         "profiles_email_on": profiles_email_on,
     }
     return render(request, "monitoring.html", context)
+
+
+@pbuser_required
+@require_POST
+def recommendation_create_profile_view(request, paper_id):
+    """Create a new profile with a recommended paper (AJAX)."""
+    pb_user = request.pb_user
+    paper = get_object_or_404(Paper, pk=paper_id)
+
+    was_recommended = Recommendation.objects.filter(paper=paper, run__user=pb_user).exists()
+    if not was_recommended:
+        return JsonResponse({"ok": False, "error": "Paper not found."}, status=404)
+
+    name = request.POST.get("name", "").strip()
+    if not name:
+        return JsonResponse({"ok": False, "error": "Profile name is required."}, status=400)
+
+    if Profile.objects.filter(user=pb_user, name__iexact=name).exists():
+        return JsonResponse(
+            {"ok": False, "error": f"A profile named '{name}' already exists."},
+            status=400,
+        )
+
+    # Extract categories from paper metadata
+    raw_categories = []
+    if paper.metadata and isinstance(paper.metadata, dict) and "categories" in paper.metadata:
+        raw_categories = paper.metadata["categories"]
+
+    # Validate categories using ProfileForm.clean_categories if applicable, or fallback safely
+    form = ProfileForm(
+        data={
+            "name": name,
+            "categories": (
+                ",".join(raw_categories) if isinstance(raw_categories, list) else raw_categories
+            ),
+        }
+    )
+    categories = raw_categories
+    if hasattr(form, "clean_categories") and raw_categories:
+        try:
+            form.cleaned_data = {"categories": raw_categories}
+            categories = form.clean_categories() or raw_categories
+        except Exception:
+            categories = raw_categories
+
+    try:
+        with transaction.atomic():
+            profile = Profile.objects.create(
+                user=pb_user,
+                name=name,
+                categories=categories,
+            )
+            corpus = _get_or_create_user_corpus(pb_user, profile)
+            _link_paper_to_corpus(paper, corpus)
+    except IntegrityError:
+        return JsonResponse(
+            {"ok": False, "error": "A profile with that name already exists."},
+            status=400,
+        )
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "profile": {
+                "id": profile.pk,
+                "name": profile.name,
+            },
+            "paper": {
+                "id": paper.pk,
+                "title": paper.title,
+                "source_id": paper.source_id,
+            },
+        }
+    )
