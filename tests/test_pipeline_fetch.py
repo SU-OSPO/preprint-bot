@@ -57,9 +57,7 @@ class TestFanOut:
         )
         p1, p2 = _patch_registry([a, b])
         with p1, p2:
-            entries = await fetch_preprint_papers(
-                {"arxiv": ["cs.AI"], "biorxiv": ["neuro"]}
-            )
+            entries = await fetch_preprint_papers({"arxiv": ["cs.AI"], "biorxiv": ["neuro"]})
 
         assert [(e.source, e.source_id) for e in entries] == [
             ("arxiv", "1"),
@@ -106,9 +104,7 @@ class TestFailureIsolation:
         b = _source("biorxiv", "bioRxiv", AsyncMock(return_value=[_entry("biorxiv", "2")]))
         p1, p2 = _patch_registry([a, b])
         with p1, p2:
-            entries = await fetch_preprint_papers(
-                {"arxiv": ["cs.AI"], "biorxiv": ["neuro"]}
-            )
+            entries = await fetch_preprint_papers({"arxiv": ["cs.AI"], "biorxiv": ["neuro"]})
 
         assert [e.source_id for e in entries] == ["2"]
         out = capsys.readouterr().out
@@ -131,9 +127,7 @@ class TestHistoricalFetch:
         from datetime import datetime
 
         when = datetime(2026, 1, 2)
-        a = _source(
-            "arxiv", "arXiv", by_date=AsyncMock(return_value=[_entry("arxiv", "1")])
-        )
+        a = _source("arxiv", "arXiv", by_date=AsyncMock(return_value=[_entry("arxiv", "1")]))
         p1, p2 = _patch_registry([a])
         with p1, p2:
             entries = await fetch_preprint_papers({"arxiv": ["cs.AI"]}, target_date=when)
@@ -146,9 +140,7 @@ class TestHistoricalFetch:
     async def test_source_without_historical_support_is_skipped_not_fatal(self, capsys):
         from datetime import datetime
 
-        a = _source(
-            "arxiv", "arXiv", by_date=AsyncMock(return_value=[_entry("arxiv", "1")])
-        )
+        a = _source("arxiv", "arXiv", by_date=AsyncMock(return_value=[_entry("arxiv", "1")]))
         b = _source("demo", "Demo Server", by_date=AsyncMock(side_effect=NotImplementedError))
         p1, p2 = _patch_registry([a, b])
         with p1, p2:
