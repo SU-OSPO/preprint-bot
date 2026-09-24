@@ -12,8 +12,7 @@ async def get_papers_needing_processing():
     """User-corpus papers with a PDF on disk but no sections extracted yet."""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
+        rows = await conn.fetch("""
             SELECT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata,
                    p.pdf_path, p.processed_text_path, p.submitted_date, p.source, p.created_at
             FROM papers p
@@ -27,8 +26,7 @@ async def get_papers_needing_processing():
                     AND c.name <> 'arxiv_papers'
               )
             ORDER BY p.created_at DESC
-            """
-        )
+            """)
         results = []
         for row in rows:
             result = dict(row)
@@ -43,8 +41,7 @@ async def get_papers_needing_embeddings():
     """Papers with sections but no abstract embedding yet."""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
+        rows = await conn.fetch("""
             SELECT DISTINCT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata,
                    p.pdf_path, p.processed_text_path, p.submitted_date, p.source, p.created_at
             FROM papers p
@@ -52,8 +49,7 @@ async def get_papers_needing_embeddings():
             LEFT JOIN embeddings e ON p.id = e.paper_id AND e.type = 'abstract'
             WHERE e.id IS NULL
             ORDER BY p.created_at DESC
-            """
-        )
+            """)
         results = []
         for row in rows:
             result = dict(row)
@@ -179,13 +175,11 @@ async def get_papers(
                 corpus_id,
             )
         else:
-            rows = await conn.fetch(
-                """
+            rows = await conn.fetch("""
                 SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
                        processed_text_path, submitted_date, source, created_at
                 FROM papers
-                """
-            )
+                """)
         results = []
         for row in rows:
             result = dict(row)
