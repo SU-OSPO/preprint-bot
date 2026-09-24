@@ -3,6 +3,8 @@
 {# core.sources.paper_source_context(). Optional `next_url` makes the #}
 {# non-AJAX upload return there instead of the profiles list (onboarding). #}
 {# Source pickers only appear once more than one source offers the tab. #}
+{# Optional `hide_copy_existing_profile_tab` hides the copy tab (onboarding: no other profile yet). #}
+
 <div class="paper-tabs" data-profile="{{ p.pk }}">
   <div class="tab-bar">
     <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
@@ -14,7 +16,9 @@
         Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}
       </button>
     {% endif %}
+    {% if not hide_copy_existing_profile_tab %}
     <button type="button" class="tab-btn" data-tab="existing-{{ p.pk }}">Copy from Existing Profile</button>
+    {% endif %}
   </div>
 
   {# ── Tab 1: Upload PDF ────────────── #}
@@ -100,6 +104,7 @@
   </div>
   {% endif %}
 
+  {% if not hide_copy_existing_profile_tab %}
   {# ── Tab 4: Copy from existing profile ─ #}
   <div class="tab-panel" id="existing-{{ p.pk }}">
     <div class="form-group">
@@ -110,5 +115,6 @@
     {# results injected here by JS #}
     <div class="existing-results" style="margin-top:.75rem;"></div>
   </div>
+  {% endif %}
 
 </div>{# /paper-tabs #}
