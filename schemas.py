@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Dict, Optional, List
 from datetime import datetime, date
 from enum import Enum
 
@@ -65,7 +65,7 @@ class ProfileCreate(BaseModel):
     user_id: int
     name: str
     keywords: List[str]
-    categories: List[str] = []
+    source_categories: Dict[str, List[str]] = {}
     email_notify: bool = True
     frequency: FrequencyEnum
     threshold: float = 0.6
@@ -75,7 +75,7 @@ class ProfileCreate(BaseModel):
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     keywords: Optional[List[str]] = None
-    categories: Optional[List[str]] = None
+    source_categories: Optional[Dict[str, List[str]]] = None
     email_notify: Optional[bool] = None
     frequency: Optional[FrequencyEnum] = None
     threshold: Optional[float] = None
@@ -87,7 +87,7 @@ class ProfileResponse(BaseModel):
     user_id: int
     name: str
     keywords: List[str]
-    categories: List[str]
+    source_categories: Dict[str, List[str]]
     email_notify: bool
     frequency: str
     threshold: float

@@ -49,7 +49,7 @@ class APIClient:
         user_id: int,
         name: str,
         keywords: List[str],
-        categories: List[str] = None,  # ADD THIS PARAMETER
+        source_categories: Dict[str, List[str]] = None,
         email_notify: bool = True,
         frequency: str = "weekly",
         threshold: float = 0.6,
@@ -61,7 +61,7 @@ class APIClient:
                 "user_id": user_id,
                 "name": name,
                 "keywords": keywords,
-                "categories": categories or [],  # ADD THIS LINE
+                "source_categories": source_categories or {},
                 "email_notify": email_notify,
                 "frequency": frequency,
                 "threshold": threshold,
@@ -82,12 +82,16 @@ class APIClient:
         return [p for p in profiles if p["user_id"] == user_id]
 
     async def get_or_create_profile(
-        self, user_id: int, name: str, keywords: List[str], categories: List[str] = None
-    ) -> Dict:  # ADD PARAMETER
+        self,
+        user_id: int,
+        name: str,
+        keywords: List[str],
+        source_categories: Dict[str, List[str]] = None,
+    ) -> Dict:
         profile = await self.get_profile_by_name(user_id, name)
         if profile:
             return profile
-        return await self.create_profile(user_id, name, keywords, categories)  # ADD ARGUMENT
+        return await self.create_profile(user_id, name, keywords, source_categories)
 
     async def create_corpus(self, user_id: int, name: str, description: str = None) -> Dict:
         response = await self.client.post(

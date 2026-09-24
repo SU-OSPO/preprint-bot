@@ -1,10 +1,15 @@
 {% load static %}
-{# arXiv category picker: hidden input + searchable collapsible tree. #}
-{# Data is passed via data- attributes; the logic lives in the static JS. #}
-{# Expects `category_tree_json` and optional `initial_categories_json` in context. #}
+{# Category picker: one tab per preprint source, each holding that source's #}
+{# collapsible category tree. #}
+{# #}
+{# With a single source registered the tab bar is skipped entirely and the #}
+{# tree renders flat. #}
+{# #}
+{# Expects `category_sources` ([{name, label, tree}]) and optional #}
+{# `initial_categories` (a list of "source:code" tokens) in context. #}
 <div class="card">
-  <h3>arXiv Categories <span style="color:var(--danger);">*</span></h3>
-  <p class="text-sm text-dim mb-1">Select the sub-fields you want to track. At least one is required.</p>
+  <h3>Preprint Sources <span style="color:var(--danger);">*</span></h3>
+  <p class="text-sm text-dim mb-1">Choose the categories you want to track on each server. At least one is required.</p>
 
   {# Hidden input that the JS tree writes into #}
   <input type="hidden" name="categories" id="id_categories"
@@ -14,7 +19,7 @@
     <div class="alert alert-error">{{ form.categories.errors.0 }}</div>
   {% endif %}
 
-  {# Search/filter input with selected category tags #}
+  {# Search/filter input with selected category tags, across all sources #}
   <div id="cat-search-box" style="border:1px solid var(--border); border-radius:var(--radius);
        padding:.35rem .5rem; display:flex; flex-wrap:wrap; gap:.3rem; align-items:center;
        margin-bottom:.75rem; cursor:text;"
@@ -25,9 +30,12 @@
            padding:.15rem 0; background:transparent;">
   </div>
 
-  <div id="category-tree"
-       data-tree="{{ category_tree_json }}"
-       data-initial="{{ initial_categories_json|default:'[]' }}"></div>
+  {# Tab bar and panels are both built by the JS from the data below #}
+  <div id="cat-source-tabs" class="tab-bar" role="tablist" hidden></div>
+  <div id="cat-source-panels"></div>
+
+  {{ category_sources|json_script:"cat-sources-data" }}
+  {{ initial_categories|json_script:"cat-initial-data" }}
 </div>
 
 <script src="{% static 'core/category_picker.js' %}" defer></script>

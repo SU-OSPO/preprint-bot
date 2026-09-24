@@ -55,7 +55,11 @@ class TestThreshold:
         from schemas import ProfileCreate
 
         profile = ProfileCreate(
-            user_id=1, name="test", keywords=["ml"], categories=["cs.LG"], frequency="weekly"
+            user_id=1,
+            name="test",
+            keywords=["ml"],
+            source_categories={"arxiv": ["cs.LG"]},
+            frequency="weekly",
         )
         assert profile.threshold == 0.6
 
@@ -67,7 +71,7 @@ class TestThreshold:
             user_id=1,
             name="test",
             keywords=["ml"],
-            categories=["cs.LG"],
+            source_categories={"arxiv": ["cs.LG"]},
             frequency="weekly",
             threshold=0.55,
         )
@@ -82,7 +86,7 @@ class TestThreshold:
                 user_id=1,
                 name="test",
                 keywords=["ml"],
-                categories=["cs.LG"],
+                source_categories={"arxiv": ["cs.LG"]},
                 frequency="weekly",
                 threshold=val,
             )

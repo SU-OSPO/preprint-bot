@@ -9,7 +9,7 @@ add-paper UI can render itself instead of hardcoding arXiv.
 from __future__ import annotations
 
 import asyncio
-from typing import List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from preprint_sources import (
     PreprintSource,
@@ -84,6 +84,64 @@ def paper_source_context() -> dict:
         "add_sources": [s for s in sources if s["supports_add_by_id"]],
         "search_sources": [s for s in sources if s["supports_search"]],
     }
+
+
+# ── Categories ─────────────────────────────────────────────────────────
+
+
+def _walk(nodes: List[dict]) -> Iterator[dict]:
+    """Yield every node of a category tree, parents before children."""
+    for node in nodes:
+        yield node
+        yield from _walk(node.get("children") or [])
+
+
+def category_trees() -> List[dict]:
+    """Per-source category trees for the picker, in registry order.
+
+    Each entry is ``{"name", "label", "tree"}``. The picker renders one
+    group per entry, so a single-source deployment gets a flat tree.
+    """
+    return [
+        {"name": src.name, "label": src.label, "tree": src.category_tree()}
+        for src in enabled_sources()
+    ]
+
+
+def leaf_codes_by_source() -> Dict[str, set]:
+    """Selectable leaf codes per enabled source, for form validation."""
+    return {src.name: src.leaf_codes() for src in enabled_sources()}
+
+
+def code_to_label_by_source() -> Dict[str, Dict[str, str]]:
+    """Category code to human label, nested per source."""
+    return {
+        src.name: {node["value"]: node["label"] for node in _walk(src.category_tree())}
+        for src in enabled_sources()
+    }
+
+
+def multiple_sources_enabled() -> bool:
+    """Whether more than one source is turned on."""
+    return len(enabled_names()) > 1
+
+
+def order_source_names(names) -> List[str]:
+    """Source names in registry order, with unregistered ones last.
+
+    Keeps every grouped-by-source list on the site in the same order, and still
+    renders a source a profile references after it left the registry.
+    """
+    wanted = set(names)
+    registry = [src.name for src in enabled_sources()]
+    known = [n for n in registry if n in wanted]
+    return known + sorted(wanted - set(registry))
+
+
+def category_label(source_name: str, code: str) -> str:
+    """Human label for *code* as that source names it, else the bare code."""
+    src = enabled_source(source_name)
+    return src.label_for(code) if src is not None else code
 
 
 def source_label(name: str) -> str:

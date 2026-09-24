@@ -258,6 +258,26 @@ h3 { font-size: 1rem; font-weight: 600; margin-bottom: .35rem; }
   border-color: var(--accent);
 }
 
+/* ── Categories grouped by source ─────────────────────── */
+/* One grid for the whole list, so every source name lines up in the first
+   column and its pills wrap inside the second with a hanging indent. */
+.cat-source-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: .2rem .6rem;
+  align-items: baseline;
+  margin-top: .25rem;
+}
+
+.cat-source-name {
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 /* ── Grid helpers ─────────────────────────────────────── */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }

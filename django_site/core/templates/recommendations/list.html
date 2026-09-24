@@ -105,8 +105,12 @@
 <script>
 /* ── Data from server ──────────────────────────────── */
 const ALL_RECS = JSON.parse('{{ recs_json|escapejs }}');
-const CATEGORIES = JSON.parse('{{ categories_json|escapejs }}');
+/* [{name, label, categories: [{code, label}]}] in registry order. */
+const FILTER_SOURCES = JSON.parse('{{ filter_sources_json|escapejs }}');
+/* {source: {code: label}}. */
 const CODE_TO_LABEL = JSON.parse('{{ code_to_label_json|escapejs }}');
+/* Whether more than one source is enabled site-wide. */
+const SHOW_SOURCE_LABELS = {{ show_source_labels|yesno:"true,false" }};
 const PROFILES = JSON.parse('{{ profiles_json|escapejs }}');
 const PROFILE_PARAM = '{{ profile_param }}';
 const SELECTED_PROFILE_ID = {{ selected_profile.pk|default:'null' }};
@@ -155,9 +159,9 @@ function formatDate(isoStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-/* ── Category label lookup ─────────────────────────── */
-function catLabel(code) {
-  return CODE_TO_LABEL[code] || code;
+/* ── Category label lookup, scoped to the paper's own server ─ */
+function catLabel(sourceName, code) {
+  return (CODE_TO_LABEL[sourceName] || {})[code] || code;
 }
 
 /* ── Format author list (match profile search: cap at 25 + et al.) ─ */
@@ -171,20 +175,47 @@ function formatAuthors(authors) {
 function buildCatFilters() {
   const container = document.getElementById('cat-pills');
   const wrapper = document.getElementById('cat-filters');
-  if (!CATEGORIES.length) { wrapper.style.display = 'none'; return; }
+  const total = FILTER_SOURCES.reduce((n, s) => n + s.categories.length, 0);
+  if (!total) { wrapper.style.display = 'none'; return; }
   wrapper.style.display = '';
   container.innerHTML = '';
-  CATEGORIES.forEach(cat => {
-    const pill = document.createElement('span');
-    pill.className = 'tag-toggle';
-    pill.textContent = catLabel(cat);
-    pill.dataset.value = cat;
-    pill.addEventListener('click', () => {
-      pill.classList.toggle('active');
-      currentPage = 1;
-      applyFilters();
+
+  /* One grid for every source. With a single source enabled the pills go in flat. */
+  let grid = container;
+  if (SHOW_SOURCE_LABELS) {
+    grid = document.createElement('div');
+    grid.className = 'cat-source-grid';
+    container.appendChild(grid);
+  }
+
+  FILTER_SOURCES.forEach(source => {
+    if (!source.categories.length) return;
+
+    let pillBox = grid;
+    if (SHOW_SOURCE_LABELS) {
+      const name = document.createElement('span');
+      name.className = 'cat-source-name';
+      name.textContent = source.label;
+      grid.appendChild(name);
+
+      pillBox = document.createElement('div');
+      grid.appendChild(pillBox);
+    }
+
+    source.categories.forEach(cat => {
+      const pill = document.createElement('span');
+      pill.className = 'tag-toggle';
+      pill.textContent = cat.label;
+      /* Same "source:code" token the category picker submits. */
+      pill.dataset.value = source.name + ':' + cat.code;
+      pill.dataset.code = cat.code;
+      pill.addEventListener('click', () => {
+        pill.classList.toggle('active');
+        currentPage = 1;
+        applyFilters();
+      });
+      pillBox.appendChild(pill);
     });
-    container.appendChild(pill);
   });
 }
 
@@ -215,7 +246,10 @@ function applyFilters() {
           && !(r.abstract || '').toLowerCase().includes(kw)) return false;
     }
     if (f.cats.length > 0) {
-      if (!r.categories || !r.categories.some(c => f.cats.includes(c))) return false;
+      /* Compare tokens rather than bare codes. */
+      const src = r.source || '';
+      if (!r.categories
+          || !r.categories.some(c => f.cats.includes(src + ':' + c))) return false;
     }
     return true;
   });
@@ -297,7 +331,7 @@ function renderCard(r, showDate) {
 
   if (r.categories && r.categories.length) {
     html += '<div style="margin-bottom:.35rem;">';
-    r.categories.forEach(c => { html += '<span class="tag">' + esc(catLabel(c)) + '</span>'; });
+    r.categories.forEach(c => { html += '<span class="tag">' + esc(catLabel(r.source, c)) + '</span>'; });
     html += '</div>';
   }
 
@@ -451,7 +485,11 @@ function restoreFromURL() {
   const cats = params.getAll('cat');
   if (cats.length) {
     document.querySelectorAll('#cat-pills .tag-toggle').forEach(pill => {
-      if (cats.includes(pill.dataset.value)) pill.classList.add('active');
+      /* Links shared before filters were per-source carry a bare code, so
+         match those on the code alone and keep old bookmarks working. */
+      if (cats.includes(pill.dataset.value) || cats.includes(pill.dataset.code)) {
+        pill.classList.add('active');
+      }
     });
   }
   if (params.get('page')) currentPage = parseInt(params.get('page')) || 1;

@@ -48,15 +48,15 @@ async def run_similarity_matching(
     print(f"  Using: {'Section embeddings' if use_sections else 'Abstract embeddings only'}")
     print(f"  Top-K: {top_k}")
 
-    # Get profile categories for filtering
-    profile_categories = []
+    # Get profile categories for filtering, keyed by source name
+    profile_categories = {}
     if profile_id:
         try:
             profile_resp = await api_client.client.get(
                 f"{api_client.base_url}/profiles/{profile_id}"
             )
             profile = profile_resp.json()
-            profile_categories = profile.get("categories", [])
+            profile_categories = profile.get("source_categories") or {}
 
             if profile_categories:
                 print(f"  Profile categories: {profile_categories}")
@@ -87,7 +87,10 @@ async def run_similarity_matching(
                 except Exception:
                     metadata = {}
             paper_cats = metadata.get("categories", [])
-            if any(cat in paper_cats for cat in profile_categories):
+            # Category codes only mean something within their own server, so
+            # compare against the selections made for this paper's source.
+            wanted = profile_categories.get(p.get("source") or "", [])
+            if any(cat in paper_cats for cat in wanted):
                 filtered.add(pid)
 
         candidate_ids = filtered

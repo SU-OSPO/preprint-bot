@@ -57,10 +57,22 @@
     </div>
 
     {# ── Categories ──────────────────────────────── #}
+    {# Named per source whenever more than one source is enabled. #}
     {% if item.categories_display %}
     <div style="margin-top:.5rem;">
       <span class="text-sm text-dim">Categories</span><br>
-      {% for lbl in item.categories_display %}<span class="tag">{{ lbl }}</span>{% endfor %}
+      {% if show_source_labels %}
+        <div class="cat-source-grid">
+          {% for group in item.categories_display %}
+            <span class="cat-source-name">{{ group.source }}</span>
+            <div>{% for lbl in group.labels %}<span class="tag">{{ lbl }}</span>{% endfor %}</div>
+          {% endfor %}
+        </div>
+      {% else %}
+        {% for group in item.categories_display %}
+          {% for lbl in group.labels %}<span class="tag">{{ lbl }}</span>{% endfor %}
+        {% endfor %}
+      {% endif %}
     </div>
     {% endif %}
 

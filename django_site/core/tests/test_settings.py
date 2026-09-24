@@ -50,13 +50,13 @@ class EmailToggleTests(TestCase):
         self.p1 = Profile.objects.create(
             user=self.user,
             name="P1",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
             email_notify=True,
         )
         self.p2 = Profile.objects.create(
             user=self.user,
             name="P2",
-            categories=["cs.LG"],
+            source_categories={"arxiv": ["cs.LG"]},
             email_notify=True,
         )
         self.client.login(username="toggle@example.com", password="SecurePass123!")
@@ -75,7 +75,7 @@ class EmailToggleTests(TestCase):
 
     def test_toggle_other_users_profile_404(self):
         other = PBUser.objects.create_user(email="o@example.com", password="SecurePass123!")
-        op = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
+        op = Profile.objects.create(user=other, name="OP", source_categories={"arxiv": ["cs.AI"]})
         resp = self.client.post(f"/settings/toggle-email/{op.pk}/")
         self.assertEqual(resp.status_code, 404)
 
@@ -107,7 +107,7 @@ class AccountDeactivationTests(TestCase):
         self.profile = Profile.objects.create(
             user=self.user,
             name="P",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
             email_notify=True,
         )
         self.client.login(username="deact@example.com", password="SecurePass123!")
@@ -149,7 +149,7 @@ class AccountDeletionTests(TestCase):
         self.profile = Profile.objects.create(
             user=self.user,
             name="P",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
         )
         self.client.login(username="del@example.com", password="SecurePass123!")
 

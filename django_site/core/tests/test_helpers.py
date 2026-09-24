@@ -199,8 +199,51 @@ class PaperStorageTests(SimpleTestCase):
         self.assertTrue(str(path).endswith(".pdf"))
 
 
+class ProfileCategoryAccessorTests(SimpleTestCase):
+    """Profile.categories_by_source / category_codes / categories_for.
+
+    Unsaved instances are enough — these are pure accessors over the
+    source_categories JSON.
+    """
+
+    def _profile(self, raw):
+        from core.models import Profile
+
+        return Profile(name="P", source_categories=raw)
+
+    def test_dict_passes_through(self):
+        p = self._profile({"arxiv": ["cs.AI"], "biorxiv": ["neuroscience"]})
+        self.assertEqual(
+            p.categories_by_source,
+            {"arxiv": ["cs.AI"], "biorxiv": ["neuroscience"]},
+        )
+
+    def test_legacy_flat_list_reads_as_arxiv(self):
+        """Rows written before the migration held a bare list of arXiv codes."""
+        p = self._profile(["cs.AI", "hep-th"])
+        self.assertEqual(p.categories_by_source, {"arxiv": ["cs.AI", "hep-th"]})
+
+    def test_empty_and_unexpected_shapes_are_empty(self):
+        for raw in ({}, [], None, "cs.AI"):
+            self.assertEqual(self._profile(raw).categories_by_source, {})
+
+    def test_category_codes_dedupes_across_sources(self):
+        p = self._profile({"arxiv": ["cs.AI", "cs.LG"], "biorxiv": ["cs.AI"]})
+        self.assertEqual(p.category_codes, ["cs.AI", "cs.LG"])
+
+    def test_categories_for_missing_source(self):
+        p = self._profile({"arxiv": ["cs.AI"]})
+        self.assertEqual(p.categories_for("arxiv"), ["cs.AI"])
+        self.assertEqual(p.categories_for("biorxiv"), [])
+
+
 class CleanCategoriesTests(SimpleTestCase):
-    """Tests for ProfileForm category validation."""
+    """Tests for ProfileForm category validation.
+
+    The picker submits "source:code" tokens and the form cleans them into a
+    ``{source: [codes]}`` map. Bare codes are still accepted while a single
+    source is enabled (see ProfileForm.clean_categories).
+    """
 
     def _make_form(self, categories_str):
         """Build a ProfileForm with the given categories string and
@@ -220,30 +263,47 @@ class CleanCategoriesTests(SimpleTestCase):
     # ── Valid categories ──────────────────────────────────
 
     def test_single_valid(self):
-        form = self._make_form("cs.AI")
+        form = self._make_form("arxiv:cs.AI")
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data["categories"], ["cs.AI"])
+        self.assertEqual(form.cleaned_data["categories"], {"arxiv": ["cs.AI"]})
 
     def test_multiple_valid(self):
-        form = self._make_form("cs.AI,cs.LG,stat.ML")
+        form = self._make_form("arxiv:cs.AI,arxiv:cs.LG,arxiv:stat.ML")
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(
             form.cleaned_data["categories"],
-            ["cs.AI", "cs.LG", "stat.ML"],
+            {"arxiv": ["cs.AI", "cs.LG", "stat.ML"]},
         )
 
-    def test_whitespace_trimmed(self):
-        form = self._make_form("  cs.AI , cs.LG  ")
+    def test_bare_codes_accepted_with_one_source(self):
+        """A stale cached picker posting un-prefixed codes must still save."""
+        form = self._make_form("cs.AI,cs.LG")
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.cleaned_data["categories"], ["cs.AI", "cs.LG"])
+        self.assertEqual(form.cleaned_data["categories"], {"arxiv": ["cs.AI", "cs.LG"]})
+
+    def test_duplicate_tokens_collapse(self):
+        form = self._make_form("arxiv:cs.AI,arxiv:cs.AI")
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["categories"], {"arxiv": ["cs.AI"]})
+
+    def test_unknown_source_rejected(self):
+        form = self._make_form("nosuchserver:cs.AI")
+        self.assertFalse(form.is_valid())
+        self.assertIn("categories", form.errors)
+        self.assertIn("nosuchserver", form.errors["categories"][0])
+
+    def test_whitespace_trimmed(self):
+        form = self._make_form("  arxiv:cs.AI , arxiv:cs.LG  ")
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["categories"], {"arxiv": ["cs.AI", "cs.LG"]})
 
     def test_physics_hyphenated(self):
         """Categories like hep-th and gr-qc are valid."""
-        form = self._make_form("hep-th,gr-qc,quant-ph")
+        form = self._make_form("arxiv:hep-th,arxiv:gr-qc,arxiv:quant-ph")
         self.assertTrue(form.is_valid(), form.errors)
 
     def test_physics_dotted(self):
-        form = self._make_form("physics.optics,cond-mat.stat-mech")
+        form = self._make_form("arxiv:physics.optics,arxiv:cond-mat.stat-mech")
         self.assertTrue(form.is_valid(), form.errors)
 
     # ── Invalid categories ────────────────────────────────
@@ -259,24 +319,24 @@ class CleanCategoriesTests(SimpleTestCase):
         self.assertIn("categories", form.errors)
 
     def test_unknown_code_rejected(self):
-        form = self._make_form("cs.AI,not.real")
+        form = self._make_form("arxiv:cs.AI,arxiv:not.real")
         self.assertFalse(form.is_valid())
         self.assertIn("categories", form.errors)
         self.assertIn("not.real", form.errors["categories"][0])
 
     def test_parent_group_rejected(self):
         """Parent codes like 'cs' are not leaf categories."""
-        form = self._make_form("cs")
+        form = self._make_form("arxiv:cs")
         self.assertFalse(form.is_valid())
         self.assertIn("categories", form.errors)
 
     def test_completely_bogus_code_rejected(self):
-        form = self._make_form("fake.CATEGORY")
+        form = self._make_form("arxiv:fake.CATEGORY")
         self.assertFalse(form.is_valid())
         self.assertIn("categories", form.errors)
 
     def test_script_injection_rejected(self):
         """XSS attempt should fail validation."""
-        form = self._make_form("cs.AI,</script><script>alert(1)</script>")
+        form = self._make_form("arxiv:cs.AI,arxiv:</script><script>alert(1)</script>")
         self.assertFalse(form.is_valid())
         self.assertIn("categories", form.errors)

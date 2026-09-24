@@ -25,7 +25,6 @@ from django.utils.dateparse import parse_datetime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from preprint_sources.taxonomies.arxiv import ARXIV_CODE_TO_LABEL, ARXIV_CATEGORY_TREE, label_for
 from .auth_backend import (
     authenticate_pbuser,
     login_pbuser,
@@ -51,11 +50,38 @@ from .models import (
     RecommendationRun,
     Summary,
 )
-from .sources import paper_source_context, resolve_source, run_sync
+from .sources import (
+    category_label,
+    category_trees,
+    code_to_label_by_source,
+    multiple_sources_enabled,
+    order_source_names,
+    paper_source_context,
+    resolve_source,
+    run_sync,
+    source_label,
+)
 
 # Users paste several ids at once, comma- or newline-separated; the
 # shape of each id is the source's business, not this module's.
 SOURCE_ID_SEPARATOR_RE = re.compile(r"[,\n]+")
+
+
+def _category_tokens(profile):
+    """A profile's selections in the picker's "source:code" wire format."""
+    return [
+        f"{source_name}:{code}"
+        for source_name, codes in profile.categories_by_source.items()
+        for code in codes
+    ]
+
+
+def _category_picker_context(profile=None):
+    """Context the category picker needs: the trees, plus any selection."""
+    return {
+        "category_sources": category_trees(),
+        "initial_categories": _category_tokens(profile) if profile else [],
+    }
 
 
 # ── Paper storage helpers ──────────────────────────────────────────────────
@@ -761,7 +787,14 @@ def profile_list_view(request):
                 "profile": profile,
                 "paper_count": len(papers),
                 "papers": papers,
-                "categories_display": [label_for(c) for c in (profile.categories or [])],
+                "categories_display": [
+                    {
+                        "source": source_label(source_name),
+                        "labels": [category_label(source_name, c) for c in codes],
+                    }
+                    for source_name, codes in profile.categories_by_source.items()
+                    if codes
+                ],
             }
         )
 
@@ -771,8 +804,8 @@ def profile_list_view(request):
         {
             "pb_user": pb_user,
             "profile_data": profile_data,
-            "code_to_label": ARXIV_CODE_TO_LABEL,
             "search_per_page": django_settings.SOURCE_SEARCH_PER_PAGE,
+            "show_source_labels": multiple_sources_enabled(),
             **paper_source_context(),
         },
     )
@@ -793,7 +826,7 @@ def profile_create_view(request):
                 Profile.objects.create(
                     user=pb_user,
                     name=name,
-                    categories=form.cleaned_data["categories"],
+                    source_categories=form.cleaned_data["categories"],
                     frequency=form.cleaned_data["frequency"],
                     threshold=form.cleaned_data["threshold"],
                     top_x=form.cleaned_data["top_x"],
@@ -809,7 +842,7 @@ def profile_create_view(request):
         {
             "pb_user": pb_user,
             "form": form,
-            "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
+            **_category_picker_context(),
         },
     )
 
@@ -828,7 +861,7 @@ def profile_edit_view(request, profile_id):
                 messages.error(request, f"A profile named '{name}' already exists.")
             else:
                 profile.name = name
-                profile.categories = form.cleaned_data["categories"]
+                profile.source_categories = form.cleaned_data["categories"]
                 profile.frequency = form.cleaned_data["frequency"]
                 profile.threshold = form.cleaned_data["threshold"]
                 profile.top_x = form.cleaned_data["top_x"]
@@ -844,7 +877,7 @@ def profile_edit_view(request, profile_id):
                     0.40, min(0.75, profile.threshold if profile.threshold is not None else 0.6)
                 ),
                 "top_x": profile.top_x or 10,
-                "categories": ",".join(profile.categories or []),
+                "categories": ",".join(_category_tokens(profile)),
             }
         )
 
@@ -856,8 +889,7 @@ def profile_edit_view(request, profile_id):
             "form": form,
             "editing": True,
             "profile": profile,
-            "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
-            "initial_categories_json": json.dumps(profile.categories or []),
+            **_category_picker_context(profile),
         },
     )
 
@@ -905,7 +937,7 @@ def onboarding_profile_view(request):
                 profile = Profile.objects.create(
                     user=pb_user,
                     name=name,
-                    categories=form.cleaned_data["categories"],
+                    source_categories=form.cleaned_data["categories"],
                     frequency=form.cleaned_data["frequency"],
                     threshold=form.cleaned_data["threshold"],
                     top_x=form.cleaned_data["top_x"],
@@ -920,7 +952,7 @@ def onboarding_profile_view(request):
         {
             "pb_user": pb_user,
             "form": form,
-            "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
+            **_category_picker_context(),
         },
     )
 
@@ -942,8 +974,6 @@ def onboarding_papers_view(request, profile_id):
             "pb_user": pb_user,
             "profile": profile,
             "papers": papers,
-            "category_tree_json": json.dumps(ARXIV_CATEGORY_TREE),
-            "code_to_label": ARXIV_CODE_TO_LABEL,
             "search_per_page": django_settings.SOURCE_SEARCH_PER_PAGE,
             **paper_source_context(),
         },
@@ -1393,7 +1423,6 @@ def recommendations_view(request):
                 "pb_user": pb_user,
                 "profiles": [],
                 "recs_json": "[]",
-                "categories_json": "[]",
             },
         )
 
@@ -1414,14 +1443,25 @@ def recommendations_view(request):
         r["date_iso"] = r["date_obj"].isoformat() if r.get("date_obj") else None
         del r["date_obj"]
 
-    # Categories for filter checkboxes
-    if selected_profile:
-        profile_categories = sorted(selected_profile.categories or [])
-    else:
-        cats = set()
-        for p in profiles:
-            cats.update(p.categories or [])
-        profile_categories = sorted(cats)
+    # Categories for the filter pills, grouped by source.
+    scoped = [selected_profile] if selected_profile else list(profiles)
+    codes_by_source = {}
+    for p in scoped:
+        for source_name, codes in p.categories_by_source.items():
+            codes_by_source.setdefault(source_name, set()).update(codes)
+
+    filter_sources = [
+        {
+            "name": name,
+            "label": source_label(name),
+            "categories": [
+                {"code": code, "label": category_label(name, code)}
+                for code in sorted(codes_by_source[name])
+            ],
+        }
+        for name in order_source_names(codes_by_source)
+        if codes_by_source[name]
+    ]
 
     profile_param = selected_profile.pk if selected_profile else "all"
 
@@ -1434,8 +1474,9 @@ def recommendations_view(request):
             "selected_profile": selected_profile,
             "profile_param": profile_param,
             "recs_json": json.dumps(recs),
-            "categories_json": json.dumps(profile_categories),
-            "code_to_label_json": json.dumps(ARXIV_CODE_TO_LABEL),
+            "filter_sources_json": json.dumps(filter_sources),
+            "show_source_labels": multiple_sources_enabled(),
+            "code_to_label_json": json.dumps(code_to_label_by_source()),
             "profiles_json": json.dumps([{"id": p.pk, "name": p.name} for p in profiles]),
         },
     )

@@ -43,6 +43,29 @@ for source in enabled_sources():
 2. Register it in `registry.py` `_CLASSES`.
 3. Add its name to `PREPRINT_ENABLED_SOURCES`.
 
+## The `demo` source (development only)
+
+`demo.py` is a stand-in second server for exercising multi-source behaviour
+before a real one exists — the category picker's per-source tabs, per-source
+validation, grouped paper badges, and the add-paper tabs hiding a capability a
+source lacks (`demo` supports neither search nor add-by-id).
+
+It is registered **only** when named in `PREPRINT_ENABLED_SOURCES`, so by
+default it is absent from `all_source_names()`, `Paper.SOURCE_CHOICES`, the
+admin, and the picker — not merely disabled. `fetch_latest` returns nothing, so
+enabling it cannot put fabricated papers in the database.
+
+```bash
+# Two-source UI, from django_site/
+PREPRINT_ENABLED_SOURCES=arxiv,demo python manage.py runserver
+```
+
+Then open a profile's edit page: the picker shows an **arXiv** tab, a **Demo
+Server** tab, and the source-add control. Note that `demo` adds a value to
+`Paper.source`'s `choices`, so `makemigrations` will report an unapplied model
+change while it is on; that is cosmetic (choices carry no SQL) and goes away
+when you unset the variable. Do not commit a migration generated in this mode.
+
 ## Development
 
 From `packages/preprint_sources/`:

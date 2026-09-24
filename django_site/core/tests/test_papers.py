@@ -19,7 +19,7 @@ class PaperUploadDedupTests(TestCase):
         self.profile = Profile.objects.create(
             user=self.user,
             name="Test Profile",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
         )
         self.client.login(username="uploader@example.com", password="SecurePass123!")
 
@@ -61,7 +61,7 @@ class PaperUploadDedupTests(TestCase):
         profile2 = Profile.objects.create(
             user=self.user,
             name="Second Profile",
-            categories=["cs.LG"],
+            source_categories={"arxiv": ["cs.LG"]},
         )
         content = b"%PDF-1.4 shared paper"
         self.client.post(
@@ -119,7 +119,7 @@ class PaperDeleteTests(TestCase):
         self.profile = Profile.objects.create(
             user=self.user,
             name="Del Profile",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
         )
         self.corpus = Corpus.objects.create(
             user=self.user,
@@ -149,7 +149,7 @@ class PaperDeleteTests(TestCase):
         other_profile = Profile.objects.create(
             user=other,
             name="Other",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
         )
         resp = self.client.post(f"/profiles/{other_profile.pk}/papers/{self.paper.pk}/delete/")
         self.assertEqual(resp.status_code, 404)
@@ -167,7 +167,7 @@ class PaperViewTests(TestCase):
         self.profile = Profile.objects.create(
             user=self.user,
             name="View Profile",
-            categories=["cs.AI"],
+            source_categories={"arxiv": ["cs.AI"]},
         )
         self.corpus = Corpus.objects.create(
             user=self.user,

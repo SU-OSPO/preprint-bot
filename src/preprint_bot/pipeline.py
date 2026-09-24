@@ -9,7 +9,7 @@ import logging
 import sys
 import traceback
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 from datetime import datetime, timezone, date as date_type
 from email.utils import parsedate_to_datetime
 import requests
@@ -33,35 +33,44 @@ from .db_similarity_matcher import run_similarity_matching
 from preprint_sources import ArxivSource, PaperEntry
 
 
-async def get_all_profile_categories(api_client: APIClient) -> List[str]:
+async def get_all_profile_categories(api_client: APIClient) -> Dict[str, List[str]]:
+    """Union every profile's category selections, keyed by source name."""
     try:
         response = await api_client.client.get(f"{api_client.base_url}/profiles/")
         response.raise_for_status()
         profiles = response.json()
-        all_categories = set()
+        by_source: Dict[str, set] = {}
         for profile in profiles:
-            all_categories.update(profile.get("categories", []))
-        categories_list = list(all_categories)
-        print(
-            f"Found {len(categories_list)} unique categories from user profiles: {categories_list}"
-        )
-        return categories_list
+            for source_name, codes in (profile.get("source_categories") or {}).items():
+                by_source.setdefault(source_name, set()).update(codes or [])
+        result = {name: sorted(codes) for name, codes in by_source.items() if codes}
+        total = sum(len(c) for c in result.values())
+        print(f"Found {total} unique categories from user profiles: {result}")
+        return result
     except Exception as e:
         print(f"Error fetching profile categories: {e}")
-        return []
+        return {}
 
 
 async def fetch_preprint_papers(
-    categories: List[str],
+    categories_by_source: Dict[str, List[str]],
     target_date: datetime = None,
 ) -> List[PaperEntry]:
-    """Fetch new papers from configured preprint sources.
+    """Fetch new papers from the configured preprint sources.
 
     When ``target_date`` is None, fetches the latest announcement.
     When a date is provided, fetches papers for that specific
     historical date.
+
+    TODO: Only arXiv is fetched for now; fanning this out over
+    ``preprint_sources.enabled_sources()`` is the remaining half of the
+    multi-source migration, and this signature is the seam for it.
     """
     source = ArxivSource()
+    categories = categories_by_source.get(source.name, [])
+    if not categories:
+        print(f"No {source.label} categories selected — nothing to fetch.")
+        return []
 
     if target_date is None:
         return await source.fetch_latest(categories)
@@ -477,9 +486,9 @@ async def run_pipeline(args):
         print("\n" + "=" * 60)
         print("STEP 2: Getting Categories from User Profiles")
         print("=" * 60)
-        categories = await get_all_profile_categories(api_client)
+        categories_by_source = await get_all_profile_categories(api_client)
 
-        if not categories:
+        if not categories_by_source:
             print("ERROR: No categories found in user profiles.")
             print("Please create user profiles with categories before running the pipeline.")
             if processing_run_id is not None:
@@ -497,7 +506,7 @@ async def run_pipeline(args):
         print("STEP 3: Fetching Preprint Papers")
         print("=" * 60)
         entries = await fetch_preprint_papers(
-            categories,
+            categories_by_source,
             target_date=target_date if args.date else None,
         )
 

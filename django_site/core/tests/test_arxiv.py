@@ -37,7 +37,9 @@ class AddByIdAjaxTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(email="arxiv@example.com", password="SecurePass123!")
-        self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
+        self.profile = Profile.objects.create(
+            user=self.user, name="P", source_categories={"arxiv": ["cs.AI"]}
+        )
         self.client.login(username="arxiv@example.com", password="SecurePass123!")
 
     def _ajax_add(self, profile_id, ids, source="arxiv"):
@@ -121,7 +123,7 @@ class AddByIdAjaxTests(TestCase):
     def test_add_other_users_profile_404(self, mock_dl):
         mock_dl.return_value = ([], [])
         other = PBUser.objects.create_user(email="other@example.com", password="SecurePass123!")
-        op = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
+        op = Profile.objects.create(user=other, name="OP", source_categories={"arxiv": ["cs.AI"]})
         resp = self._ajax_add(op.pk, "2301.00001")
         self.assertEqual(resp.status_code, 404)
 
@@ -139,7 +141,9 @@ class AddByIdDedupTests(TestCase):
         self.addCleanup(self._override_settings.disable)
 
         self.user = PBUser.objects.create_user(email="dedup@example.com", password="SecurePass123!")
-        self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
+        self.profile = Profile.objects.create(
+            user=self.user, name="P", source_categories={"arxiv": ["cs.AI"]}
+        )
         self.client.login(username="dedup@example.com", password="SecurePass123!")
 
     def _ajax_add(self, ids):
@@ -221,7 +225,9 @@ class SearchApiTests(TestCase):
         self.user = PBUser.objects.create_user(
             email="search@example.com", password="SecurePass123!"
         )
-        self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
+        self.profile = Profile.objects.create(
+            user=self.user, name="P", source_categories={"arxiv": ["cs.AI"]}
+        )
         self.client.login(username="search@example.com", password="SecurePass123!")
 
     def _search(self, **params):
@@ -325,6 +331,6 @@ class SearchApiTests(TestCase):
     @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
     def test_search_other_users_profile_404(self):
         other = PBUser.objects.create_user(email="o2@example.com", password="SecurePass123!")
-        op = Profile.objects.create(user=other, name="OP", categories=["cs.AI"])
+        op = Profile.objects.create(user=other, name="OP", source_categories={"arxiv": ["cs.AI"]})
         resp = self.client.get(f"/profiles/{op.pk}/search/", {"title": "x"})
         self.assertEqual(resp.status_code, 404)

@@ -115,20 +115,58 @@ class ProfileForm(forms.Form):
     categories = forms.CharField(
         widget=forms.HiddenInput(),
         required=True,
-        help_text="Selected via the category tree widget (stored as comma-separated codes).",
+        help_text=(
+            "Selected via the category tree widget, as comma-separated " "source:code tokens."
+        ),
     )
 
     def clean_categories(self):
-        from preprint_sources.taxonomies.arxiv import ARXIV_LEAF_CODES
+        """Parse "source:code" tokens into ``{source: [codes]}``.
+
+        Split on the first colon only, since a server's own codes may contain
+        one. A token with no colon is accepted as belonging to the sole
+        enabled source but is rejected once more than one source is enabled.
+        """
+        from .sources import leaf_codes_by_source
 
         raw = self.cleaned_data.get("categories", "")
-        cats = [c.strip() for c in raw.split(",") if c.strip()]
-        if not cats:
-            raise forms.ValidationError("Select at least one arXiv category.")
-        invalid = [c for c in cats if c not in ARXIV_LEAF_CODES]
-        if invalid:
-            raise forms.ValidationError(f"Unknown category code(s): {', '.join(invalid)}")
-        return cats
+        valid = leaf_codes_by_source()
+        lone_source = next(iter(valid)) if len(valid) == 1 else None
+
+        selected = {}
+        unknown_sources = []
+        invalid_codes = []
+
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if ":" in token:
+                source_name, _, code = token.partition(":")
+                source_name, code = source_name.strip(), code.strip()
+            else:
+                source_name, code = lone_source, token
+            if not source_name or not code:
+                invalid_codes.append(token)
+                continue
+            if source_name not in valid:
+                if source_name not in unknown_sources:
+                    unknown_sources.append(source_name)
+                continue
+            if code not in valid[source_name]:
+                invalid_codes.append(code)
+                continue
+            codes = selected.setdefault(source_name, [])
+            if code not in codes:
+                codes.append(code)
+
+        if unknown_sources:
+            raise forms.ValidationError(f"Unknown source(s): {', '.join(unknown_sources)}")
+        if invalid_codes:
+            raise forms.ValidationError(f"Unknown category code(s): {', '.join(invalid_codes)}")
+        if not selected:
+            raise forms.ValidationError("Select at least one category.")
+        return selected
 
 
 # ── Paper upload ───────────────────────────────────────────────────────────

@@ -153,7 +153,7 @@ class TestCandidateSelection:
         client.base_url = "http://testserver"
         client.client.get = AsyncMock(
             return_value=MagicMock(
-                json=MagicMock(return_value={"categories": profile_categories or []})
+                json=MagicMock(return_value={"source_categories": profile_categories or {}})
             )
         )
         client.get_papers_by_corpus = AsyncMock(return_value=papers or [])
@@ -190,8 +190,8 @@ class TestCandidateSelection:
         from preprint_bot.db_similarity_matcher import run_similarity_matching
 
         client = self._mock_api_client(
-            profile_categories=["cs.GL"],
-            papers=[{"id": 10, "metadata": {"categories": ["cs.LG"]}}],
+            profile_categories={"arxiv": ["cs.GL"]},
+            papers=[{"id": 10, "source": "arxiv", "metadata": {"categories": ["cs.LG"]}}],
         )
 
         run_id = await run_similarity_matching(
@@ -213,8 +213,8 @@ class TestCandidateSelection:
         from preprint_bot.db_similarity_matcher import run_similarity_matching
 
         client = self._mock_api_client(
-            profile_categories=["cs.GL"],
-            papers=[{"id": 10, "metadata": {"categories": ["cs.GL"]}}],
+            profile_categories={"arxiv": ["cs.GL"]},
+            papers=[{"id": 10, "source": "arxiv", "metadata": {"categories": ["cs.GL"]}}],
         )
 
         await run_similarity_matching(
@@ -229,6 +229,34 @@ class TestCandidateSelection:
         # First call is the user corpus, second is the restricted arXiv fetch.
         arxiv_call = client.get_embeddings_by_corpus.call_args_list[1]
         assert arxiv_call.kwargs["paper_ids"] == [10]
+
+    @pytest.mark.asyncio
+    async def test_category_filter_does_not_match_across_sources(self):
+        """A code selected on one server must not admit papers from another.
+
+        Category codes are only unique within a preprint server, so a paper
+        whose own source was never selected has to be filtered out even when
+        its codes happen to collide with another server's.
+        """
+        from preprint_bot.db_similarity_matcher import run_similarity_matching
+
+        client = self._mock_api_client(
+            profile_categories={"arxiv": ["cs.GL"]},
+            papers=[{"id": 10, "source": "biorxiv", "metadata": {"categories": ["cs.GL"]}}],
+        )
+
+        run_id = await run_similarity_matching(
+            client,
+            user_id=1,
+            user_corpus_id=1,
+            arxiv_corpus_id=2,
+            profile_id=7,
+            paper_ids={10},
+        )
+
+        assert run_id == 1364
+        client.get_embeddings_by_corpus.assert_not_called()
+        client.create_recommendation.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_no_paper_ids_still_compares_against_whole_corpus(self):
