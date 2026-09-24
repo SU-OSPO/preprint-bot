@@ -30,7 +30,7 @@ from .extract_grobid import extract_grobid_sections
 from .summarization_script import TransformerSummarizer
 from .user_mode_processor import process_unprocessed_papers
 from .db_similarity_matcher import run_similarity_matching
-from preprint_sources import ArxivSource, PaperEntry
+from preprint_sources import PaperEntry, enabled_names, enabled_sources
 
 
 async def get_all_profile_categories(api_client: APIClient) -> Dict[str, List[str]]:
@@ -56,26 +56,59 @@ async def fetch_preprint_papers(
     categories_by_source: Dict[str, List[str]],
     target_date: datetime = None,
 ) -> List[PaperEntry]:
-    """Fetch new papers from the configured preprint sources.
+    """Fetch new papers from every enabled source that has categories selected.
 
-    When ``target_date`` is None, fetches the latest announcement.
-    When a date is provided, fetches papers for that specific
-    historical date.
+    When ``target_date`` is None, fetches each source's latest announcement.
+    When a date is given, fetches that date from the sources that support
+    historical fetching; the rest are skipped.
 
-    TODO: Only arXiv is fetched for now; fanning this out over
-    ``preprint_sources.enabled_sources()`` is the remaining half of the
-    multi-source migration, and this signature is the seam for it.
+    A source that errors is reported and skipped. If nothing succeeds
+    and something failed, a runtime error is raised.
     """
-    source = ArxivSource()
-    categories = categories_by_source.get(source.name, [])
-    if not categories:
-        print(f"No {source.label} categories selected — nothing to fetch.")
+    selected = {name: codes for name, codes in categories_by_source.items() if codes}
+
+    # Selections can outlive a source being turned off; they are kept on the
+    # profile deliberately, but there is nothing to fetch from them.
+    unreachable = sorted(set(selected) - set(enabled_names()))
+    if unreachable:
+        print(f"  Ignoring categories for disabled source(s): {', '.join(unreachable)}")
+
+    sources = [src for src in enabled_sources() if selected.get(src.name)]
+    if not sources:
+        print("  No enabled source has categories selected — nothing to fetch.")
         return []
 
-    if target_date is None:
-        return await source.fetch_latest(categories)
-    else:
-        return await source.fetch_by_date(target_date, categories)
+    entries: List[PaperEntry] = []
+    failures: List[str] = []
+    succeeded = 0
+
+    for source in sources:
+        categories = selected[source.name]
+        try:
+            if target_date is None:
+                found = await source.fetch_latest(categories)
+            else:
+                found = await source.fetch_by_date(target_date, categories)
+        except NotImplementedError:
+            # fetch_by_date is an optional capability of PreprintSource.
+            print(f"  {source.label}: no historical fetch support — skipped.")
+            continue
+        except Exception as e:
+            failures.append(f"{source.label} ({type(e).__name__}: {e})")
+            print(f"  {source.label}: FAILED — {type(e).__name__}: {e}")
+            continue
+
+        succeeded += 1
+        entries.extend(found)
+        print(f"  {source.label}: {len(found)} papers")
+
+    if failures and succeeded == 0:
+        raise RuntimeError("every preprint source failed: " + "; ".join(failures))
+    if failures:
+        print(f"  WARNING: continuing without {len(failures)} failed source(s).")
+
+    print(f"  Total: {len(entries)} papers from {succeeded} source(s)")
+    return entries
 
 
 async def store_fetched_papers(
@@ -110,7 +143,7 @@ async def store_fetched_papers(
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
     new_paper_ids: set[int] = set()  # only newly created papers
     for paper in entries:
-        existing = await api_client.get_paper_by_source_id(paper.source_id)
+        existing = await api_client.get_paper_by_source_id(paper.source_id, paper.source)
         if existing:
             paper_ids.add(existing["id"])
             continue

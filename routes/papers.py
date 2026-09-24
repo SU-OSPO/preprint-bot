@@ -134,19 +134,35 @@ async def update_processed_text_path(paper_id: int, path: str = Query(...)):
 
 @router.get("/", response_model=List[PaperResponse])
 async def get_papers(
-    corpus_id: Optional[int] = Query(None), source_id: Optional[str] = Query(None)
+    corpus_id: Optional[int] = Query(None),
+    source_id: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
 ):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         if source_id is not None:
-            rows = await conn.fetch(
-                """
-                SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
-                       processed_text_path, submitted_date, source, created_at
-                FROM papers WHERE source_id = $1
-                """,
-                source_id,
-            )
+            # An id is only unique within its own server, so callers that
+            # know the source must be able to say so — otherwise a paper
+            # from one server masks a same-numbered paper from another.
+            if source is not None:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
+                           processed_text_path, submitted_date, source, created_at
+                    FROM papers WHERE source_id = $1 AND source = $2
+                    """,
+                    source_id,
+                    source,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, corpus_id, source_id, title, abstract, metadata, pdf_path,
+                           processed_text_path, submitted_date, source, created_at
+                    FROM papers WHERE source_id = $1
+                    """,
+                    source_id,
+                )
         elif corpus_id is not None:
             rows = await conn.fetch(
                 """

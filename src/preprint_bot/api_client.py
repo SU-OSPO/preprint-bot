@@ -162,10 +162,18 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
-    async def get_paper_by_source_id(self, source_id: str) -> Optional[Dict]:
-        response = await self.client.get(
-            f"{self.base_url}/papers/", params={"source_id": source_id}
-        )
+    async def get_paper_by_source_id(
+        self, source_id: str, source: Optional[str] = None
+    ) -> Optional[Dict]:
+        """Look up a paper by its id, scoped to *source* when known.
+
+        Ids are only unique within a server, so omitting *source* can return
+        a different server's paper that happens to share the id.
+        """
+        params = {"source_id": source_id}
+        if source:
+            params["source"] = source
+        response = await self.client.get(f"{self.base_url}/papers/", params=params)
         response.raise_for_status()
         papers = response.json()
         return papers[0] if papers else None
