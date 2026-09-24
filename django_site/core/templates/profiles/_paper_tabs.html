@@ -1,4 +1,4 @@
-{# Add-paper interface: upload / add-by-id / search. #}
+{# Add-paper interface: upload / add-by-id / search / copy from existing profile. #}
 {# Expects `p` (the profile) plus `add_sources` and `search_sources` from #}
 {# core.sources.paper_source_context(). Optional `next_url` makes the #}
 {# non-AJAX upload return there instead of the profiles list (onboarding). #}
@@ -14,6 +14,7 @@
         Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}
       </button>
     {% endif %}
+    <button type="button" class="tab-btn" data-tab="existing-{{ p.pk }}">Copy from Existing Profile</button>
   </div>
 
   {# ── Tab 1: Upload PDF ────────────── #}
@@ -98,4 +99,16 @@
     <div class="search-results" style="margin-top:.75rem;"></div>
   </div>
   {% endif %}
+
+  {# ── Tab 4: Copy from existing profile ─ #}
+  <div class="tab-panel" id="existing-{{ p.pk }}">
+    <div class="form-group">
+      <label>Title or author</label>
+      <input type="text" class="existing-search-input" placeholder="e.g. neural network…">
+    </div>
+
+    {# results injected here by JS #}
+    <div class="existing-results" style="margin-top:.75rem;"></div>
+  </div>
+
 </div>{# /paper-tabs #}
