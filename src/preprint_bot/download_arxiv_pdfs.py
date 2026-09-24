@@ -14,9 +14,17 @@ from .config import USER_AGENT
 HEADERS = {"User-Agent": USER_AGENT}
 
 
-def safe_filename(source_id: str) -> str:
-    """Filesystem-safe stem for a source id (e.g. bioRxiv DOIs contain '/')."""
-    return source_id.replace("/", "_")
+def safe_filename(source_id: str, source: str = "") -> str:
+    """Filesystem-safe stem for a source id (e.g. bioRxiv DOIs contain '/').
+
+    The source is part of the stem because ids are only unique within their
+    own server: without it two servers sharing an id write to one file, and
+    the skip-if-exists check silently leaves the second paper pointing at the
+    first one's PDF. Omitting *source* keeps the pre-multi-source naming, so
+    paths already stored on existing rows still resolve.
+    """
+    stem = f"{source}_{source_id}" if source else source_id
+    return stem.replace("/", "_")
 
 
 class AdaptiveRateLimiter:
@@ -174,7 +182,8 @@ def download_arxiv_pdfs(
         # pipeline.store_fetched_papers' pdf_path.
         source_id = paper["source_id"]
         pdf_url = paper["pdf_url"]
-        pdf_path = os.path.join(output_folder, f"{safe_filename(source_id)}.pdf")
+        stem = safe_filename(source_id, paper.get("source", ""))
+        pdf_path = os.path.join(output_folder, f"{stem}.pdf")
 
         # Skip if exists
         if os.path.exists(pdf_path):

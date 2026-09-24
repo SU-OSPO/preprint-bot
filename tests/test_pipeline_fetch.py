@@ -150,3 +150,40 @@ class TestHistoricalFetch:
 
         assert [e.source_id for e in entries] == ["1"]
         assert "no historical fetch support" in capsys.readouterr().out
+
+
+class TestSourceScopedMatching:
+    """Ids are only unique within a server, so neither downstream step may
+    key on the id alone once more than one source is fetched."""
+
+    def test_papers_matching_does_not_cross_sources(self):
+        from preprint_bot.pipeline import _papers_matching
+
+        rows = [
+            {"id": 1, "source": "arxiv", "source_id": "2401.00001"},
+            {"id": 2, "source": "biorxiv", "source_id": "2401.00001"},
+        ]
+        matched = _papers_matching(rows, [_entry("biorxiv", "2401.00001")])
+        assert [p["id"] for p in matched] == [2]
+
+    def test_papers_matching_keeps_every_fetched_row(self):
+        from preprint_bot.pipeline import _papers_matching
+
+        rows = [
+            {"id": 1, "source": "arxiv", "source_id": "a"},
+            {"id": 2, "source": "biorxiv", "source_id": "b"},
+            {"id": 3, "source": "arxiv", "source_id": "unfetched"},
+        ]
+        matched = _papers_matching(rows, [_entry("arxiv", "a"), _entry("biorxiv", "b")])
+        assert [p["id"] for p in matched] == [1, 2]
+
+    def test_pdf_stem_is_namespaced_by_source(self):
+        """Two servers sharing an id must not write to the same file."""
+        from preprint_bot.download_arxiv_pdfs import safe_filename
+
+        assert safe_filename("2401.00001", "arxiv") != safe_filename("2401.00001", "biorxiv")
+        # DOI-style ids stay filesystem-safe.
+        assert "/" not in safe_filename("10.1101/2024.01.01.123456", "biorxiv")
+        # Without a source the pre-multi-source name is unchanged, so paths
+        # already stored on existing rows keep resolving.
+        assert safe_filename("2401.00001") == "2401.00001"

@@ -176,7 +176,7 @@ async def store_fetched_papers(
                     **paper.metadata,
                 },
                 source=paper.source,
-                pdf_path=str(PDF_DIR / f"{safe_filename(paper.source_id)}.pdf"),
+                pdf_path=str(PDF_DIR / f"{safe_filename(paper.source_id, paper.source)}.pdf"),
                 submitted_date=submitted_date,
             )
             paper_ids.add(created["id"])
@@ -189,7 +189,15 @@ async def store_fetched_papers(
 
     if not skip_download and stored_count > 0:
         stats = download_arxiv_pdfs(
-            [{"pdf_url": p.pdf_url, "source_id": p.source_id, "arxiv_url": p.url} for p in entries],
+            [
+                {
+                    "pdf_url": p.pdf_url,
+                    "source_id": p.source_id,
+                    "source": p.source,
+                    "arxiv_url": p.url,
+                }
+                for p in entries
+            ],
             output_folder=str(PDF_DIR),
             use_s3=False,
             min_delay=3,
@@ -209,6 +217,17 @@ async def store_fetched_papers(
     return corpus["id"], paper_ids, new_paper_ids, stored_count
 
 
+def _papers_matching(papers: List[dict], entries: List[PaperEntry]) -> List[dict]:
+    """Corpus rows corresponding to *entries*, keyed by source and id.
+
+    Keyed on the pair because an id is only unique within its own server: on
+    the id alone, a row fetched from one source would also match an entry
+    from another and be re-parsed and re-summarized every run.
+    """
+    keys = {(e.source, e.source_id) for e in entries}
+    return [p for p in papers if (p.get("source"), p.get("source_id")) in keys]
+
+
 async def _parse_and_store_sections(
     api_client: APIClient, corpus_id: int, entries: List[PaperEntry]
 ):
@@ -218,8 +237,7 @@ async def _parse_and_store_sections(
     this goes straight from GROBID's structured output to the database.
     """
     papers = await api_client.get_papers_by_corpus(corpus_id)
-    entry_ids = {e.source_id for e in entries}
-    papers = [p for p in papers if p.get("source_id") in entry_ids]
+    papers = _papers_matching(papers, entries)
 
     parsed = 0
     for paper in papers:
@@ -262,8 +280,7 @@ async def summarize_papers(
 ):
     print(f"\nGenerating summaries using {type(summarizer).__name__}...")
     papers = await api_client.get_papers_by_corpus(corpus_id)
-    entry_ids = {e.source_id for e in entries}
-    papers = [p for p in papers if p.get("source_id") in entry_ids]
+    papers = _papers_matching(papers, entries)
 
     if paper_ids is not None:
         papers = [p for p in papers if p["id"] in paper_ids]
