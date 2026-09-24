@@ -14,10 +14,15 @@ class RegistrationClosedTests(TestCase):
         self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
 
     def test_register_post_blocked(self):
-        resp = self.client.post("/auth/register/", {
-            "email": "blocked@example.com", "name": "",
-            "password": "GoodPassword99!", "confirm_password": "GoodPassword99!",
-        })
+        resp = self.client.post(
+            "/auth/register/",
+            {
+                "email": "blocked@example.com",
+                "name": "",
+                "password": "GoodPassword99!",
+                "confirm_password": "GoodPassword99!",
+            },
+        )
         self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
         self.assertFalse(PBUser.objects.filter(email="blocked@example.com").exists())
 
@@ -44,7 +49,8 @@ class RegistrationOpenLinkVisibleTests(TestCase):
 
 @override_settings(
     REGISTRATION_OPEN=False,
-    ORCID_CLIENT_ID="APP-TEST123", ORCID_CLIENT_SECRET="test-secret",
+    ORCID_CLIENT_ID="APP-TEST123",
+    ORCID_CLIENT_SECRET="test-secret",
 )
 class RegistrationClosedOrcidTests(TestCase):
     """Closed registration also blocks ORCID new-account creation, but still
@@ -54,7 +60,9 @@ class RegistrationClosedOrcidTests(TestCase):
     @patch("core.orcid.exchange_code")
     def test_orcid_new_account_blocked(self, mock_exchange, mock_email):
         mock_exchange.return_value = {
-            "orcid": "0000-0003-1111-2222", "name": "New", "access_token": "t",
+            "orcid": "0000-0003-1111-2222",
+            "name": "New",
+            "access_token": "t",
         }
         session = self.client.session
         session["orcid_oauth_state"] = "st"
@@ -73,11 +81,14 @@ class RegistrationClosedOrcidTests(TestCase):
     @patch("core.orcid.exchange_code")
     def test_existing_orcid_user_still_signs_in(self, mock_exchange):
         PBUser.objects.create_user(
-            email="existing@example.com", password="SecurePass123!",
+            email="existing@example.com",
+            password="SecurePass123!",
             orcid_id="0000-0003-6666-7777",
         )
         mock_exchange.return_value = {
-            "orcid": "0000-0003-6666-7777", "name": "E", "access_token": "t",
+            "orcid": "0000-0003-6666-7777",
+            "name": "E",
+            "access_token": "t",
         }
         session = self.client.session
         session["orcid_oauth_state"] = "st"

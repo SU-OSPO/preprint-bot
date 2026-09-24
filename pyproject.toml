@@ -127,3 +127,18 @@ where = ["src"]
 # `src` layout: put the package root on sys.path so `import preprint_bot`
 # resolves even without an editable install.
 pythonpath = ["src"]
+
+# Line length matches `max-line-length` in .flake8.
+[tool.black]
+line-length = 100
+# Pinned to the minimum supported Python so formatting does not vary with the
+# interpreter black happens to run under.
+target-version = ["py310"]
+# django rerenders migrations, so skip them.
+force-exclude = "/migrations/"
+
+# `profile = "black"` keeps isort from fighting the formatter black enforces.
+[tool.isort]
+profile = "black"
+line_length = 100
+extend_skip_glob = ["*/migrations/*"]

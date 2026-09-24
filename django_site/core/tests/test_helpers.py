@@ -134,9 +134,7 @@ class ParseArxivIdsTests(SimpleTestCase):
         )
 
     def test_mixed_formats(self):
-        result = _parse_arxiv_ids(
-            "https://arxiv.org/abs/2601.19018, arXiv:2301.12345, 2302.67890"
-        )
+        result = _parse_arxiv_ids("https://arxiv.org/abs/2601.19018, arXiv:2301.12345, 2302.67890")
         self.assertEqual(result, ["2601.19018", "2301.12345", "2302.67890"])
 
     # ── Deduplication ─────────────────────────────────────
@@ -195,6 +193,7 @@ class PaperStorageTests(SimpleTestCase):
 
     def test_paper_storage_path_format(self):
         from core.views import _paper_storage_path
+
         path = _paper_storage_path("a3f7b2c9e8d1" + "0" * 52)
         self.assertIn("a3", str(path))  # first two chars as subdirectory
         self.assertTrue(str(path).endswith(".pdf"))
@@ -207,13 +206,16 @@ class CleanCategoriesTests(SimpleTestCase):
         """Build a ProfileForm with the given categories string and
         all other fields set to valid defaults."""
         from core.forms import ProfileForm
-        return ProfileForm(data={
-            "name": "Test Profile",
-            "frequency": "weekly",
-            "threshold": "0.6",
-            "top_x": "10",
-            "categories": categories_str,
-        })
+
+        return ProfileForm(
+            data={
+                "name": "Test Profile",
+                "frequency": "weekly",
+                "threshold": "0.6",
+                "top_x": "10",
+                "categories": categories_str,
+            }
+        )
 
     # ── Valid categories ──────────────────────────────────
 
@@ -275,6 +277,6 @@ class CleanCategoriesTests(SimpleTestCase):
 
     def test_script_injection_rejected(self):
         """XSS attempt should fail validation."""
-        form = self._make_form('cs.AI,</script><script>alert(1)</script>')
+        form = self._make_form("cs.AI,</script><script>alert(1)</script>")
         self.assertFalse(form.is_valid())
         self.assertIn("categories", form.errors)

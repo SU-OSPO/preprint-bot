@@ -40,6 +40,7 @@
 # SUPPORT_EMAIL = "support@example.com"
 # SITE_NAME = "Preprint Bot"
 # SHOW_BETA_BANNER = False          # set to False once out of beta
+# FONT_FAMILY = "Georgia, serif"    # Optional font-family override. Fonts must be available to the browser
 
 # ── Static files (production) ─────────────────────────────────────────────
 # STATIC_ROOT = "/var/www/preprint-bot/static/"

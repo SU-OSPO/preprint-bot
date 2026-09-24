@@ -3,6 +3,7 @@ Module for embedding paper content using Sentence Transformers.
 Database-integrated version — reads content from the API and stores
 embeddings back via the same API.
 """
+
 import torch
 from sentence_transformers import SentenceTransformer
 from typing import Dict, Set, Optional
@@ -11,7 +12,7 @@ from typing import Dict, Set, Optional
 def load_model(model_name: str) -> SentenceTransformer:
     print(f"Loading model: {model_name}")
     model = SentenceTransformer(model_name)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
     print(f"Model moved to {device}")
     return model
@@ -32,24 +33,24 @@ async def embed_single_paper(
     """
 
     # Abstract embedding from title + abstract (fall back to sections if too short)
-    title = paper.get('title') or ''
-    abstract = paper.get('abstract') or ''
-    abstract_text = f'{title}. {abstract}'.strip()
+    title = paper.get("title") or ""
+    abstract = paper.get("abstract") or ""
+    abstract_text = f"{title}. {abstract}".strip()
 
     # If title+abstract is too short, supplement with early section text
-    sections = await api_client.get_sections_by_paper(paper['id'])
+    sections = await api_client.get_sections_by_paper(paper["id"])
     if len(abstract_text.split()) <= 5 and sections:
-        section_text = ' '.join(
-            s.get('text') or '' for s in sections[:3]  # first 3 sections
+        section_text = " ".join(
+            s.get("text") or "" for s in sections[:3]  # first 3 sections
         ).strip()
-        abstract_text = f'{abstract_text} {section_text}'.strip()
+        abstract_text = f"{abstract_text} {section_text}".strip()
 
     if len(abstract_text.split()) > 5:  # need some content to embed
         emb = model.encode([abstract_text], normalize_embeddings=True)[0]
         await api_client.create_embedding(
-            paper_id=paper['id'],
+            paper_id=paper["id"],
             embedding=emb.tolist(),
-            type='abstract',
+            type="abstract",
             model_name=model_name,
         )
         abstract_stored = 1
@@ -58,18 +59,16 @@ async def embed_single_paper(
 
     # Section embeddings — batch encode for efficiency
     sections_stored = 0
-    eligible_sections = [
-        s for s in sections if len((s.get('text') or '').split()) > 20
-    ]
+    eligible_sections = [s for s in sections if len((s.get("text") or "").split()) > 20]
     if eligible_sections:
-        texts = [s.get('text') or '' for s in eligible_sections]
+        texts = [s.get("text") or "" for s in eligible_sections]
         embeddings = model.encode(texts, normalize_embeddings=True)
         for section, emb in zip(eligible_sections, embeddings):
             await api_client.create_embedding(
-                paper_id=paper['id'],
-                section_id=section['id'],
+                paper_id=paper["id"],
+                section_id=section["id"],
                 embedding=emb.tolist(),
-                type='section',
+                type="section",
                 model_name=model_name,
             )
             sections_stored += 1
@@ -97,7 +96,7 @@ async def embed_and_store_papers(
 
     papers = await api_client.get_papers_by_corpus(corpus_id)
     if paper_ids is not None:
-        papers = [p for p in papers if p['id'] in paper_ids]
+        papers = [p for p in papers if p["id"] in paper_ids]
     print(f"  Papers to embed: {len(papers)}")
 
     if not papers:
@@ -122,7 +121,7 @@ async def embed_and_store_papers(
             print(f"  Failed to embed paper {paper.get('source_id', paper['id'])}: {e}")
             skipped += 1
 
-    print(f"\nEmbedding complete!")
+    print("\nEmbedding complete!")
     print(f"  Abstract embeddings: {abstract_count}")
     print(f"  Section embeddings: {section_count}")
     if skipped:

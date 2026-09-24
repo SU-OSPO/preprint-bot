@@ -5,6 +5,7 @@ Primary method: RSS feed (contains exactly the latest announcement).
 Fallback: arXiv search API with submission-window calculation (for
 backfilling historical dates).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,9 +35,7 @@ _API_BASE = "https://export.arxiv.org/api/query"
 _LATEX2TEXT = LatexNodes2Text()
 
 # Canonical arXiv id: modern ``2401.12345`` or legacy ``hep-th/9901001``.
-ARXIV_ID_RE = re.compile(
-    r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE
-)
+ARXIV_ID_RE = re.compile(r"^(\d{4}\.\d{4,5}|[a-z-]+(?:\.[a-z-]+)?/\d{7})$", re.IGNORECASE)
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +70,7 @@ class ArxivSource(PreprintSource):
 
     # ── RSS (primary) ──────────────────────────────────────────────
 
-    async def fetch_latest(
-        self, categories: List[str]
-    ) -> List[PaperEntry]:
+    async def fetch_latest(self, categories: List[str]) -> List[PaperEntry]:
         """Fetch the current announcement via the arXiv RSS feed.
 
         The RSS feed is updated daily at midnight EST and contains
@@ -85,13 +82,11 @@ class ArxivSource(PreprintSource):
         cat_str = "+".join(categories)
         url = f"{_RSS_BASE}/{cat_str}"
 
-        logger.info(f"\nFetching latest arXiv papers via RSS")
+        logger.info("\nFetching latest arXiv papers via RSS")
         logger.info(f"  Feed: {url}")
         logger.info(f"  Categories: {categories}")
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             resp = await client.get(url)
             resp.raise_for_status()
 
@@ -116,8 +111,7 @@ class ArxivSource(PreprintSource):
                     source_id=arxiv_id,
                     title=_clean_rss_title(item.title),
                     abstract=_clean_html(
-                        getattr(item, "description", "")
-                        or getattr(item, "summary", "")
+                        getattr(item, "description", "") or getattr(item, "summary", "")
                     ),
                     url=item.link,
                     pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
@@ -160,8 +154,7 @@ class ArxivSource(PreprintSource):
         end = end_dt.strftime("%Y%m%d%H%M")
 
         logger.info(
-            f"\nFetching arXiv papers via API for "
-            f"{target_date.strftime('%A %Y-%m-%d')}"
+            f"\nFetching arXiv papers via API for " f"{target_date.strftime('%A %Y-%m-%d')}"
         )
         logger.info(f"  Submission window: {start_dt} → {end_dt} (UTC)")
         logger.info(f"  Categories: {categories}")
@@ -169,9 +162,7 @@ class ArxivSource(PreprintSource):
         entries: List[PaperEntry] = []
         seen_ids: set[str] = set()
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             # Combine all categories into a single OR query to avoid
             # per-category rate limiting (26 categories = 26 requests)
             cat_query = "+OR+".join(f"cat:{cat}" for cat in categories)
@@ -213,9 +204,7 @@ class ArxivSource(PreprintSource):
         query = "+AND+".join(parts)
         logger.info(f"\nSearching arXiv: {query} (max {max_results})")
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             items = await _api_fetch_all(client, query, limit=max_results)
 
         entries: List[PaperEntry] = []
@@ -249,11 +238,9 @@ class ArxivSource(PreprintSource):
         token = (raw or "").strip()
         if not token:
             return None
-        token = re.sub(
-            r"^https?://arxiv\.org/(abs|pdf)/", "", token, flags=re.IGNORECASE
-        )
+        token = re.sub(r"^https?://arxiv\.org/(abs|pdf)/", "", token, flags=re.IGNORECASE)
         if token.lower().startswith("arxiv:"):
-            token = token[len("arxiv:"):]
+            token = token[len("arxiv:") :]
         # Strip query/fragment suffixes, then .pdf, then trailing version
         token = re.sub(r"[?#].*$", "", token)
         token = re.sub(r"\.pdf$", "", token, flags=re.IGNORECASE)
@@ -269,9 +256,7 @@ class ArxivSource(PreprintSource):
         if not source_ids:
             return {}
 
-        async with httpx.AsyncClient(
-            timeout=30, headers={"User-Agent": USER_AGENT}
-        ) as client:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
             items = await _api_fetch_by_ids(client, list(source_ids))
 
         entries: Dict[str, PaperEntry] = {}
@@ -350,7 +335,7 @@ def _latex_to_unicode(text: str) -> str:
         return text
     try:
         return _LATEX2TEXT.latex_to_text(text).strip()
-    except Exception as e:
+    except Exception:
         logger.info(f"Could not convert assumed LaTeX {text} to unicode")
         return text
 
@@ -468,22 +453,15 @@ async def _api_fetch_page(
             resp = await client.get(url)
             if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                wait = (
-                    int(retry_after)
-                    if retry_after
-                    else backoff * (2**attempt)
-                )
+                wait = int(retry_after) if retry_after else backoff * (2**attempt)
                 logger.info(
-                    f"  429 rate limited, waiting {wait}s "
-                    f"(attempt {attempt + 1}/{max_retries})"
+                    f"  429 rate limited, waiting {wait}s " f"(attempt {attempt + 1}/{max_retries})"
                 )
                 await asyncio.sleep(wait)
                 continue
             resp.raise_for_status()
             feed = feedparser.parse(resp.text)
-            total = int(
-                feed.feed.get("opensearch_totalresults", 0)
-            ) or None
+            total = int(feed.feed.get("opensearch_totalresults", 0)) or None
             return feed.entries, total
         except Exception as e:
             wait = backoff * (2**attempt)
@@ -534,14 +512,18 @@ def _get_announcement_window(target_date):
         year=start_day.year,
         month=start_day.month,
         day=start_day.day,
-        hour=14, minute=0, second=0,
+        hour=14,
+        minute=0,
+        second=0,
         tzinfo=eastern,
     )
     end_dt = datetime(
         year=end_day.year,
         month=end_day.month,
         day=end_day.day,
-        hour=14, minute=0, second=0,
+        hour=14,
+        minute=0,
+        second=0,
         tzinfo=eastern,
     )
     return start_dt.astimezone(timezone.utc), end_dt.astimezone(timezone.utc)

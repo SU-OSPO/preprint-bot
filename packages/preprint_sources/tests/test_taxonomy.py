@@ -1,4 +1,5 @@
 """Tests for the arXiv taxonomy data (well-formedness, not exact contents)."""
+
 from preprint_sources.taxonomies.arxiv import (
     ARXIV_CATEGORY_TREE,
     ARXIV_CODE_TO_LABEL,

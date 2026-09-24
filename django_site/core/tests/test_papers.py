@@ -13,15 +13,19 @@ class PaperUploadDedupTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="uploader@example.com", password="SecurePass123!",
+            email="uploader@example.com",
+            password="SecurePass123!",
         )
         self.profile = Profile.objects.create(
-            user=self.user, name="Test Profile", categories=["cs.AI"],
+            user=self.user,
+            name="Test Profile",
+            categories=["cs.AI"],
         )
         self.client.login(username="uploader@example.com", password="SecurePass123!")
 
     def _make_pdf(self, content=b"%PDF-1.4 test content"):
         from django.core.files.uploadedfile import SimpleUploadedFile
+
         return SimpleUploadedFile("test.pdf", content, content_type="application/pdf")
 
     def test_upload_creates_paper_and_link(self):
@@ -55,7 +59,9 @@ class PaperUploadDedupTests(TestCase):
     def test_same_paper_two_profiles_one_row(self):
         """Same file added to two profiles — one Paper row, two corpus links."""
         profile2 = Profile.objects.create(
-            user=self.user, name="Second Profile", categories=["cs.LG"],
+            user=self.user,
+            name="Second Profile",
+            categories=["cs.LG"],
         )
         content = b"%PDF-1.4 shared paper"
         self.client.post(
@@ -92,6 +98,7 @@ class PaperUploadDedupTests(TestCase):
 
     def test_invalid_pdf_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
+
         bad_file = SimpleUploadedFile("bad.pdf", b"not a pdf", content_type="application/pdf")
         self.client.post(
             f"/profiles/{self.profile.pk}/upload/",
@@ -106,10 +113,13 @@ class PaperDeleteTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="deleter@example.com", password="SecurePass123!",
+            email="deleter@example.com",
+            password="SecurePass123!",
         )
         self.profile = Profile.objects.create(
-            user=self.user, name="Del Profile", categories=["cs.AI"],
+            user=self.user,
+            name="Del Profile",
+            categories=["cs.AI"],
         )
         self.corpus = Corpus.objects.create(
             user=self.user,
@@ -124,9 +134,7 @@ class PaperDeleteTests(TestCase):
         self.client.login(username="deleter@example.com", password="SecurePass123!")
 
     def test_delete_removes_link_not_paper(self):
-        resp = self.client.post(
-            f"/profiles/{self.profile.pk}/papers/{self.paper.pk}/delete/"
-        )
+        resp = self.client.post(f"/profiles/{self.profile.pk}/papers/{self.paper.pk}/delete/")
         self.assertEqual(resp.status_code, 302)
         # Link removed
         self.assertFalse(self.paper.corpora.filter(pk=self.corpus.pk).exists())
@@ -135,14 +143,15 @@ class PaperDeleteTests(TestCase):
 
     def test_cannot_delete_other_users_paper(self):
         other = PBUser.objects.create_user(
-            email="other@example.com", password="SecurePass123!",
+            email="other@example.com",
+            password="SecurePass123!",
         )
         other_profile = Profile.objects.create(
-            user=other, name="Other", categories=["cs.AI"],
+            user=other,
+            name="Other",
+            categories=["cs.AI"],
         )
-        resp = self.client.post(
-            f"/profiles/{other_profile.pk}/papers/{self.paper.pk}/delete/"
-        )
+        resp = self.client.post(f"/profiles/{other_profile.pk}/papers/{self.paper.pk}/delete/")
         self.assertEqual(resp.status_code, 404)
 
 
@@ -152,10 +161,13 @@ class PaperViewTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="viewer@example.com", password="SecurePass123!",
+            email="viewer@example.com",
+            password="SecurePass123!",
         )
         self.profile = Profile.objects.create(
-            user=self.user, name="View Profile", categories=["cs.AI"],
+            user=self.user,
+            name="View Profile",
+            categories=["cs.AI"],
         )
         self.corpus = Corpus.objects.create(
             user=self.user,
@@ -163,35 +175,35 @@ class PaperViewTests(TestCase):
         )
         # Create a paper with a real file on disk
         from django.conf import settings as django_settings
+
         sha = "b" * 64
         dest = django_settings.PAPER_STORAGE_DIR / sha[:2] / f"{sha}.pdf"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(b"%PDF-1.4 view test")
         self.paper = Paper.objects.create(
-            title="Viewable Paper", sha256=sha, pdf_path=str(dest), source="user",
+            title="Viewable Paper",
+            sha256=sha,
+            pdf_path=str(dest),
+            source="user",
         )
         self.paper.corpora.add(self.corpus)
         self.client.login(username="viewer@example.com", password="SecurePass123!")
 
     def test_view_linked_paper(self):
-        resp = self.client.get(
-            f"/profiles/{self.profile.pk}/papers/{self.paper.pk}/"
-        )
+        resp = self.client.get(f"/profiles/{self.profile.pk}/papers/{self.paper.pk}/")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], "application/pdf")
 
     def test_view_unlinked_paper_404(self):
         """Paper exists but not linked to this profile's corpus."""
         other_paper = Paper.objects.create(
-            title="Unlinked", sha256="c" * 64, source="user",
+            title="Unlinked",
+            sha256="c" * 64,
+            source="user",
         )
-        resp = self.client.get(
-            f"/profiles/{self.profile.pk}/papers/{other_paper.pk}/"
-        )
+        resp = self.client.get(f"/profiles/{self.profile.pk}/papers/{other_paper.pk}/")
         self.assertEqual(resp.status_code, 404)
 
     def test_view_nonexistent_paper_404(self):
-        resp = self.client.get(
-            f"/profiles/{self.profile.pk}/papers/99999/"
-        )
+        resp = self.client.get(f"/profiles/{self.profile.pk}/papers/99999/")
         self.assertEqual(resp.status_code, 404)

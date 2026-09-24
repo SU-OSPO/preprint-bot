@@ -9,7 +9,9 @@ class SettingsViewTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="settings@example.com", password="SecurePass123!", name="Orig Name",
+            email="settings@example.com",
+            password="SecurePass123!",
+            name="Orig Name",
         )
         self.client.login(username="settings@example.com", password="SecurePass123!")
 
@@ -42,13 +44,20 @@ class EmailToggleTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="toggle@example.com", password="SecurePass123!",
+            email="toggle@example.com",
+            password="SecurePass123!",
         )
         self.p1 = Profile.objects.create(
-            user=self.user, name="P1", categories=["cs.AI"], email_notify=True,
+            user=self.user,
+            name="P1",
+            categories=["cs.AI"],
+            email_notify=True,
         )
         self.p2 = Profile.objects.create(
-            user=self.user, name="P2", categories=["cs.LG"], email_notify=True,
+            user=self.user,
+            name="P2",
+            categories=["cs.LG"],
+            email_notify=True,
         )
         self.client.login(username="toggle@example.com", password="SecurePass123!")
 
@@ -92,10 +101,14 @@ class AccountDeactivationTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="deact@example.com", password="SecurePass123!",
+            email="deact@example.com",
+            password="SecurePass123!",
         )
         self.profile = Profile.objects.create(
-            user=self.user, name="P", categories=["cs.AI"], email_notify=True,
+            user=self.user,
+            name="P",
+            categories=["cs.AI"],
+            email_notify=True,
         )
         self.client.login(username="deact@example.com", password="SecurePass123!")
 
@@ -130,10 +143,13 @@ class AccountDeletionTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="del@example.com", password="SecurePass123!",
+            email="del@example.com",
+            password="SecurePass123!",
         )
         self.profile = Profile.objects.create(
-            user=self.user, name="P", categories=["cs.AI"],
+            user=self.user,
+            name="P",
+            categories=["cs.AI"],
         )
         self.client.login(username="del@example.com", password="SecurePass123!")
 

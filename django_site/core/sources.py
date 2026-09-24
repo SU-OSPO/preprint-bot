@@ -5,6 +5,7 @@ registry: a bridge from synchronous Django views into the sources' async API,
 and a JSON-friendly description of what each enabled source can do so the
 add-paper UI can render itself instead of hardcoding arXiv.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -68,9 +69,7 @@ def resolve_source(name: str, capability: str) -> Optional[PreprintSource]:
         if src is None or not getattr(src, capability)():
             return None
         return src
-    return next(
-        (s for s in enabled_sources() if getattr(s, capability)()), None
-    )
+    return next((s for s in enabled_sources() if getattr(s, capability)()), None)
 
 
 def paper_source_context() -> dict:

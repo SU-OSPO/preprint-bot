@@ -24,9 +24,14 @@ def site_settings(request):
         "SITE_NAME": getattr(django_settings, "SITE_NAME", "Preprint Bot"),
         "SHOW_BETA_BANNER": getattr(django_settings, "SHOW_BETA_BANNER", True),
         "ORCID_ENABLED": bool(getattr(django_settings, "ORCID_CLIENT_ID", "")),
-        "ORCID_BASE_URL": "https://sandbox.orcid.org" if getattr(django_settings, "ORCID_SANDBOX", False) else "https://orcid.org",
+        "ORCID_BASE_URL": (
+            "https://sandbox.orcid.org"
+            if getattr(django_settings, "ORCID_SANDBOX", False)
+            else "https://orcid.org"
+        ),
         "ACCENT_COLOR": getattr(django_settings, "ACCENT_COLOR", ""),
         "NAV_COLOR": getattr(django_settings, "NAV_COLOR", ""),
         "REGISTRATION_OPEN": getattr(django_settings, "REGISTRATION_OPEN", True),
         "SCRIPT_PREFIX": getattr(django_settings, "FORCE_SCRIPT_NAME", "") or "",
+        "FONT_FAMILY": getattr(django_settings, "FONT_FAMILY", ""),
     }

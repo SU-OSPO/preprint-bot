@@ -1,9 +1,11 @@
 # test_embed_papers.py
 """Unit tests for embedding functionality"""
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from pathlib import Path
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "preprint_bot"))
 
 
@@ -20,11 +22,10 @@ class TestEmbedSinglePaper:
     @pytest.fixture
     def mock_model(self):
         import numpy as np
+
         model = MagicMock()
         # Return a fake normalized embedding vector
-        model.encode = MagicMock(
-            return_value=np.array([[0.1] * 384], dtype="float32")
-        )
+        model.encode = MagicMock(return_value=np.array([[0.1] * 384], dtype="float32"))
         return model
 
     @pytest.mark.asyncio
@@ -33,7 +34,9 @@ class TestEmbedSinglePaper:
         from preprint_bot.embed_papers import embed_single_paper
 
         paper = {"id": 1, "title": "", "abstract": ""}
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         assert abs_stored + sec_stored == 0
         mock_api_client.create_embedding.assert_not_called()
 
@@ -47,7 +50,9 @@ class TestEmbedSinglePaper:
             "title": "Test Paper Title",
             "abstract": "This is the abstract of the test paper with enough words.",
         }
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         assert abs_stored == 1
         # Verify the model was called with title + abstract
         call_args = mock_model.encode.call_args_list[0]
@@ -63,13 +68,17 @@ class TestEmbedSinglePaper:
         long_text = " ".join(["word"] * 25)
         short_text = "too short"
 
-        mock_api_client.get_sections_by_paper = AsyncMock(return_value=[
-            {"id": 10, "text": long_text},
-            {"id": 11, "text": short_text},
-        ])
+        mock_api_client.get_sections_by_paper = AsyncMock(
+            return_value=[
+                {"id": 10, "text": long_text},
+                {"id": 11, "text": short_text},
+            ]
+        )
 
         paper = {"id": 1, "title": "Title", "abstract": "A sufficient abstract here for testing."}
-        abs_stored, sec_stored = await embed_single_paper(mock_api_client, paper, mock_model, "test-model")
+        abs_stored, sec_stored = await embed_single_paper(
+            mock_api_client, paper, mock_model, "test-model"
+        )
         # 1 abstract + 1 eligible section
         assert abs_stored == 1
         assert sec_stored == 1

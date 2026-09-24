@@ -1,15 +1,17 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from enum import Enum
 
 from preprint_sources import all_source_names
 
+
 # Enums
 class FrequencyEnum(str, Enum):
     daily = "daily"
     weekly = "weekly"
     monthly = "monthly"
+
 
 # class ThresholdEnum(str, Enum):
 #     low = "low"
@@ -24,32 +26,39 @@ SourceEnum = Enum(
     type=str,
 )
 
+
 class ModeEnum(str, Enum):
     abstract = "abstract"
     full = "full"
+
 
 class TypeEnum(str, Enum):
     abstract = "abstract"
     section = "section"
 
+
 class StatusEnum(str, Enum):
     sent = "sent"
     failed = "failed"
+
 
 # User Schemas
 class UserCreate(BaseModel):
     email: str
     name: Optional[str] = None
 
+
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     name: Optional[str] = None
+
 
 class UserResponse(BaseModel):
     id: int
     email: str
     name: Optional[str]
     created_at: datetime
+
 
 # Profile Schemas
 class ProfileCreate(BaseModel):
@@ -62,6 +71,7 @@ class ProfileCreate(BaseModel):
     threshold: float = 0.6
     top_x: Optional[int] = None
 
+
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     keywords: Optional[List[str]] = None
@@ -70,6 +80,7 @@ class ProfileUpdate(BaseModel):
     frequency: Optional[FrequencyEnum] = None
     threshold: Optional[float] = None
     top_x: Optional[int] = None
+
 
 class ProfileResponse(BaseModel):
     id: int
@@ -84,15 +95,18 @@ class ProfileResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
 # Corpus Schemas
 class CorpusCreate(BaseModel):
     user_id: int
     name: str
     description: Optional[str] = None
 
+
 class CorpusUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+
 
 class CorpusResponse(BaseModel):
     id: int
@@ -101,14 +115,17 @@ class CorpusResponse(BaseModel):
     description: Optional[str]
     created_at: datetime
 
+
 # ProfileCorpus Schemas
 class ProfileCorpusCreate(BaseModel):
     profile_id: int
     corpus_id: int
 
+
 class ProfileCorpusResponse(BaseModel):
     profile_id: int
     corpus_id: int
+
 
 # Paper Schemas
 class PaperCreate(BaseModel):
@@ -121,6 +138,7 @@ class PaperCreate(BaseModel):
     submitted_date: Optional[datetime] = None
     source: SourceEnum
 
+
 class PaperUpdate(BaseModel):
     source_id: Optional[str] = None
     title: Optional[str] = None
@@ -128,6 +146,7 @@ class PaperUpdate(BaseModel):
     metadata: Optional[dict] = None
     pdf_path: Optional[str] = None
     source: Optional[SourceEnum] = None
+
 
 class PaperResponse(BaseModel):
     id: int
@@ -142,15 +161,18 @@ class PaperResponse(BaseModel):
     source: str
     created_at: datetime
 
+
 # Section Schemas
 class SectionCreate(BaseModel):
     paper_id: int
     header: Optional[str] = None
     text: Optional[str] = None
 
+
 class SectionUpdate(BaseModel):
     header: Optional[str] = None
     text: Optional[str] = None
+
 
 class SectionResponse(BaseModel):
     id: int
@@ -159,6 +181,7 @@ class SectionResponse(BaseModel):
     text: Optional[str]
     created_at: datetime
 
+
 # Summary Schemas
 class SummaryCreate(BaseModel):
     paper_id: int
@@ -166,9 +189,11 @@ class SummaryCreate(BaseModel):
     summary_text: Optional[str] = None
     summarizer: Optional[str] = None
 
+
 class SummaryUpdate(BaseModel):
     summary_text: Optional[str] = None
     summarizer: Optional[str] = None
+
 
 class SummaryResponse(BaseModel):
     id: int
@@ -177,6 +202,7 @@ class SummaryResponse(BaseModel):
     summary_text: Optional[str]
     summarizer: Optional[str]
     created_at: datetime
+
 
 # Embedding Schemas
 class EmbeddingCreate(BaseModel):
@@ -188,9 +214,11 @@ class EmbeddingCreate(BaseModel):
 
     model_config = {"protected_namespaces": ()}
 
+
 class EmbeddingUpdate(BaseModel):
     embedding: Optional[List[float]] = None
-    
+
+
 class EmbeddingResponse(BaseModel):
     id: int
     paper_id: int
@@ -202,6 +230,7 @@ class EmbeddingResponse(BaseModel):
 
     model_config = {"protected_namespaces": ()}
 
+
 # RecommendationRun Schemas
 class RecommendationRunCreate(BaseModel):
     profile_id: Optional[int] = None
@@ -212,6 +241,7 @@ class RecommendationRunCreate(BaseModel):
     method: Optional[str] = None
     total_papers_fetched: Optional[int] = 0
     target_date: Optional[date] = None
+
 
 class RecommendationRunResponse(BaseModel):
     id: int
@@ -225,6 +255,7 @@ class RecommendationRunResponse(BaseModel):
     target_date: Optional[date]
     created_at: datetime
 
+
 # Recommendation Schemas
 class RecommendationCreate(BaseModel):
     run_id: int
@@ -233,10 +264,12 @@ class RecommendationCreate(BaseModel):
     rank: int
     summary: Optional[str] = None
 
+
 class RecommendationUpdate(BaseModel):
     score: Optional[float] = None
     rank: Optional[int] = None
     summary: Optional[str] = None
+
 
 class RecommendationResponse(BaseModel):
     id: int
@@ -247,22 +280,26 @@ class RecommendationResponse(BaseModel):
     summary: Optional[str]
     created_at: datetime
 
+
 class VectorSearchRequest(BaseModel):
     embedding: List[float]
     corpus_id: Optional[int] = None
     limit: int = 10
     threshold: float = 0.5
 
+
 # ProfileRecommendation Schemas
 class ProfileRecommendationCreate(BaseModel):
     profile_id: int
     recommendation_id: int
+
 
 class ProfileRecommendationResponse(BaseModel):
     id: int
     profile_id: int
     recommendation_id: int
     created_at: datetime
+
 
 # EmailLog Schemas
 class EmailLogCreate(BaseModel):
@@ -271,6 +308,7 @@ class EmailLogCreate(BaseModel):
     subject: Optional[str] = None
     body: Optional[str] = None
     status: StatusEnum = StatusEnum.sent
+
 
 class EmailLogResponse(BaseModel):
     id: int
@@ -281,6 +319,7 @@ class EmailLogResponse(BaseModel):
     sent_at: datetime
     status: str
 
+
 # ProcessingRun Schemas
 class ProcessingRunCreate(BaseModel):
     run_type: str
@@ -288,10 +327,12 @@ class ProcessingRunCreate(BaseModel):
     status: str = "started"
     papers_processed: int = 0
 
+
 class ProcessingRunUpdate(BaseModel):
     status: Optional[str] = None
     papers_processed: Optional[int] = None
     error_message: Optional[str] = None
+
 
 class ProcessingRunResponse(BaseModel):
     id: int

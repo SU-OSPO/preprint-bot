@@ -26,11 +26,7 @@ ARXIV_CATEGORIES = [
 # low: more results, less precise
 # medium: balanced (recommended starting point)
 # high: fewer results, more precise
-SIMILARITY_THRESHOLDS = {
-    "low": 0.4,
-    "medium": 0.6,
-    "high": 0.75
-}
+SIMILARITY_THRESHOLDS = {"low": 0.4, "medium": 0.6, "high": 0.75}
 
 # ==================== MODEL SETTINGS ====================
 
@@ -97,9 +93,11 @@ EMAIL_USER = ""  # TODO: SMTP login username
 EMAIL_PASSWORD = ""  # TODO: SMTP login password
 EMAIL_FROM_ADDRESS = "noreply@localhost"  # TODO: sender address
 EMAIL_FROM_NAME = "Preprint Bot"  # TODO: sender display name
-ADMIN_EMAIL = ""  # TODO: address to alert when the pipeline errors (defaults to EMAIL_FROM_ADDRESS if empty)
+# TODO: address to alert when the pipeline errors (defaults to EMAIL_FROM_ADDRESS if empty)
+ADMIN_EMAIL = ""
 
 # ==================== DATABASE SETTINGS ====================
+
 
 class Settings(BaseSettings):
     # TODO: change all values below to match your PostgreSQL setup
@@ -119,4 +117,3 @@ def get_settings():
 
 
 settings = get_settings()
-

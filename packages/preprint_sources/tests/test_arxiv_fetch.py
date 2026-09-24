@@ -1,4 +1,5 @@
 """Tests for ArxivSource.fetch_latest / fetch_by_date with the network mocked."""
+
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -13,20 +14,31 @@ def _feed(entries):
 def _mock_async_client():
     """A stand-in for httpx.AsyncClient usable as an async context manager."""
     client = AsyncMock()
-    client.get.return_value = Mock(text="<rss/>", status_code=200,
-                                   headers={}, raise_for_status=Mock())
+    client.get.return_value = Mock(
+        text="<rss/>", status_code=200, headers={}, raise_for_status=Mock()
+    )
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=client)
     cm.__aexit__ = AsyncMock(return_value=False)
     return cm
 
 
-def _rss_item(link, announce="new", title="arXiv:x A Title",
-              description="<p>Body.</p>", author="Ada Lovelace", tags=("cs.AI",)):
+def _rss_item(
+    link,
+    announce="new",
+    title="arXiv:x A Title",
+    description="<p>Body.</p>",
+    author="Ada Lovelace",
+    tags=("cs.AI",),
+):
     return SimpleNamespace(
-        link=link, title=title, description=description,
-        arxiv_announce_type=announce, author=author,
-        tags=[SimpleNamespace(term=t) for t in tags], published="2024-01-02T00:00:00Z",
+        link=link,
+        title=title,
+        description=description,
+        arxiv_announce_type=announce,
+        author=author,
+        tags=[SimpleNamespace(term=t) for t in tags],
+        published="2024-01-02T00:00:00Z",
     )
 
 
@@ -35,18 +47,22 @@ class TestFetchLatest:
     @patch("preprint_sources.arxiv.httpx.AsyncClient")
     async def test_parses_new_item_into_paper_entry(self, mock_client, mock_parse):
         mock_client.return_value = _mock_async_client()
-        mock_parse.return_value = _feed([
-            _rss_item("https://arxiv.org/abs/2401.00001v2",
-                      title="arXiv:2401.00001 A New Result",
-                      description="<p>We show something.</p>",
-                      author="Ada Lovelace, Alan Turing"),
-        ])
+        mock_parse.return_value = _feed(
+            [
+                _rss_item(
+                    "https://arxiv.org/abs/2401.00001v2",
+                    title="arXiv:2401.00001 A New Result",
+                    description="<p>We show something.</p>",
+                    author="Ada Lovelace, Alan Turing",
+                ),
+            ]
+        )
         papers = await ArxivSource().fetch_latest(["cs.AI"])
         assert len(papers) == 1
         p = papers[0]
-        assert p.source_id == "2401.00001"                       # version stripped
-        assert p.title == "A New Result"                         # arXiv: prefix stripped
-        assert p.abstract == "We show something."                # HTML stripped
+        assert p.source_id == "2401.00001"  # version stripped
+        assert p.title == "A New Result"  # arXiv: prefix stripped
+        assert p.abstract == "We show something."  # HTML stripped
         assert p.pdf_url == "https://arxiv.org/pdf/2401.00001.pdf"
         assert p.authors == ["Ada Lovelace", "Alan Turing"]
         assert p.categories == ["cs.AI"]
@@ -56,11 +72,13 @@ class TestFetchLatest:
     @patch("preprint_sources.arxiv.httpx.AsyncClient")
     async def test_skips_non_new_announce_types(self, mock_client, mock_parse):
         mock_client.return_value = _mock_async_client()
-        mock_parse.return_value = _feed([
-            _rss_item("https://arxiv.org/abs/2401.00001", announce="new"),
-            _rss_item("https://arxiv.org/abs/2401.00002", announce="replace"),
-            _rss_item("https://arxiv.org/abs/2401.00003", announce="cross"),
-        ])
+        mock_parse.return_value = _feed(
+            [
+                _rss_item("https://arxiv.org/abs/2401.00001", announce="new"),
+                _rss_item("https://arxiv.org/abs/2401.00002", announce="replace"),
+                _rss_item("https://arxiv.org/abs/2401.00003", announce="cross"),
+            ]
+        )
         papers = await ArxivSource().fetch_latest(["cs.AI"])
         assert [p.source_id for p in papers] == ["2401.00001"]
 
@@ -68,10 +86,12 @@ class TestFetchLatest:
     @patch("preprint_sources.arxiv.httpx.AsyncClient")
     async def test_dedupes_by_arxiv_id(self, mock_client, mock_parse):
         mock_client.return_value = _mock_async_client()
-        mock_parse.return_value = _feed([
-            _rss_item("https://arxiv.org/abs/2401.00001v1"),
-            _rss_item("https://arxiv.org/abs/2401.00001v2"),   # same id, other version
-        ])
+        mock_parse.return_value = _feed(
+            [
+                _rss_item("https://arxiv.org/abs/2401.00001v1"),
+                _rss_item("https://arxiv.org/abs/2401.00001v2"),  # same id, other version
+            ]
+        )
         papers = await ArxivSource().fetch_latest(["cs.AI"])
         assert len(papers) == 1
 
@@ -98,14 +118,16 @@ class TestFetchByDate:
             datetime(2024, 1, 2, tzinfo=timezone.utc),
         )
         mock_client.return_value = _mock_async_client()
-        mock_fetch_all.return_value = [SimpleNamespace(
-            id="http://arxiv.org/abs/2401.09999v1",
-            title="  API Paper  ",
-            summary="  An abstract.  ",
-            authors=[SimpleNamespace(name="Grace Hopper")],
-            tags=[SimpleNamespace(term="cs.SE")],
-            published="2024-01-01T00:00:00Z",
-        )]
+        mock_fetch_all.return_value = [
+            SimpleNamespace(
+                id="http://arxiv.org/abs/2401.09999v1",
+                title="  API Paper  ",
+                summary="  An abstract.  ",
+                authors=[SimpleNamespace(name="Grace Hopper")],
+                tags=[SimpleNamespace(term="cs.SE")],
+                published="2024-01-01T00:00:00Z",
+            )
+        ]
         papers = await ArxivSource().fetch_by_date(date(2024, 1, 2), ["cs.SE"])
         assert len(papers) == 1
         p = papers[0]

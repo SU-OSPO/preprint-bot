@@ -3,9 +3,9 @@ from typing import List
 from schemas import ProfileCreate, ProfileUpdate, ProfileResponse
 from database import get_db_pool
 from datetime import datetime
-from typing import Optional
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
+
 
 @router.post("/", response_model=ProfileResponse, status_code=201)
 async def create_profile(profile: ProfileCreate):
@@ -18,12 +18,19 @@ async def create_profile(profile: ProfileCreate):
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id, user_id, name, keywords, categories, email_notify, frequency, threshold, top_x, created_at, updated_at
                 """,
-                profile.user_id, profile.name, profile.keywords, profile.categories,
-                profile.email_notify, profile.frequency.value, profile.threshold, profile.top_x
+                profile.user_id,
+                profile.name,
+                profile.keywords,
+                profile.categories,
+                profile.email_notify,
+                profile.frequency.value,
+                profile.threshold,
+                profile.top_x,
             )
             return dict(row)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.get("/", response_model=List[ProfileResponse])
 async def get_profiles():
@@ -34,17 +41,19 @@ async def get_profiles():
         )
         return [dict(row) for row in rows]
 
+
 @router.get("/{profile_id}", response_model=ProfileResponse)
 async def get_profile(profile_id: int):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, user_id, name, keywords, categories, email_notify, frequency, threshold, top_x, created_at, updated_at FROM profiles WHERE id = $1",
-            profile_id
+            profile_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
         return dict(row)
+
 
 @router.put("/{profile_id}", response_model=ProfileResponse)
 async def update_profile(profile_id: int, profile: ProfileUpdate):
@@ -52,7 +61,7 @@ async def update_profile(profile_id: int, profile: ProfileUpdate):
     updates = []
     values = []
     idx = 1
-    
+
     if profile.name is not None:
         updates.append(f"name = ${idx}")
         values.append(profile.name)
@@ -81,24 +90,25 @@ async def update_profile(profile_id: int, profile: ProfileUpdate):
         updates.append(f"top_x = ${idx}")
         values.append(profile.top_x)
         idx += 1
-    
+
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    
+
     updates.append(f"updated_at = ${idx}")
     values.append(datetime.now())
     idx += 1
-    
+
     values.append(profile_id)
-    query = f"""UPDATE profiles SET {', '.join(updates)} 
-                WHERE id = ${idx} 
+    query = f"""UPDATE profiles SET {', '.join(updates)}
+                WHERE id = ${idx}
                 RETURNING id, user_id, name, keywords, categories, email_notify, frequency, threshold, top_x, created_at, updated_at"""
-    
+
     async with pool.acquire() as conn:
         row = await conn.fetchrow(query, *values)
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
         return dict(row)
+
 
 @router.delete("/{profile_id}", status_code=204)
 async def delete_profile(profile_id: int):

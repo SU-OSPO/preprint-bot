@@ -34,9 +34,7 @@ class ProfileCRUDTests(TestCase):
     def test_create_profile(self):
         resp = self.client.post("/profiles/create/", self._valid_profile_data())
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(
-            Profile.objects.filter(user=self.user, name="AI Research").exists()
-        )
+        self.assertTrue(Profile.objects.filter(user=self.user, name="AI Research").exists())
 
     def test_create_profile_stores_categories(self):
         self.client.post("/profiles/create/", self._valid_profile_data())
@@ -116,7 +114,9 @@ class ProfileCRUDTests(TestCase):
 
     def test_cannot_edit_other_users_profile(self):
         profile = Profile.objects.create(
-            user=self.other_user, name="Other", categories=["cs.AI"],
+            user=self.other_user,
+            name="Other",
+            categories=["cs.AI"],
         )
         resp = self.client.post(
             f"/profiles/{profile.pk}/edit/",
@@ -126,7 +126,9 @@ class ProfileCRUDTests(TestCase):
 
     def test_cannot_delete_other_users_profile(self):
         profile = Profile.objects.create(
-            user=self.other_user, name="Other", categories=["cs.AI"],
+            user=self.other_user,
+            name="Other",
+            categories=["cs.AI"],
         )
         resp = self.client.post(f"/profiles/{profile.pk}/delete/")
         self.assertEqual(resp.status_code, 404)

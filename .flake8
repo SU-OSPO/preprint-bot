@@ -1,0 +1,21 @@
+# flake8 does not read pyproject.toml, so its configuration lives here.
+# Enforced in CI by .github/workflows/lint.yml.
+[flake8]
+max-line-length = 100
+
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    migrations
+
+# E203/W503 disagree with black by design. E501 is only ever tripped inside
+# SQL and HTML string literals, which black does not reformat.
+extend-ignore =
+    E203,
+    E501,
+    W503

@@ -1,4 +1,5 @@
 """Tests for ArxivSource.search / fetch_one / fetch_many with the API mocked."""
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -10,16 +11,18 @@ from preprint_sources import ArxivSource
 def _mock_async_client():
     """A stand-in for httpx.AsyncClient usable as an async context manager."""
     client = AsyncMock()
-    client.get.return_value = Mock(text="<feed/>", status_code=200,
-                                   headers={}, raise_for_status=Mock())
+    client.get.return_value = Mock(
+        text="<feed/>", status_code=200, headers={}, raise_for_status=Mock()
+    )
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=client)
     cm.__aexit__ = AsyncMock(return_value=False)
     return cm
 
 
-def _api_item(entry_id, title="A Title", summary="An abstract.",
-              authors=("Ada Lovelace",), tags=("cs.AI",)):
+def _api_item(
+    entry_id, title="A Title", summary="An abstract.", authors=("Ada Lovelace",), tags=("cs.AI",)
+):
     """An arXiv API result as feedparser hands it back."""
     return SimpleNamespace(
         id=entry_id,
@@ -53,7 +56,7 @@ class TestSearch:
         await ArxivSource().search(title='sneaky" OR all:')
 
         query = mock_fetch.call_args.args[1]
-        assert query.count("%22") == 2          # exactly the phrase's own quotes
+        assert query.count("%22") == 2  # exactly the phrase's own quotes
 
     @patch("preprint_sources.arxiv._api_fetch_all", new_callable=AsyncMock)
     @patch("preprint_sources.arxiv.httpx.AsyncClient")
@@ -66,7 +69,7 @@ class TestSearch:
         ]
         results = await ArxivSource().search(title="x")
 
-        assert [r.source_id for r in results] == ["2401.00001"]   # deduped, error dropped
+        assert [r.source_id for r in results] == ["2401.00001"]  # deduped, error dropped
         assert results[0].title == "First"
         assert results[0].pdf_url == "https://arxiv.org/pdf/2401.00001.pdf"
         assert results[0].source == "arxiv"

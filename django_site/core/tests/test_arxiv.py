@@ -66,7 +66,9 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_processes_only_first_id(self, mock_dl):
-        paper = Paper.objects.create(source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv")
+        paper = Paper.objects.create(
+            source_id="2301.00001", sha256="b" * 64, title="First", source="arxiv"
+        )
         mock_dl.return_value = ([paper], [])
         self._ajax_add(self.profile.pk, "2301.00001, 2301.00002")
         # AJAX handles a single ID: only the first is downloaded.
@@ -74,7 +76,9 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_uses_named_source(self, mock_dl):
-        paper = Paper.objects.create(source_id="2301.00001", sha256="e" * 64, title="First", source="arxiv")
+        paper = Paper.objects.create(
+            source_id="2301.00001", sha256="e" * 64, title="First", source="arxiv"
+        )
         mock_dl.return_value = ([paper], [])
         self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(mock_dl.call_args.args[2].name, "arxiv")
@@ -98,7 +102,7 @@ class AddByIdAjaxTests(TestCase):
 
     @patch("core.views._download_source_papers")
     def test_ajax_nothing_linked_returns_400(self, mock_dl):
-        mock_dl.return_value = ([], [])         # neither linked nor reported failed
+        mock_dl.return_value = ([], [])  # neither linked nor reported failed
         resp = self._ajax_add(self.profile.pk, "2301.00001")
         self.assertEqual(resp.status_code, 400)
         self.assertFalse(resp.json()["ok"])
@@ -146,7 +150,8 @@ class AddByIdDedupTests(TestCase):
         )
 
     @patch.object(
-        ArxivSource, "fetch_many",
+        ArxivSource,
+        "fetch_many",
         new=AsyncMock(return_value={"2301.00001": _entry("2301.00001", "Dedup Me", ["A"])}),
     )
     @patch("requests.get")
@@ -160,7 +165,7 @@ class AddByIdDedupTests(TestCase):
         r1 = self._ajax_add("2301.00001")
         self.assertEqual(r1.status_code, 200)
         self.assertTrue(r1.json()["ok"])
-        r2 = self._ajax_add("2301.00001")        # same ID -> same bytes -> same hash
+        r2 = self._ajax_add("2301.00001")  # same ID -> same bytes -> same hash
         self.assertEqual(r2.status_code, 200)
         self.assertTrue(r2.json()["ok"])
         # Deduplicated: a single Paper row, returned both times.
@@ -168,7 +173,8 @@ class AddByIdDedupTests(TestCase):
         self.assertEqual(r1.json()["paper"]["id"], r2.json()["paper"]["id"])
 
     @patch.object(
-        ArxivSource, "fetch_many",
+        ArxivSource,
+        "fetch_many",
         new=AsyncMock(return_value={"2301.00001": _entry("2301.00001", "Dedup Me", ["A"])}),
     )
     @patch("requests.get")
@@ -182,7 +188,9 @@ class AddByIdDedupTests(TestCase):
         """
         pdf = b"%PDF-1.4 bytes already uploaded by hand"
         upload = Paper.objects.create(
-            title="Hand upload", sha256=_compute_sha256(pdf), source="user",
+            title="Hand upload",
+            sha256=_compute_sha256(pdf),
+            source="user",
         )
         resp = Mock()
         resp.content = pdf
@@ -210,7 +218,9 @@ class SearchApiTests(TestCase):
     """paper_search_api_view: validation, response format, rate limit."""
 
     def setUp(self):
-        self.user = PBUser.objects.create_user(email="search@example.com", password="SecurePass123!")
+        self.user = PBUser.objects.create_user(
+            email="search@example.com", password="SecurePass123!"
+        )
         self.profile = Profile.objects.create(user=self.user, name="P", categories=["cs.AI"])
         self.client.login(username="search@example.com", password="SecurePass123!")
 
@@ -228,8 +238,11 @@ class SearchApiTests(TestCase):
         self.assertIn("error", resp.json())
 
     @patch.object(
-        ArxivSource, "search",
-        new=AsyncMock(return_value=[_entry("2301.00001", "Deep Learning", ["Alice Smith", "Bob Jones"])]),
+        ArxivSource,
+        "search",
+        new=AsyncMock(
+            return_value=[_entry("2301.00001", "Deep Learning", ["Alice Smith", "Bob Jones"])]
+        ),
     )
     def test_search_returns_formatted_results(self):
         resp = self._search(title="deep learning")
@@ -248,15 +261,20 @@ class SearchApiTests(TestCase):
         self.assertFalse(r["already_added"])
 
     @patch.object(
-        ArxivSource, "search",
-        new=AsyncMock(return_value=[
-            _entry("2301.00001", "Existing", ["A"]),
-            _entry("2401.99999", "New One", ["B"]),
-        ]),
+        ArxivSource,
+        "search",
+        new=AsyncMock(
+            return_value=[
+                _entry("2301.00001", "Existing", ["A"]),
+                _entry("2401.99999", "New One", ["B"]),
+            ]
+        ),
     )
     def test_search_flags_already_added(self):
         corpus = _get_or_create_user_corpus(self.user, self.profile)
-        existing = Paper.objects.create(source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv")
+        existing = Paper.objects.create(
+            source_id="2301.00001", sha256="c" * 64, title="Existing", source="arxiv"
+        )
         existing.corpora.add(corpus)
         results = self._search(title="x").json()["results"]
         by_id = {r["source_id"]: r for r in results}
@@ -264,21 +282,24 @@ class SearchApiTests(TestCase):
         self.assertFalse(by_id["2401.99999"]["already_added"])
 
     @patch.object(
-        ArxivSource, "search",
-        new=AsyncMock(return_value=[
-            _entry("2301.00001", "Many Authors", [f"Author {i}" for i in range(30)]),
-        ]),
+        ArxivSource,
+        "search",
+        new=AsyncMock(
+            return_value=[
+                _entry("2301.00001", "Many Authors", [f"Author {i}" for i in range(30)]),
+            ]
+        ),
     )
     def test_search_truncates_long_author_list(self):
         r = self._search(title="x").json()["results"][0]
         self.assertTrue(r["authors"].endswith(" et al."))
-        self.assertIn("Author 24", r["authors"])       # 25 shown (0..24), then et al.
+        self.assertIn("Author 24", r["authors"])  # 25 shown (0..24), then et al.
         self.assertNotIn("Author 25", r["authors"])
 
     @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
     def test_second_search_rate_limited(self):
-        self._search(title="foo")                       # first: allowed
-        resp = self._search(title="foo")                # within the source's cooldown
+        self._search(title="foo")  # first: allowed
+        resp = self._search(title="foo")  # within the source's cooldown
         self.assertEqual(resp.status_code, 429)
 
     @patch.object(ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("boom")))
@@ -287,7 +308,9 @@ class SearchApiTests(TestCase):
         self.assertEqual(resp.status_code, 500)
         self.assertIn("error", resp.json())
 
-    @patch.object(ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("HTTP 429 too many requests")))
+    @patch.object(
+        ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("HTTP 429 too many requests"))
+    )
     def test_upstream_rate_limit_returns_429(self):
         resp = self._search(title="foo")
         self.assertEqual(resp.status_code, 429)

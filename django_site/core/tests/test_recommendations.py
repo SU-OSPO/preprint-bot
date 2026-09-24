@@ -6,13 +6,26 @@ from datetime import date, datetime, timezone
 from django.test import TestCase
 
 from core.models import (
-    Corpus, PBUser, Paper, Profile, Recommendation, RecommendationRun, Summary,
+    Corpus,
+    PBUser,
+    Paper,
+    Profile,
+    Recommendation,
+    RecommendationRun,
+    Summary,
 )
 from core.views import _get_or_create_user_corpus, _query_profile_recommendations
 
 
-def _make_paper(source_id, title, submitted_date=None, categories=None, authors=None,
-                abstract="", source="arxiv"):
+def _make_paper(
+    source_id,
+    title,
+    submitted_date=None,
+    categories=None,
+    authors=None,
+    abstract="",
+    source="arxiv",
+):
     """Create a Paper (sha256 left null; metadata drives categories/authors)."""
     return Paper.objects.create(
         source_id=source_id,
@@ -36,13 +49,20 @@ class _RecTestBase(TestCase):
     def _run_for(self, profile, total=10):
         corpus = _get_or_create_user_corpus(self.user, profile)
         return RecommendationRun.objects.create(
-            user=self.user, user_corpus=corpus, ref_corpus=self.ref,
-            profile=profile, total_papers_fetched=total,
+            user=self.user,
+            user_corpus=corpus,
+            ref_corpus=self.ref,
+            profile=profile,
+            total_papers_fetched=total,
         )
 
     def _rec(self, run, paper, score, rank=1):
         return Recommendation.objects.create(
-            run=run, profile=run.profile, paper=paper, score=score, rank=rank,
+            run=run,
+            profile=run.profile,
+            paper=paper,
+            score=score,
+            rank=rank,
         )
 
 
@@ -88,8 +108,12 @@ class QueryProfileRecommendationsTests(_RecTestBase):
         d = datetime(2023, 6, 15, tzinfo=timezone.utc)
         run = self._run_for(pa)
         self._rec(run, _make_paper("2301.00001", "From arXiv", submitted_date=d), 0.9, rank=1)
-        self._rec(run, _make_paper("2301.00001", "From elsewhere", submitted_date=d,
-                                   source="biorxiv"), 0.5, rank=2)
+        self._rec(
+            run,
+            _make_paper("2301.00001", "From elsewhere", submitted_date=d, source="biorxiv"),
+            0.5,
+            rank=2,
+        )
         results = _query_profile_recommendations(self.user, pa)
         self.assertEqual(len(results), 2)
         self.assertEqual(
@@ -106,7 +130,9 @@ class QueryProfileRecommendationsTests(_RecTestBase):
 
     def test_paper_with_date_is_formatted(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
-        dated = _make_paper("2301.00001", "Dated", submitted_date=datetime(2023, 6, 15, tzinfo=timezone.utc))
+        dated = _make_paper(
+            "2301.00001", "Dated", submitted_date=datetime(2023, 6, 15, tzinfo=timezone.utc)
+        )
         self._rec(self._run_for(pa), dated, 0.5)
         r = _query_profile_recommendations(self.user, pa)[0]
         self.assertEqual(r["date_obj"], date(2023, 6, 15))
@@ -132,12 +158,12 @@ class QueryProfileRecommendationsTests(_RecTestBase):
 
     def test_corpus_with_no_runs_returns_empty(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
-        _get_or_create_user_corpus(self.user, pa)          # corpus exists, no runs
+        _get_or_create_user_corpus(self.user, pa)  # corpus exists, no runs
         self.assertEqual(_query_profile_recommendations(self.user, pa), [])
 
     def test_run_with_no_recommendations_returns_empty(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
-        self._run_for(pa)                                   # run exists, no recs
+        self._run_for(pa)  # run exists, no recs
         self.assertEqual(_query_profile_recommendations(self.user, pa), [])
 
     def test_all_profiles_no_corpora_returns_empty(self):
@@ -152,12 +178,18 @@ class QueryProfileRecommendationsTests(_RecTestBase):
         other_ref = Corpus.objects.create(user=other, name="ref_arxiv")
         other_p = Profile.objects.create(user=other, name="OB", categories=["cs.LG"])
         other_run = RecommendationRun.objects.create(
-            user=other, user_corpus=_get_or_create_user_corpus(other, other_p),
-            ref_corpus=other_ref, profile=other_p, total_papers_fetched=5,
+            user=other,
+            user_corpus=_get_or_create_user_corpus(other, other_p),
+            ref_corpus=other_ref,
+            profile=other_p,
+            total_papers_fetched=5,
         )
         Recommendation.objects.create(
-            run=other_run, profile=other_p, paper=_make_paper("2301.99999", "Theirs"),
-            score=0.9, rank=1,
+            run=other_run,
+            profile=other_p,
+            paper=_make_paper("2301.99999", "Theirs"),
+            score=0.9,
+            rank=1,
         )
         aids = {r["source_id"] for r in _query_profile_recommendations(self.user, None)}
         self.assertEqual(aids, {"2301.00001"})
@@ -185,17 +217,28 @@ class RecommendationsViewTests(_RecTestBase):
     def test_recs_json_has_expected_fields(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
         paper = _make_paper(
-            "2301.00001", "A Paper",
+            "2301.00001",
+            "A Paper",
             submitted_date=datetime(2023, 6, 15, tzinfo=timezone.utc),
-            categories=["cs.AI"], authors=["Jane Doe"], abstract="An abstract.",
+            categories=["cs.AI"],
+            authors=["Jane Doe"],
+            abstract="An abstract.",
         )
         Summary.objects.create(paper=paper, mode="abstract", summary_text="A summary.")
         self._rec(self._run_for(pa), paper, 0.85)
         recs = json.loads(self.client.get("/recommendations/").context["recs_json"])
         self.assertEqual(len(recs), 1)
         r = recs[0]
-        for field in ("title", "score", "source_id", "date_iso", "date_str",
-                      "abstract", "summary_text", "categories"):
+        for field in (
+            "title",
+            "score",
+            "source_id",
+            "date_iso",
+            "date_str",
+            "abstract",
+            "summary_text",
+            "categories",
+        ):
             self.assertIn(field, r)
         self.assertEqual(r["source_id"], "2301.00001")
         self.assertAlmostEqual(r["score"], 0.85)
@@ -204,7 +247,7 @@ class RecommendationsViewTests(_RecTestBase):
         self.assertEqual(r["abstract"], "An abstract.")
         self.assertEqual(r["summary_text"], "A summary.")
         self.assertEqual(r["categories"], ["cs.AI"])
-        self.assertNotIn("date_obj", r)                     # stripped during serialization
+        self.assertNotIn("date_obj", r)  # stripped during serialization
 
     def test_recs_json_null_date_serialization(self):
         pa = Profile.objects.create(user=self.user, name="A", categories=["cs.AI"])
@@ -236,7 +279,6 @@ class RecommendationsViewTests(_RecTestBase):
             self.client.get(f"/recommendations/?profile={pa.pk}").context["recs_json"]
         )
         self.assertEqual({r["source_id"] for r in recs}, {"2301.00001"})
-
 
 
 class RecommendationAddToProfileTests(_RecTestBase):
@@ -285,11 +327,16 @@ class RecommendationAddToProfileTests(_RecTestBase):
         other_ref = Corpus.objects.create(user=other, name="ref_arxiv")
         other_p = Profile.objects.create(user=other, name="OB", categories=["cs.LG"])
         other_run = RecommendationRun.objects.create(
-            user=other, user_corpus=_get_or_create_user_corpus(other, other_p),
-            ref_corpus=other_ref, profile=other_p, total_papers_fetched=1,
+            user=other,
+            user_corpus=_get_or_create_user_corpus(other, other_p),
+            ref_corpus=other_ref,
+            profile=other_p,
+            total_papers_fetched=1,
         )
         paper = _make_paper("2301.00001", "Theirs")
-        Recommendation.objects.create(run=other_run, profile=other_p, paper=paper, score=0.9, rank=1)
+        Recommendation.objects.create(
+            run=other_run, profile=other_p, paper=paper, score=0.9, rank=1
+        )
         resp = self._add(self.profile.pk, paper.pk)
         self.assertEqual(resp.status_code, 404)
         self.assertFalse(resp.json()["ok"])

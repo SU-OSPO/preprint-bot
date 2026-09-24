@@ -59,9 +59,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "some-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "some-state", "error": "access_denied",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "some-state",
+                "error": "access_denied",
+            },
+        )
         self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
 
     @patch("core.orcid.exchange_code")
@@ -72,7 +76,7 @@ class OrcidLoginTests(TestCase):
             "name": "Test Researcher",
             "access_token": "fake-token",
         }
-        user = PBUser.objects.create_user(
+        PBUser.objects.create_user(
             email="orcid-user@example.com",
             password="SecurePass123!",
             orcid_id="0000-0001-2345-6789",
@@ -82,9 +86,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "valid-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "valid-state", "code": "auth-code-123",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "valid-state",
+                "code": "auth-code-123",
+            },
+        )
         self.assertRedirects(resp, "/", fetch_redirect_response=False)
 
         # Verify user is logged in (first login → onboarding redirect, not login)
@@ -106,9 +114,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "valid-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "valid-state", "code": "auth-code-auto",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "valid-state",
+                "code": "auth-code-auto",
+            },
+        )
         self.assertRedirects(resp, "/", fetch_redirect_response=False)
 
         user = PBUser.objects.get(orcid_id="0000-0002-1111-2222")
@@ -130,9 +142,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "valid-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "valid-state", "code": "auth-code-collision",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "valid-state",
+                "code": "auth-code-collision",
+            },
+        )
         self.assertRedirects(resp, "/auth/orcid/complete/", fetch_redirect_response=False)
 
     @patch("core.orcid.fetch_email", return_value=None)
@@ -149,9 +165,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "valid-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "valid-state", "code": "auth-code-456",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "valid-state",
+                "code": "auth-code-456",
+            },
+        )
         self.assertRedirects(resp, "/auth/orcid/complete/", fetch_redirect_response=False)
 
         # Session should have pending ORCID data
@@ -168,9 +188,13 @@ class OrcidLoginTests(TestCase):
         session["orcid_oauth_state"] = "valid-state"
         session.save()
 
-        resp = self.client.get("/auth/orcid/callback/", {
-            "state": "valid-state", "code": "bad-code",
-        })
+        resp = self.client.get(
+            "/auth/orcid/callback/",
+            {
+                "state": "valid-state",
+                "code": "bad-code",
+            },
+        )
         self.assertRedirects(resp, "/auth/login/", fetch_redirect_response=False)
 
 
@@ -194,9 +218,12 @@ class OrcidCompleteTests(TestCase):
         self.assertContains(resp, "New Researcher")
 
     def test_complete_creates_user(self):
-        resp = self.client.post("/auth/orcid/complete/", {
-            "email": "researcher@example.com",
-        })
+        resp = self.client.post(
+            "/auth/orcid/complete/",
+            {
+                "email": "researcher@example.com",
+            },
+        )
         self.assertRedirects(resp, "/", fetch_redirect_response=False)
 
         user = PBUser.objects.get(email="researcher@example.com")
@@ -238,7 +265,8 @@ class OrcidLinkTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="linker@example.com", password="SecurePass123!",
+            email="linker@example.com",
+            password="SecurePass123!",
         )
         self.client.login(username="linker@example.com", password="SecurePass123!")
 
@@ -264,7 +292,9 @@ class OrcidLinkTests(TestCase):
     @patch("core.orcid.exchange_code")
     def test_link_callback_attaches_orcid(self, mock_exchange):
         mock_exchange.return_value = {
-            "orcid": "0000-0001-2222-3333", "name": "L", "access_token": "t",
+            "orcid": "0000-0001-2222-3333",
+            "name": "L",
+            "access_token": "t",
         }
         session = self.client.session
         session["orcid_oauth_state"] = "st"
@@ -278,11 +308,14 @@ class OrcidLinkTests(TestCase):
     @patch("core.orcid.exchange_code")
     def test_link_callback_duplicate_orcid_rejected(self, mock_exchange):
         PBUser.objects.create_user(
-            email="owner@example.com", password="SecurePass123!",
+            email="owner@example.com",
+            password="SecurePass123!",
             orcid_id="0000-0001-9999-9999",
         )
         mock_exchange.return_value = {
-            "orcid": "0000-0001-9999-9999", "name": "Dup", "access_token": "t",
+            "orcid": "0000-0001-9999-9999",
+            "name": "Dup",
+            "access_token": "t",
         }
         session = self.client.session
         session["orcid_oauth_state"] = "st"
@@ -299,7 +332,8 @@ class OrcidUnlinkTests(TestCase):
 
     def setUp(self):
         self.user = PBUser.objects.create_user(
-            email="unlinker@example.com", password="SecurePass123!",
+            email="unlinker@example.com",
+            password="SecurePass123!",
             orcid_id="0000-0002-8888-7777",
         )
         self.client.login(username="unlinker@example.com", password="SecurePass123!")

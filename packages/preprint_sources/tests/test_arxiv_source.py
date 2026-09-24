@@ -1,4 +1,5 @@
 """Tests for ArxivSource identity, URLs, and taxonomy (no network)."""
+
 from preprint_sources import ArxivSource
 
 
@@ -17,7 +18,7 @@ def test_category_tree_is_nested_and_nonempty():
     assert isinstance(tree, list) and tree
     top = tree[0]
     assert {"label", "value"} <= set(top)
-    assert "children" in top and top["children"]      # nested taxonomy
+    assert "children" in top and top["children"]  # nested taxonomy
 
 
 def test_leaf_codes_and_labels():
@@ -35,7 +36,7 @@ def test_declared_capabilities():
     src = ArxivSource()
     assert src.supports_search() is True
     assert src.supports_add_by_id() is True
-    assert src.id_hint                      # placeholder examples for the UI
+    assert src.id_hint  # placeholder examples for the UI
     assert src.request_delay_seconds == 3.0  # arXiv asks for 1 req / 3s
 
 
@@ -55,7 +56,9 @@ def test_normalize_id_strips_prefixes_and_suffixes():
     assert src.normalize_id("ARXIV:2301.12345") == "2301.12345"
     assert src.normalize_id("2601.19018v12") == "2601.19018"
     assert src.normalize_id("https://arxiv.org/abs/2601.19018#section1") == "2601.19018"
-    assert src.normalize_id("https://arxiv.org/pdf/hep-th/9901001v2.pdf?download") == "hep-th/9901001"
+    assert (
+        src.normalize_id("https://arxiv.org/pdf/hep-th/9901001v2.pdf?download") == "hep-th/9901001"
+    )
 
 
 def test_normalize_id_rejects_non_ids():

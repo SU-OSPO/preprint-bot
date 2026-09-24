@@ -13,12 +13,13 @@
   <script src="{% static 'core/landing.js' %}" defer></script>
 
   {# Respect the deployment's configured colors (needs template rendering, so it stays inline). #}
-  {% if ACCENT_COLOR or NAV_COLOR %}
+  {% if ACCENT_COLOR or NAV_COLOR or FONT_FAMILY %}
   <style>
     :root {
       {% if ACCENT_COLOR %}--accent: {{ ACCENT_COLOR }};
       --accent-dim: color-mix(in srgb, {{ ACCENT_COLOR }} 15%, white);{% endif %}
       {% if NAV_COLOR %}--bg-nav: {{ NAV_COLOR }};{% endif %}
+      {% if FONT_FAMILY %}--font-body: {{ FONT_FAMILY|safe }};{% endif %}
     }
   </style>
   {% endif %}

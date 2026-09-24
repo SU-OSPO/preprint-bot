@@ -40,15 +40,15 @@ except ImportError:
     email_logs = None
 
 __all__ = [
-    'users',
-    'papers',
-    'corpora',
-    'sections',
-    'embeddings',
-    'recommendations',
-    'profiles',
-    'profile_corpora',
-    'summaries',
-    'profile_recommendations',
-    'email_logs',
-] 
+    "users",
+    "papers",
+    "corpora",
+    "sections",
+    "embeddings",
+    "recommendations",
+    "profiles",
+    "profile_corpora",
+    "summaries",
+    "profile_recommendations",
+    "email_logs",
+]

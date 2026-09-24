@@ -4,8 +4,8 @@ Django forms for authentication, profile CRUD, and paper uploads.
 
 from django import forms
 
-
 # ── Auth ───────────────────────────────────────────────────────────────────
+
 
 class LoginForm(forms.Form):
     email = forms.EmailField(
@@ -39,6 +39,7 @@ class RegisterForm(forms.Form):
             raise forms.ValidationError("Passwords do not match.")
         if pw:
             from django.contrib.auth.password_validation import validate_password
+
             validate_password(pw)
         return cleaned
 
@@ -65,14 +66,17 @@ class ResetPasswordForm(forms.Form):
             raise forms.ValidationError("Passwords do not match.")
         if pw:
             from django.contrib.auth.password_validation import validate_password
+
             validate_password(pw)
         return cleaned
 
 
 # ── ORCID ──────────────────────────────────────────────────────────────────
 
+
 class OrcidCompleteForm(forms.Form):
     """Collect email after first ORCID sign-in."""
+
     email = forms.EmailField(
         widget=forms.EmailInput(attrs={"placeholder": "you@example.com", "autofocus": True}),
     )
@@ -116,6 +120,7 @@ class ProfileForm(forms.Form):
 
     def clean_categories(self):
         from preprint_sources.taxonomies.arxiv import ARXIV_LEAF_CODES
+
         raw = self.cleaned_data.get("categories", "")
         cats = [c.strip() for c in raw.split(",") if c.strip()]
         if not cats:
@@ -131,6 +136,9 @@ class ProfileForm(forms.Form):
 
 # ── Settings ───────────────────────────────────────────────────────────────
 
+
 class UserSettingsForm(forms.Form):
-    name = forms.CharField(required=False, widget=forms.TextInput(attrs={"placeholder": "Your name"}))
+    name = forms.CharField(
+        required=False, widget=forms.TextInput(attrs={"placeholder": "Your name"})
+    )
     email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@example.com"}))

@@ -19,8 +19,8 @@ from preprint_sources import all_source_names, get_source
 
 from .sources import source_label as _source_label
 
-
 # ── Users ──────────────────────────────────────────────────────────────────
+
 
 class PBUserManager(BaseUserManager):
     """Manager for email-based authentication (no username)."""
@@ -59,7 +59,7 @@ class PBUser(AbstractBaseUser, PermissionsMixin):
     objects = PBUserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []           # email is already required by USERNAME_FIELD
+    REQUIRED_FIELDS = []  # email is already required by USERNAME_FIELD
 
     class Meta:
         db_table = "users"
@@ -80,6 +80,7 @@ class PBUser(AbstractBaseUser, PermissionsMixin):
 
 
 # ── Profiles ───────────────────────────────────────────────────────────────
+
 
 class Profile(models.Model):
     """User research profiles and preferences."""
@@ -109,7 +110,8 @@ class Profile(models.Model):
                 name="profiles_user_name_unique",
             ),
             models.UniqueConstraint(
-                Lower("name"), "user",
+                Lower("name"),
+                "user",
                 name="profiles_user_name_ci_unique",
             ),
         ]
@@ -119,6 +121,7 @@ class Profile(models.Model):
 
 
 # ── Corpora ────────────────────────────────────────────────────────────────
+
 
 class Corpus(models.Model):
     """Collections of papers (arXiv corpus or user collections)."""
@@ -140,6 +143,7 @@ class Corpus(models.Model):
 
 # ── Profile ↔ Corpus junction ─────────────────────────────────────────────
 
+
 class ProfileCorpus(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     corpus = models.ForeignKey(Corpus, on_delete=models.CASCADE)
@@ -151,6 +155,7 @@ class ProfileCorpus(models.Model):
 
 
 # ── Papers ─────────────────────────────────────────────────────────────────
+
 
 class Paper(models.Model):
     """Academic papers from arXiv or user uploads.
@@ -167,7 +172,10 @@ class Paper(models.Model):
 
     # Legacy FK — no longer populated or queried; kept for schema compat
     corpus = models.ForeignKey(
-        Corpus, on_delete=models.SET_NULL, blank=True, null=True,
+        Corpus,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
         related_name="papers_legacy",
         help_text="Deprecated — not populated. Use corpora M2M. Can be dropped in a future migration.",
     )
@@ -232,6 +240,7 @@ class Paper(models.Model):
 
 # ── Sections ───────────────────────────────────────────────────────────────
 
+
 class Section(models.Model):
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="sections")
     section_header = models.TextField(blank=True, null=True)
@@ -244,6 +253,7 @@ class Section(models.Model):
 
 
 # ── Summaries ──────────────────────────────────────────────────────────────
+
 
 class Summary(models.Model):
     MODE_CHOICES = [("abstract", "Abstract"), ("full", "Full")]
@@ -261,6 +271,7 @@ class Summary(models.Model):
 
 
 # ── Embeddings ─────────────────────────────────────────────────────────────
+
 
 class Embedding(models.Model):
     """Vector embeddings for semantic similarity search.
@@ -296,6 +307,7 @@ class Embedding(models.Model):
 
 # ── Processing runs ────────────────────────────────────────────────────────
 
+
 class ProcessingRun(models.Model):
     run_type = models.CharField(max_length=50)
     category = models.CharField(max_length=50, blank=True, null=True)
@@ -310,6 +322,7 @@ class ProcessingRun(models.Model):
 
 
 # ── Recommendation runs ───────────────────────────────────────────────────
+
 
 class RecommendationRun(models.Model):
     profile = models.ForeignKey(
@@ -330,6 +343,7 @@ class RecommendationRun(models.Model):
 
 
 # ── Recommendations ────────────────────────────────────────────────────────
+
 
 class Recommendation(models.Model):
     run = models.ForeignKey(
@@ -360,6 +374,7 @@ class Recommendation(models.Model):
 
 # ── Profile ↔ Recommendation junction ─────────────────────────────────────
 
+
 class ProfileRecommendation(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     recommendation = models.ForeignKey(Recommendation, on_delete=models.CASCADE)
@@ -372,6 +387,7 @@ class ProfileRecommendation(models.Model):
 
 # ── Auth tokens ────────────────────────────────────────────────────────────
 
+
 class AuthToken(models.Model):
     user = models.ForeignKey(PBUser, on_delete=models.CASCADE, related_name="auth_tokens")
     token_hash = models.CharField(max_length=64, unique=True)
@@ -383,6 +399,7 @@ class AuthToken(models.Model):
 
 
 # ── Email logs ─────────────────────────────────────────────────────────────
+
 
 class EmailLog(models.Model):
     STATUS_CHOICES = [("sent", "Sent"), ("failed", "Failed")]
@@ -399,6 +416,7 @@ class EmailLog(models.Model):
 
 
 # ── ArXiv daily stats ─────────────────────────────────────────────────────
+
 
 class ArxivDailyStats(models.Model):
     submission_date = models.DateField()

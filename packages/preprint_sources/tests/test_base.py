@@ -1,4 +1,5 @@
 """Tests for the PreprintSource ABC contract and PaperEntry."""
+
 import pytest
 
 from preprint_sources import PaperEntry, PreprintSource
@@ -6,10 +7,17 @@ from preprint_sources import PaperEntry, PreprintSource
 
 def test_paper_entry_defaults_metadata():
     e = PaperEntry(
-        source_id="1", title="t", abstract="a", url="u", pdf_url="p",
-        authors=["x"], categories=["c"], published="d", source="arxiv",
+        source_id="1",
+        title="t",
+        abstract="a",
+        url="u",
+        pdf_url="p",
+        authors=["x"],
+        categories=["c"],
+        published="d",
+        source="arxiv",
     )
-    assert e.metadata == {}          # default_factory=dict
+    assert e.metadata == {}  # default_factory=dict
 
 
 def test_cannot_instantiate_bare_abstract_base():
@@ -22,6 +30,7 @@ def test_incomplete_subclass_cannot_instantiate():
         @property
         def name(self):
             return "partial"
+
         # missing label/fetch_latest/landing_url/category_tree/leaf_codes
 
     with pytest.raises(TypeError):
