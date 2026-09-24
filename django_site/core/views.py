@@ -57,6 +57,7 @@ from .sources import (
     multiple_sources_enabled,
     order_source_names,
     paper_source_context,
+    preserve_disabled_selections,
     resolve_source,
     run_sync,
     source_label,
@@ -861,7 +862,11 @@ def profile_edit_view(request, profile_id):
                 messages.error(request, f"A profile named '{name}' already exists.")
             else:
                 profile.name = name
-                profile.source_categories = form.cleaned_data["categories"]
+                # Keep any codes for sources this deployment no longer
+                # enables (the picker cannot render them to be re-selected).
+                profile.source_categories = preserve_disabled_selections(
+                    profile.categories_by_source, form.cleaned_data["categories"]
+                )
                 profile.frequency = form.cleaned_data["frequency"]
                 profile.threshold = form.cleaned_data["threshold"]
                 profile.top_x = form.cleaned_data["top_x"]
@@ -889,7 +894,9 @@ def profile_edit_view(request, profile_id):
             "form": form,
             "editing": True,
             "profile": profile,
-            **_category_picker_context(profile),
+            # On a re-rendered POST the bound form already holds the user's
+            # submission.
+            **_category_picker_context(None if request.method == "POST" else profile),
         },
     )
 

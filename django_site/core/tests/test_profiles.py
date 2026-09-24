@@ -116,6 +116,44 @@ class ProfileCRUDTests(TestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.name, "Renamed")
 
+    def test_edit_keeps_selections_for_a_disabled_source(self):
+        """Codes for a source the deployment no longer enables must survive.
+
+        The picker can only render enabled sources, so those codes are absent
+        from the submitted form; dropping them would silently delete data.
+        """
+        self.client.post("/profiles/create/", self._valid_profile_data())
+        profile = Profile.objects.get(user=self.user)
+        profile.source_categories = {"arxiv": ["cs.AI"], "biorxiv": ["neuro"]}
+        profile.save()
+
+        resp = self.client.post(
+            f"/profiles/{profile.pk}/edit/",
+            self._valid_profile_data(categories="arxiv:cs.LG"),
+        )
+        self.assertEqual(resp.status_code, 302)
+        profile.refresh_from_db()
+        self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "biorxiv": ["neuro"]})
+
+    def test_edit_rerender_does_not_override_submitted_categories(self):
+        """A failed POST must not reseed the picker from the stored profile.
+
+        The bound form already holds what the user picked; handing the JS the
+        persisted selection instead would overwrite their edits.
+        """
+        self.client.post("/profiles/create/", self._valid_profile_data())
+        self.client.post("/profiles/create/", self._valid_profile_data(name="Other"))
+        profile = Profile.objects.get(user=self.user, name="Other")
+
+        # Renaming onto an existing name re-renders the bound form.
+        resp = self.client.post(
+            f"/profiles/{profile.pk}/edit/",
+            self._valid_profile_data(name="AI Research", categories="arxiv:stat.ML"),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["initial_categories"], [])
+        self.assertEqual(resp.context["form"]["categories"].value(), "arxiv:stat.ML")
+
     def test_edit_preserves_other_fields(self):
         self.client.post(
             "/profiles/create/",

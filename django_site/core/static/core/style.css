@@ -258,6 +258,26 @@ h3 { font-size: 1rem; font-weight: 600; margin-bottom: .35rem; }
   border-color: var(--accent);
 }
 
+/* Remove-a-source control. */
+.cat-tab-remove {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin: 0 .25rem 0 -.6rem;
+  padding: .5rem .3rem;
+  font-size: .9rem;
+  line-height: 1;
+  color: var(--text-dim);
+  opacity: .6;
+  cursor: pointer;
+}
+.cat-tab-remove:hover { opacity: 1; color: var(--danger); }
+.cat-tab-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  opacity: 1;
+}
+
 /* ── Categories grouped by source ─────────────────────── */
 /* One grid for the whole list, so every source name lines up in the first
    column and its pills wrap inside the second with a hanging indent. */

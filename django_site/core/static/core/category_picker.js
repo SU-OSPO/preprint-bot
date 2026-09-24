@@ -146,6 +146,9 @@ function setActiveSource(sourceName) {
       ? 'Search ' + sourceLabelOf(sourceName) + ' categories…'
       : 'Search categories…';
   }
+  /* The query stays in the box across tab switches, so re-filter the tree we
+     just revealed rather than leaving it unfiltered under a live search. */
+  if (input && input.value.trim()) filterCategories(input.value);
 }
 
 /* Drop a source: clear its selections, then remove its tab and panel. */
@@ -210,19 +213,19 @@ function renderTabs() {
     count.style.cssText = 'margin-left:.3rem; opacity:.7; font-size:.78rem;';
     btn.appendChild(count);
 
+    bar.appendChild(btn);
+
     // Add button and listener to remove a source tab.
     if (added.length > 1) {
-      const x = document.createElement('span');
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'cat-tab-remove';
       x.textContent = '×';
-      x.setAttribute('role', 'button');
       x.setAttribute('aria-label', 'Remove ' + sourceLabelOf(name));
       x.title = 'Remove ' + sourceLabelOf(name);
-      x.style.cssText = 'margin-left:.4rem; opacity:.6; cursor:pointer;';
-      x.addEventListener('click', e => { e.stopPropagation(); removeSource(name); });
-      btn.appendChild(x);
+      x.addEventListener('click', () => removeSource(name));
+      bar.appendChild(x);
     }
-
-    bar.appendChild(btn);
   });
 
   const remaining = SOURCES.filter(s => !added.includes(s.name));

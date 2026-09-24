@@ -126,6 +126,23 @@ def multiple_sources_enabled() -> bool:
     return len(enabled_names()) > 1
 
 
+def preserve_disabled_selections(previous: dict, selected: dict) -> dict:
+    """Carry over selections for sources that are no longer enabled.
+
+    The picker only renders enabled sources, so a profile still tracking a
+    source the deployment has turned off would silently lose those codes on
+    its next save. They are merged back from the stored value rather than by
+    widening form validation, so user input still cannot introduce a source
+    that is not enabled.
+    """
+    enabled = set(enabled_names())
+    merged = dict(selected)
+    for name, codes in (previous or {}).items():
+        if name not in enabled and codes:
+            merged.setdefault(name, list(codes))
+    return merged
+
+
 def order_source_names(names) -> List[str]:
     """Source names in registry order, with unregistered ones last.
 
