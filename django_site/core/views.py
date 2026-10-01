@@ -1426,6 +1426,8 @@ def paper_search_existing_api_view(request, profile_id):
     get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
     q = request.GET.get("q", "").strip()
+    if not q:
+        return JsonResponse({"error": "Enter a title or author"}, status=400)
     # Only live profiles count: deleting a profile leaves its corpus behind.
     corpus_names = [_profile_corpus_name(pb_user, p) for p in Profile.objects.filter(user=pb_user)]
     papers = Paper.objects.filter(

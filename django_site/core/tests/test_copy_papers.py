@@ -47,3 +47,9 @@ class SearchExistingPapersTests(TestCase):
         response = self._search_existing("network")
 
         self.assertEqual([p["id"] for p in response.json()["results"]], [])
+
+    def test_blank_query_returns_400(self):
+        response = self._search_existing("")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
