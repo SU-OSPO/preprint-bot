@@ -1,4 +1,4 @@
-"""Tests for copying papers between a user's own profiles (#145)."""
+"""Tests for copying papers between a user's own profiles"""
 
 from django.test import TestCase
 
