@@ -1414,6 +1414,18 @@ def paper_search_api_view(request, profile_id):
     )
 
 
+@pbuser_required
+def paper_search_existing_api_view(request, profile_id):
+    """JSON API: search papers already in the user's own profiles."""
+    pb_user = request.pb_user
+    get_object_or_404(Profile, pk=profile_id, user=pb_user)
+
+    q = request.GET.get("q", "").strip()
+    papers = Paper.objects.filter(corpora__user=pb_user, title__icontains=q)
+
+    return JsonResponse({"results": [{"id": p.pk, "title": p.title} for p in papers]})
+
+
 # ── Recommendations ────────────────────────────────────────────────────────
 
 
