@@ -16,8 +16,10 @@ class SearchExistingPapersTests(TestCase):
         self.target_profile = Profile.objects.create(user=self.user, name="Target")
         self.source_corpus = _get_or_create_user_corpus(self.user, self.source_profile)
 
-    def _search_existing(self, q):
-        return self.client.get(f"/profiles/{self.target_profile.pk}/search-existing/", {"q": q})
+    def _search_existing(self, title):
+        return self.client.get(
+            f"/profiles/{self.target_profile.pk}/search-existing/", {"title": title}
+        )
 
     def test_search_returns_matching_paper_from_another_profile(self):
         matching = Paper.objects.create(title="Graph neural networks")
