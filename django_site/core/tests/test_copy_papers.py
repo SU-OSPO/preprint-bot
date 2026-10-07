@@ -1,4 +1,4 @@
-"""Tests for copying papers between a user's own profiles"""
+"""Tests for copying papers between a user's own profiles."""
 
 from django.test import TestCase
 
@@ -7,7 +7,7 @@ from core.views import _get_or_create_user_corpus
 
 
 class SearchExistingPapersTests(TestCase):
-    """GET /profiles/<id>/search-existing/: search papers in the user's profiles."""
+    """paper_search_existing_api_view: scope, dedup, blank query, already-added flag."""
 
     def setUp(self):
         self.user = PBUser.objects.create_user(email="copy@example.com")
@@ -33,6 +33,7 @@ class SearchExistingPapersTests(TestCase):
         self.assertEqual([p["id"] for p in response.json()["results"]], [matching.pk])
 
     def test_paper_in_two_profiles_appears_once(self):
+        """Linked to two of the user's profiles — returned once, not once per link."""
         paper = Paper.objects.create(title="Graph neural networks")
         paper.corpora.add(self.source_corpus)
         paper.corpora.add(_get_or_create_user_corpus(self.user, self.target_profile))
