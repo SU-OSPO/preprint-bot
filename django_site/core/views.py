@@ -1424,7 +1424,6 @@ def paper_search_existing_api_view(request, profile_id):
     """JSON API: search papers already in the user's own profiles."""
     pb_user = request.pb_user
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
-    get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
     title = request.GET.get("title", "").strip()
     if not title:
