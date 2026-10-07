@@ -55,3 +55,15 @@ class SearchExistingPapersTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.json())
+
+    def test_paper_already_added_in_this_profile_is_flagged(self):
+        in_both = Paper.objects.create(title="Graph neural networks")
+        in_both.corpora.add(self.source_corpus)
+        in_both.corpora.add(_get_or_create_user_corpus(self.user, self.target_profile))
+
+        only_in_source = Paper.objects.create(title="Neural network pruning")
+        only_in_source.corpora.add(self.source_corpus)
+
+        results = self._search_existing("network").json()["results"]
+        flags = {r["id"]: r["already_added"] for r in results}
+        self.assertEqual(flags, {in_both.pk: True, only_in_source.pk: False})

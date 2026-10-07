@@ -1423,6 +1423,7 @@ def paper_search_api_view(request, profile_id):
 def paper_search_existing_api_view(request, profile_id):
     """JSON API: search papers already in the user's own profiles."""
     pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
     get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
     title = request.GET.get("title", "").strip()
@@ -1434,7 +1435,19 @@ def paper_search_existing_api_view(request, profile_id):
         corpora__user=pb_user, corpora__name__in=corpus_names, title__icontains=title
     ).distinct()
 
-    return JsonResponse({"results": [{"id": p.pk, "title": p.title} for p in papers]})
+    in_profile = set(
+        Paper.objects.filter(
+            corpora__user=pb_user, corpora__name=_profile_corpus_name(pb_user, profile)
+        ).values_list("pk", flat=True)
+    )
+
+    return JsonResponse(
+        {
+            "results": [
+                {"id": p.pk, "title": p.title, "already_added": p.pk in in_profile} for p in papers
+            ]
+        }
+    )
 
 
 # ── Recommendations ────────────────────────────────────────────────────────
