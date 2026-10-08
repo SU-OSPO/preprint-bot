@@ -68,3 +68,16 @@ class SearchExistingPapersTests(TestCase):
         results = self._search_existing("network").json()["results"]
         flags = {r["id"]: r["already_added"] for r in results}
         self.assertEqual(flags, {in_both.pk: True, only_in_source.pk: False})
+
+    def test_other_users_papers_are_not_found(self):
+        mine = Paper.objects.create(title="Graph neural networks")
+        mine.corpora.add(self.source_corpus)
+
+        other_user = PBUser.objects.create_user(email="other@example.com")
+        other_profile = Profile.objects.create(user=other_user, name="Theirs")
+        theirs = Paper.objects.create(title="Neural network pruning")
+        theirs.corpora.add(_get_or_create_user_corpus(other_user, other_profile))
+
+        response = self._search_existing("network")
+
+        self.assertEqual([p["id"] for p in response.json()["results"]], [mine.pk])
