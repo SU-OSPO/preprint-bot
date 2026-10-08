@@ -81,3 +81,15 @@ class SearchExistingPapersTests(TestCase):
         response = self._search_existing("network")
 
         self.assertEqual([p["id"] for p in response.json()["results"]], [mine.pk])
+
+    def test_search_requires_login(self):
+        self.client.logout()
+        response = self._search_existing("network")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/auth/login", response.url)
+
+    def test_search_other_users_profile_404(self):
+        other = PBUser.objects.create_user(email="o2@example.com")
+        op = Profile.objects.create(user=other, name="OP")
+        response = self.client.get(f"/profiles/{op.pk}/search/existing", {"title": "x"})
+        self.assertEqual(response.status_code, 404)
