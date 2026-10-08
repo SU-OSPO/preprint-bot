@@ -93,3 +93,23 @@ class SearchExistingPapersTests(TestCase):
         op = Profile.objects.create(user=other, name="OP")
         response = self.client.get(f"/profiles/{op.pk}/search-existing/", {"title": "x"})
         self.assertEqual(response.status_code, 404)
+
+
+class CopyTabRenderingTests(TestCase):
+    """The copy tab renders on the profiles page but not during onboarding."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(email="copy@example.com")
+        self.client.force_login(self.user)
+        self.profile = Profile.objects.create(user=self.user, name="Mine")
+
+    def test_profiles_page_shows_copy_tab_with_search_url(self):
+        response = self.client.get("/profiles/")
+
+        self.assertContains(response, f'data-tab="existing-{self.profile.pk}"')
+        self.assertContains(response, f"/profiles/{self.profile.pk}/search-existing/")
+
+    def test_onboarding_page_hides_copy_tab(self):
+        response = self.client.get(f"/onboarding/papers/{self.profile.pk}/")
+
+        self.assertNotContains(response, f'data-tab="existing-{self.profile.pk}"')

@@ -108,9 +108,11 @@
   {# ── Tab 4: Copy from existing profile ─ #}
   <div class="tab-panel" id="existing-{{ p.pk }}">
     <div class="form-group">
-      <label>Title or author</label>
+      <label>Title</label>
       <input type="text" class="existing-search-input" placeholder="e.g. neural network…">
     </div>
+    <button type="button" class="btn btn-sm btn-primary existing-search-btn"
+            data-url="{% url 'paper_search_existing_api' p.pk %}">Search</button>
 
     {# results injected here by JS #}
     <div class="existing-results" style="margin-top:.75rem;"></div>
