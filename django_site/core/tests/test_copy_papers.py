@@ -91,5 +91,5 @@ class SearchExistingPapersTests(TestCase):
     def test_search_other_users_profile_404(self):
         other = PBUser.objects.create_user(email="o2@example.com")
         op = Profile.objects.create(user=other, name="OP")
-        response = self.client.get(f"/profiles/{op.pk}/search/existing", {"title": "x"})
+        response = self.client.get(f"/profiles/{op.pk}/search-existing/", {"title": "x"})
         self.assertEqual(response.status_code, 404)
