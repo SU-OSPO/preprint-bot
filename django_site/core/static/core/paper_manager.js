@@ -555,3 +555,70 @@ function collectBulk(btn) {
   }
   return true;
 }
+
+/* ── Copy from existing profile ─────────────────────── */
+
+document.querySelectorAll('.existing-search-btn').forEach(btn => {
+  btn.addEventListener('click', () => searchExisting(btn));
+});
+
+document.querySelectorAll('.existing-search-input').forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchExisting(input.closest('.tab-panel').querySelector('.existing-search-btn'));
+    }
+  });
+});
+
+function searchExisting(btn) {
+  const panel = btn.closest('.tab-panel');
+  const title = panel.querySelector('.existing-search-input').value.trim();
+  const box = panel.querySelector('.existing-results');
+
+  if (!title) { box.innerHTML = '<p class="text-dim">Enter a title.</p>'; return; }
+
+  btn.disabled = true;
+  fetch(btn.dataset.url + '?title=' + encodeURIComponent(title),
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      if (data.error) {
+        box.innerHTML = '<p style="color:var(--danger);">' + esc(data.error) + '</p>';
+        return;
+      }
+      renderExistingResults(box, data.results);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      box.innerHTML = '<p style="color:var(--danger);">Search failed.</p>';
+    });
+}
+
+function renderExistingResults(box, results) {
+  if (results.length === 0) { box.innerHTML = '<p class="text-dim">No papers found.</p>'; return; }
+
+  const fresh = results.filter(r => !r.already_added);
+  const added = results.filter(r => r.already_added);
+
+  let html = '<div class="search-results-scroll">';
+  if (fresh.length === 0) html += '<p class="text-dim">No new papers found.</p>';
+  fresh.forEach(r => {
+    html += '<label style="display:flex; gap:.6rem; padding:.5rem 0; border-bottom:1px solid var(--border);">'
+      + '<input type="checkbox" class="existing-cb" value="' + r.id + '">'
+      + esc(r.title) + '</label>';
+  });
+  html += '</div>';
+
+  if (added.length > 0) {
+    html += '<details style="margin-top:.75rem;">'
+      + '<summary class="text-sm text-dim" style="cursor:pointer;">'
+      + added.length + ' paper' + (added.length !== 1 ? 's' : '') + ' already in profile</summary>'
+      + '<div class="search-results-scroll" style="opacity:0.7;">';
+    added.forEach(r => { html += '<div style="padding:.5rem 0;">' + esc(r.title) + '</div>'; });
+    html += '</div></details>';
+  }
+
+  box.innerHTML = html;
+}
