@@ -1459,7 +1459,7 @@ def paper_add_existing_view(request, profile_id, paper_id):
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
     paper = get_object_or_404(_live_profile_papers(pb_user), pk=paper_id)
     corpus = _get_or_create_user_corpus(pb_user, profile)
-    
+
     # Let the (paper, corpus) unique constraint decide, so two concurrent
     # copies of the same paper can't both report added=True.
     _, added = Paper.corpora.through.objects.get_or_create(paper=paper, corpus=corpus)
