@@ -114,6 +114,11 @@ class CopyTabRenderingTests(TestCase):
 
         self.assertNotContains(response, f'data-tab="existing-{self.profile.pk}"')
 
+    def test_copy_tab_carries_add_url(self):
+        response = self.client.get("/profiles/")
+
+        self.assertContains(response, f"/profiles/{self.profile.pk}/add-existing/0/")
+
 
 class AddExistingPaperTests(TestCase):
     """paper_add_existing_view: link one of the user's papers into another profile."""
@@ -182,7 +187,7 @@ class AddExistingPaperTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/auth/login", response.url)
 
-    def test_get_not_allowed(self):
+    def test_add_requires_post(self):
         paper = Paper.objects.create(title="Graph neural networks")
         paper.corpora.add(self.source_corpus)
 
@@ -199,4 +204,6 @@ class AddExistingPaperTests(TestCase):
         response = self._add_existing(paper.pk)
 
         self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
         self.assertFalse(response.json()["added"])
+        self.assertEqual(response.json()["paper"]["id"], paper.pk)

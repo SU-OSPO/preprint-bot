@@ -114,8 +114,14 @@
     <button type="button" class="btn btn-sm btn-primary existing-search-btn"
             data-url="{% url 'paper_search_existing_api' p.pk %}">Search</button>
 
+    {# spinner shown while waiting #}
+    <div class="search-spinner" style="display:none; margin-top:.75rem;">
+      <span class="spinner"></span> Searching your profiles…
+    </div>
+
     {# results injected here by JS #}
-    <div class="existing-results" style="margin-top:.75rem;"></div>
+    <div class="existing-results" style="margin-top:.75rem;"
+         data-add-url="{% url 'paper_add_existing' p.pk 0 %}"></div>
   </div>
   {% endif %}
 
