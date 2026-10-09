@@ -113,3 +113,90 @@ class CopyTabRenderingTests(TestCase):
         response = self.client.get(f"/onboarding/papers/{self.profile.pk}/")
 
         self.assertNotContains(response, f'data-tab="existing-{self.profile.pk}"')
+
+
+class AddExistingPaperTests(TestCase):
+    """paper_add_existing_view: link one of the user's papers into another profile."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(email="copy@example.com")
+        self.client.force_login(self.user)
+        self.source_profile = Profile.objects.create(user=self.user, name="Source")
+        self.target_profile = Profile.objects.create(user=self.user, name="Target")
+        self.source_corpus = _get_or_create_user_corpus(self.user, self.source_profile)
+        self.target_corpus = _get_or_create_user_corpus(self.user, self.target_profile)
+
+    def _add_existing(self, paper_id):
+        return self.client.post(f"/profiles/{self.target_profile.pk}/add-existing/{paper_id}/")
+
+    def test_add_links_paper_to_target_profile(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+
+        response = self._add_existing(paper.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["added"])
+        self.assertEqual(response.json()["paper"]["id"], paper.pk)
+        self.assertTrue(paper.corpora.filter(pk=self.target_corpus.pk).exists())
+        # Copy, not move: the source profile keeps the paper.
+        self.assertTrue(paper.corpora.filter(pk=self.source_corpus.pk).exists())
+
+    def test_other_users_paper_404(self):
+        other = PBUser.objects.create_user(email="other@example.com")
+        other_profile = Profile.objects.create(user=other, name="Theirs")
+        theirs = Paper.objects.create(title="Their private upload")
+        theirs.corpora.add(_get_or_create_user_corpus(other, other_profile))
+
+        response = self._add_existing(theirs.pk)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(theirs.corpora.filter(pk=self.target_corpus.pk).exists())
+
+    def test_paper_only_in_deleted_profile_404(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+        self.source_profile.delete()
+
+        response = self._add_existing(paper.pk)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_add_to_other_users_profile_404(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+        other = PBUser.objects.create_user(email="o2@example.com")
+        op = Profile.objects.create(user=other, name="OP")
+
+        response = self.client.post(f"/profiles/{op.pk}/add-existing/{paper.pk}/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_add_requires_login(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+        self.client.logout()
+
+        response = self._add_existing(paper.pk)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/auth/login", response.url)
+
+    def test_get_not_allowed(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+
+        response = self.client.get(f"/profiles/{self.target_profile.pk}/add-existing/{paper.pk}/")
+
+        self.assertEqual(response.status_code, 405)
+        self.assertFalse(paper.corpora.filter(pk=self.target_corpus.pk).exists())
+
+    def test_paper_already_in_target_is_not_added_again(self):
+        paper = Paper.objects.create(title="Graph neural networks")
+        paper.corpora.add(self.source_corpus)
+        paper.corpora.add(self.target_corpus)
+
+        response = self._add_existing(paper.pk)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["added"])

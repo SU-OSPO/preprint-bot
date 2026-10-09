@@ -54,6 +54,11 @@ urlpatterns = [
         views.paper_search_existing_api_view,
         name="paper_search_existing_api",
     ),
+    path(
+        "profiles/<int:profile_id>/add-existing/<int:paper_id>/",
+        views.paper_add_existing_view,
+        name="paper_add_existing",
+    ),
     # Recommendations
     path("recommendations/", views.recommendations_view, name="recommendations"),
     path(

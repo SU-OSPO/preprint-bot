@@ -1419,6 +1419,12 @@ def paper_search_api_view(request, profile_id):
     )
 
 
+def _live_profile_papers(pb_user):
+    """Papers in any of the user's live profiles (a deleted profile leaves its corpus behind)."""
+    corpus_names = [_profile_corpus_name(pb_user, p) for p in Profile.objects.filter(user=pb_user)]
+    return Paper.objects.filter(corpora__user=pb_user, corpora__name__in=corpus_names).distinct()
+
+
 @pbuser_required
 def paper_search_existing_api_view(request, profile_id):
     """JSON API: search papers already in the user's own profiles."""
@@ -1428,11 +1434,7 @@ def paper_search_existing_api_view(request, profile_id):
     title = request.GET.get("title", "").strip()
     if not title:
         return JsonResponse({"error": "Enter a title."}, status=400)
-    # Only live profiles count: deleting a profile leaves its corpus behind.
-    corpus_names = [_profile_corpus_name(pb_user, p) for p in Profile.objects.filter(user=pb_user)]
-    papers = Paper.objects.filter(
-        corpora__user=pb_user, corpora__name__in=corpus_names, title__icontains=title
-    ).distinct()
+    papers = _live_profile_papers(pb_user).filter(title__icontains=title)
 
     in_profile = set(
         Paper.objects.filter(
@@ -1447,6 +1449,20 @@ def paper_search_existing_api_view(request, profile_id):
             ]
         }
     )
+
+
+@pbuser_required
+@require_POST
+def paper_add_existing_view(request, profile_id, paper_id):
+    """JSON API: link a paper from another of the user's profiles into this one."""
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
+    paper = get_object_or_404(_live_profile_papers(pb_user), pk=paper_id)
+    corpus = _get_or_create_user_corpus(pb_user, profile)
+    if paper.corpora.filter(pk=corpus.pk).exists():
+        return JsonResponse({"ok": True, "added": False, "paper": _paper_json(paper)})
+    _link_paper_to_corpus(paper, corpus)
+    return JsonResponse({"ok": True, "added": True, "paper": _paper_json(paper)})
 
 
 # ── Recommendations ────────────────────────────────────────────────────────
