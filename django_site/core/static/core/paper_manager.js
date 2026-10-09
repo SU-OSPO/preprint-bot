@@ -577,6 +577,7 @@ document.querySelectorAll('.existing-search-input').forEach(input => {
 });
 
 function doSearchExisting(btn) {
+  if (btn.disabled) return;
   const panel = btn.closest('.tab-panel');
   const title = panel.querySelector('.existing-search-input').value.trim();
   const box = panel.querySelector('.existing-results');
