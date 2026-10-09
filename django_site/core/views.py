@@ -1459,10 +1459,11 @@ def paper_add_existing_view(request, profile_id, paper_id):
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
     paper = get_object_or_404(_live_profile_papers(pb_user), pk=paper_id)
     corpus = _get_or_create_user_corpus(pb_user, profile)
-    if paper.corpora.filter(pk=corpus.pk).exists():
-        return JsonResponse({"ok": True, "added": False, "paper": _paper_json(paper)})
-    _link_paper_to_corpus(paper, corpus)
-    return JsonResponse({"ok": True, "added": True, "paper": _paper_json(paper)})
+    
+    # Let the (paper, corpus) unique constraint decide, so two concurrent
+    # copies of the same paper can't both report added=True.
+    _, added = Paper.corpora.through.objects.get_or_create(paper=paper, corpus=corpus)
+    return JsonResponse({"ok": True, "added": added, "paper": _paper_json(paper)})
 
 
 # ── Recommendations ────────────────────────────────────────────────────────
