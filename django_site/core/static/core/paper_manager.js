@@ -555,3 +555,314 @@ function collectBulk(btn) {
   }
   return true;
 }
+
+/* ── Copy from existing profile ─────────────────────── */
+/* Mirrors the source search above name for name, with an "Existing" suffix
+   (doSearch -> doSearchExisting, renderSearchResults -> renderExistingResults,
+   ...), so a fix in one is easy to find in the other. It differs only where
+   the endpoint forces it: title-only rows keyed by paper id, one add URL per
+   paper, no rate-limit delay, and the `added` flag. */
+
+document.querySelectorAll('.existing-search-btn').forEach(btn => {
+  btn.addEventListener('click', () => doSearchExisting(btn));
+});
+
+document.querySelectorAll('.existing-search-input').forEach(input => {
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doSearchExisting(input.closest('.tab-panel').querySelector('.existing-search-btn'));
+    }
+  });
+});
+
+function doSearchExisting(btn) {
+  if (btn.disabled) return;
+  const panel = btn.closest('.tab-panel');
+  const title = panel.querySelector('.existing-search-input').value.trim();
+  const box = panel.querySelector('.existing-results');
+  const spinner = panel.querySelector('.search-spinner');
+
+  if (!title) { box.innerHTML = '<p class="text-dim">Enter a title.</p>'; return; }
+
+  spinner.style.display = '';
+  box.innerHTML = '';
+  btn.disabled = true;
+
+  fetch(btn.dataset.url + '?title=' + encodeURIComponent(title),
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(r => r.json())
+    .then(data => {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+
+      if (data.error) {
+        box.innerHTML = '<p style="color:var(--danger);">' + esc(data.error) + '</p>';
+        return;
+      }
+      if (!data.results || data.results.length === 0) {
+        box.innerHTML = '<p class="text-dim">No papers found.</p>';
+        return;
+      }
+
+      /* split into new and already-added */
+      box._newResults = data.results.filter(r => !r.already_added);
+      box._addedResults = data.results.filter(r => r.already_added);
+      box._page = 1;
+      box._selectedIds = new Set();  /* persistent selection across pages (paper ids as strings) */
+      box._addedIds = new Set();  /* papers added during this session */
+
+      renderExistingResults(box);
+    })
+    .catch(() => {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+      box.innerHTML = '<p style="color:var(--danger);">Search failed.</p>';
+    });
+}
+
+function renderExistingResults(box) {
+  const newResults = box._newResults;
+  const addedResults = box._addedResults;
+  const page = box._page;
+  const totalNew = newResults.length;
+  const totalPages = Math.max(1, Math.ceil(totalNew / PER_PAGE));
+  const start = (page - 1) * PER_PAGE;
+  const pageResults = newResults.slice(start, start + PER_PAGE);
+
+  let html = '';
+
+  /* header with counts */
+  html += '<div class="flex-between mb-1">'
+    + '<span class="text-sm text-dim">'
+    + totalNew + ' new result' + (totalNew !== 1 ? 's' : '');
+  if (addedResults.length > 0) {
+    html += ' &middot; ' + addedResults.length + ' already in profile';
+  }
+  html += '<span class="sel-count"></span>';
+  html += '</span>'
+    + '<div style="display:flex;gap:.4rem;">'
+    + '<button type="button" class="btn btn-sm" onclick="togglePageExistingCb(this,true)">Select Page</button>'
+    + '<button type="button" class="btn btn-sm existing-select-all" onclick="toggleAllExistingCb(this,true)">Select All ('
+    + (totalNew - box._addedIds.size) + ')</button>'
+    + '<button type="button" class="btn btn-sm" onclick="toggleAllExistingCb(this,false)">Deselect All</button>'
+    + '</div></div>';
+
+  html += '<div class="search-results-scroll">';
+  if (pageResults.length === 0) {
+    html += '<p class="text-dim">No new papers found.</p>';
+  }
+  const selectedIds = box._selectedIds;
+  const addedIds = box._addedIds;
+  pageResults.forEach(r => {
+    const id = String(r.id);
+    const isDisabled = addedIds.has(id);
+    /* title only, as a label: there is no landing page to link to */
+    html += '<label style="display:flex; gap:.6rem; padding:.5rem 0; border-bottom:1px solid var(--border);">'
+      + '<input type="checkbox" class="existing-cb" value="' + id + '"'
+      + (selectedIds.has(id) || isDisabled ? ' checked' : '')
+      + (isDisabled ? ' disabled' : '') + '>'
+      + esc(r.title) + '</label>';
+  });
+  html += '</div>';  /* close .search-results-scroll */
+
+  /* pagination */
+  if (totalPages > 1) {
+    html += '<div style="margin-top:.5rem; display:flex; gap:.3rem; align-items:center; flex-wrap:wrap;">'
+      + '<span class="text-sm text-dim">Page ' + page + ' of ' + totalPages + '</span>';
+    if (page > 1) {
+      html += ' <button type="button" class="btn btn-sm" onclick="searchExistingPage(this,' + (page - 1) + ')">&laquo; Prev</button>';
+    }
+    if (page < totalPages) {
+      html += ' <button type="button" class="btn btn-sm" onclick="searchExistingPage(this,' + (page + 1) + ')">Next &raquo;</button>';
+    }
+    html += '</div>';
+  }
+
+  html += '<button type="button" class="btn btn-sm btn-primary existing-add-btn" style="margin-top:.75rem;"'
+    + ' onclick="addExistingPapers(this)">Add Selected to Profile</button>'
+    + '<div class="add-progress" style="display:none; margin-top:.5rem;"></div>';
+
+  /* already-added papers in collapsible section */
+  if (addedResults.length > 0) {
+    html += '<details style="margin-top:.75rem;">'
+      + '<summary class="text-sm text-dim" style="cursor:pointer;">'
+      + addedResults.length + ' paper' + (addedResults.length !== 1 ? 's' : '') + ' already in profile'
+      + '</summary><div class="search-results-scroll" style="margin-top:.25rem; opacity:0.7;">';
+    addedResults.forEach(r => {
+      html += '<div style="padding:.5rem 0; border-bottom:1px solid var(--border);">' + esc(r.title) + '</div>';
+    });
+    html += '</div></details>';
+  }
+
+  box.innerHTML = html;
+
+  /* wire up checkbox change events to sync with persistent selection */
+  box.querySelectorAll('.existing-cb:not([disabled])').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        box._selectedIds.add(cb.value);
+      } else {
+        box._selectedIds.delete(cb.value);
+      }
+      updateExistingSelectionCount(box);
+    });
+  });
+  updateExistingSelectionCount(box);  /* populate count from persistent selection */
+}
+
+function updateExistingSelectionCount(box) {
+  const count = box._selectedIds ? box._selectedIds.size : 0;
+  /* update the counter in the header */
+  const countSpan = box.querySelector('.sel-count');
+  if (countSpan) {
+    countSpan.innerHTML = count > 0 ? ' &middot; <strong>' + count + ' selected</strong>' : '';
+  }
+  /* update the add button text */
+  const btn = box.querySelector('.existing-add-btn');
+  if (btn) {
+    btn.textContent = 'Add Selected' + (count > 0 ? ' (' + count + ')' : '') + ' to Profile';
+  }
+  /* update the "Select All" button count */
+  const totalNew = (box._newResults || []).length;
+  const addedCount = box._addedIds ? box._addedIds.size : 0;
+  const selectAllBtn = box.querySelector('.existing-select-all');
+  if (selectAllBtn) {
+    selectAllBtn.textContent = 'Select All (' + (totalNew - addedCount) + ')';
+  }
+}
+
+function togglePageExistingCb(btn, checked) {
+  const box = btn.closest('.existing-results');
+  const selectedIds = box._selectedIds;
+  /* only toggle visible checkboxes on this page (skip already-added) */
+  box.querySelectorAll('.existing-cb:not([disabled])').forEach(cb => {
+    cb.checked = checked;
+    if (checked) {
+      selectedIds.add(cb.value);
+    } else {
+      selectedIds.delete(cb.value);
+    }
+  });
+  updateExistingSelectionCount(box);
+}
+
+function toggleAllExistingCb(btn, checked) {
+  const box = btn.closest('.existing-results');
+  const selectedIds = box._selectedIds;
+  const addedIds = box._addedIds || new Set();
+  if (checked) {
+    /* select all results across all pages, skipping already-added */
+    (box._newResults || []).forEach(r => {
+      const id = String(r.id);
+      if (!addedIds.has(id)) selectedIds.add(id);
+    });
+  } else {
+    selectedIds.clear();
+  }
+  /* update visible checkboxes on this page */
+  box.querySelectorAll('.existing-cb:not([disabled])')
+     .forEach(cb => cb.checked = checked);
+  updateExistingSelectionCount(box);
+}
+
+function searchExistingPage(btn, page) {
+  const box = btn.closest('.existing-results');
+  box._page = page;
+  renderExistingResults(box);
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* Mirrors addPapersById minus the rate-limit wait: one POST per paper to the
+   template's add URL, listing (and counting) only papers the server added. */
+async function addExistingPapers(btn) {
+  const box = btn.closest('.existing-results');
+  const ids = Array.from(box._selectedIds || []);
+  if (ids.length === 0) { alert('Select at least one paper.'); return; }
+
+  const total = ids.length;
+  let successCount = 0;
+  let alreadyCount = 0;
+  let errors = new Set();
+
+  const profileId = box.closest('.paper-tabs').dataset.profile;
+  const titles = new Map(box._newResults.map(r => [String(r.id), r.title]));
+  const selectedIds = box._selectedIds;
+  const addedIds = box._addedIds;
+
+  /* disable submit button */
+  btn.disabled = true;
+
+  /* show progress */
+  const progressEl = box.querySelector('.add-progress');
+  progressEl.style.display = '';
+  progressEl.innerHTML =
+    '<div class="text-sm" style="margin-bottom:.25rem;">'
+    + '<span class="add-progress-text">Starting...</span></div>'
+    + '<div style="background:var(--border); border-radius:4px; height:6px; overflow:hidden;">'
+    + '<div class="add-progress-fill" style="background:var(--accent); height:100%; width:0%; '
+    + 'transition:width .3s ease;"></div></div>'
+    + '<div class="add-progress-log text-sm text-dim" style="margin-top:.25rem; max-height:8rem; overflow-y:auto;"></div>';
+
+  const textEl = progressEl.querySelector('.add-progress-text');
+  const fillEl = progressEl.querySelector('.add-progress-fill');
+  const logEl  = progressEl.querySelector('.add-progress-log');
+
+  for (let i = 0; i < total; i++) {
+    const id = ids[i];
+    const title = titles.get(id) || id;
+    textEl.textContent = 'Adding ' + (i + 1) + ' of ' + total + ': ' + title + '...';
+
+    try {
+      const r = await fetch(box.dataset.addUrl.replace(/\/0\/$/, '/' + id + '/'), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': getCSRF(),
+        },
+      });
+      /* unlike add-by-id, a refused paper comes back as a 404 page, not JSON */
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      if (!(data.ok && data.paper)) throw new Error(data.error || 'Unknown error');
+
+      /* added:false means it was already in this profile: listing it again
+         would duplicate the row, and counting it would overstate the summary */
+      if (data.added) {
+        successCount++;
+        addPaperToList(profileId, data.paper);
+      } else {
+        alreadyCount++;
+      }
+      logEl.innerHTML += '<div style="color:var(--success);">&#10003; ' + esc(title)
+        + (data.added ? '' : ' (already in profile)') + '</div>';
+      logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
+      /* immediately disable checkbox and update selection state */
+      selectedIds.delete(id);
+      addedIds.add(id);
+      const cb = box.querySelector('.existing-cb[value="' + CSS.escape(id) + '"]');
+      if (cb) { cb.checked = true; cb.disabled = true; }
+      updateExistingSelectionCount(box);
+    } catch (err) {
+      errors.add(id);
+      logEl.innerHTML += '<div style="color:var(--danger);">&#10007; ' + esc(title) + ': ' + esc(String(err)) + '</div>';
+      logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
+    }
+
+    /* update progress bar */
+    fillEl.style.width = ((i + 1) / total * 100) + '%';
+  }
+
+  /* summary */
+  let summary = successCount + ' of ' + total + ' paper(s) added.';
+  if (alreadyCount > 0) {
+    summary += ' ' + alreadyCount + ' already in profile.';
+  }
+  if (errors.size > 0) {
+    summary += ' ' + errors.size + ' failed.';
+  }
+  textEl.innerHTML = '<strong>' + summary + '</strong>';
+
+  /* re-enable submit */
+  btn.disabled = false;
+}

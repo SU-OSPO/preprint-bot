@@ -49,6 +49,16 @@ urlpatterns = [
         "profiles/<int:profile_id>/add-by-id/", views.paper_add_by_id_view, name="paper_add_by_id"
     ),
     path("profiles/<int:profile_id>/search/", views.paper_search_api_view, name="paper_search_api"),
+    path(
+        "profiles/<int:profile_id>/search-existing/",
+        views.paper_search_existing_api_view,
+        name="paper_search_existing_api",
+    ),
+    path(
+        "profiles/<int:profile_id>/add-existing/<int:paper_id>/",
+        views.paper_add_existing_view,
+        name="paper_add_existing",
+    ),
     # Recommendations
     path("recommendations/", views.recommendations_view, name="recommendations"),
     path(
