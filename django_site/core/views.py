@@ -17,6 +17,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Avg, Count, Max, Q
 from django.db.models.functions import TruncDate
+from django.db import transaction
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1940,3 +1941,59 @@ def monitoring_dashboard_view(request):
         "profiles_email_on": profiles_email_on,
     }
     return render(request, "monitoring.html", context)
+
+
+@pbuser_required
+@require_POST
+def recommendation_create_profile_view(request, paper_id):
+    """Create a new profile with a recommended paper (AJAX)."""
+    pb_user = request.pb_user
+    paper = get_object_or_404(Paper, pk=paper_id)
+
+    was_recommended = Recommendation.objects.filter(paper=paper, run__user=pb_user).exists()
+    if not was_recommended:
+        return JsonResponse({"ok": False, "error": "Paper not found."}, status=404)
+
+    name = request.POST.get("name", "").strip()
+    if not name:
+        return JsonResponse({"ok": False, "error": "Profile name is required."}, status=400)
+
+    if Profile.objects.filter(user=pb_user, name__iexact=name).exists():
+        return JsonResponse(
+            {"ok": False, "error": f"A profile named '{name}' already exists."},
+            status=400,
+        )
+
+    source_name = getattr(paper, "source", None) or "arxiv"
+    categories = getattr(paper, "categories_list", [])
+    source_categories = {source_name: categories} if categories else {}
+
+    from django.db import IntegrityError
+
+    try:
+        with transaction.atomic():
+            profile = Profile.objects.create(
+                user=pb_user,
+                name=name,
+                source_categories=source_categories,
+            )
+            corpus = _get_or_create_user_corpus(pb_user, profile)
+            _link_paper_to_corpus(paper, corpus)
+    except IntegrityError:
+        return JsonResponse(
+            {"ok": False, "error": "A profile with that name already exists."},
+            status=400,
+        )
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "profile": {
+                "id": profile.pk,
+                "name": profile.name,
+            },
+            "paper": _paper_json(paper),
+        }
+    )
