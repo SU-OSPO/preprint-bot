@@ -81,3 +81,49 @@ class TestOnlyUnprocessedPapers:
         assert pending_ids == set()
         dl.assert_not_called()
         parse.assert_not_called()
+
+
+class TestResumedParseFindsPdf:
+    @pytest.mark.asyncio
+    async def test_legacy_pdf_path_falls_back_to_current_name(self, tmp_path):
+        # Row stored before filenames carried the source; its old file is gone
+        # and the resumed download wrote the current name instead.
+        from preprint_bot.pipeline import _parse_and_store_sections
+
+        (tmp_path / "arxiv_2401.00001.pdf").write_bytes(b"%PDF")
+        api = AsyncMock()
+        api.get_papers_by_corpus.return_value = [
+            {
+                "id": 1,
+                "source": "arxiv",
+                "source_id": "2401.00001",
+                "pdf_path": str(tmp_path / "2401.00001.pdf"),
+            }
+        ]
+        with (
+            patch("preprint_bot.pipeline.PDF_DIR", tmp_path),
+            patch(
+                "preprint_bot.pipeline.extract_grobid_sections",
+                return_value={"sections": [{"header": "Intro", "text": "x"}]},
+            ) as grobid,
+        ):
+            await _parse_and_store_sections(api, 7, [_entry("2401.00001")])
+        assert grobid.call_args.args[0] == tmp_path / "arxiv_2401.00001.pdf"
+        api.create_section.assert_awaited_once()
+
+
+class TestSummarySelection:
+    """Summary work follows summary state, independent of parsing."""
+
+    @pytest.mark.asyncio
+    async def test_selects_only_papers_without_an_abstract_summary(self):
+        from preprint_bot.pipeline import _papers_needing_summary
+
+        summaries = {
+            1: [],  # parsed by an interrupted run, never summarized -> retried
+            2: [{"mode": "abstract"}],  # already summarized -> not redone
+            3: [{"mode": "full"}],  # only a different mode -> still needed
+        }
+        api = AsyncMock()
+        api.get_summaries_by_paper.side_effect = lambda pid: summaries[pid]
+        assert await _papers_needing_summary(api, {1, 2, 3}) == {1, 3}

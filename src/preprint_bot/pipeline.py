@@ -273,7 +273,11 @@ async def _parse_and_store_sections(
     parsed = 0
     for paper in papers:
         pdf_path = paper.get("pdf_path")
+        # Rows stored before filenames carried the source still point at the
+        # old name, while a resumed download writes the current one.
         if not pdf_path or not Path(pdf_path).exists():
+            pdf_path = PDF_DIR / f"{safe_filename(paper['source_id'], paper.get('source', ''))}.pdf"
+        if not Path(pdf_path).exists():
             continue
 
         try:
@@ -299,6 +303,22 @@ async def _parse_and_store_sections(
             print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
 
     print(f"Parsed {parsed} papers, stored sections to database")
+
+
+async def _papers_needing_summary(
+    api_client: APIClient, paper_ids: set[int], mode: str = "abstract"
+) -> set[int]:
+    """IDs among *paper_ids* that have no *mode* summary yet.
+
+    Kept separate from the parse queue so a run interrupted after parsing
+    still gets its summaries, and a summarized paper is not redone.
+    """
+    missing: set[int] = set()
+    for paper_id in paper_ids:
+        summaries = await api_client.get_summaries_by_paper(paper_id)
+        if not any(s.get("mode") == mode for s in summaries):
+            missing.add(paper_id)
+    return missing
 
 
 async def summarize_papers(
@@ -619,7 +639,12 @@ async def run_pipeline(args):
             print("\n" + "=" * 60)
             print("STEP 5: Generating Summaries")
             print("=" * 60)
-            if not args.skip_summarize and pending_ids:
+            summary_ids = (
+                set()
+                if args.skip_summarize
+                else await _papers_needing_summary(api_client, paper_ids)
+            )
+            if summary_ids:
                 if args.summarizer == "llama":
                     if not Path(args.llm_model).exists():
                         print(
@@ -635,7 +660,7 @@ async def run_pipeline(args):
                             summarizer,
                             entries,
                             mode="abstract",
-                            paper_ids=pending_ids,
+                            paper_ids=summary_ids,
                         )
                 else:
                     summarizer = TransformerSummarizer()
@@ -645,12 +670,12 @@ async def run_pipeline(args):
                         summarizer,
                         entries,
                         mode="abstract",
-                        paper_ids=pending_ids,
+                        paper_ids=summary_ids,
                     )
-            elif not pending_ids:
-                print("No new papers — skipping.")
-            else:
+            elif args.skip_summarize:
                 print("Skipping summarization.")
+            else:
+                print("Every fetched paper is already summarized — skipping.")
 
             # Gather user corpora for recommendations
             try:
