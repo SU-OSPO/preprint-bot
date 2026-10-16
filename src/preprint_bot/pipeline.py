@@ -8,6 +8,7 @@ import asyncio
 import logging
 import sys
 import traceback
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime, timezone, date as date_type
@@ -142,10 +143,13 @@ async def store_fetched_papers(
     stored_count = 0
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
     new_paper_ids: set[int] = set()  # only newly created papers
+    fetched_by_source: Counter = Counter(p.source for p in entries)
+    existing_by_source: Counter = Counter()
     for paper in entries:
         existing = await api_client.get_paper_by_source_id(paper.source_id, paper.source)
         if existing:
             paper_ids.add(existing["id"])
+            existing_by_source[paper.source] += 1
             continue
 
         submitted_date = None
@@ -186,6 +190,7 @@ async def store_fetched_papers(
             print(f"Failed to store {paper.source_id}: {e}")
 
     print(f"Stored {stored_count} new papers in database ({len(paper_ids)} total)")
+    _warn_if_stale(fetched_by_source, existing_by_source)
 
     if not skip_download and stored_count > 0:
         stats = download_arxiv_pdfs(
@@ -215,6 +220,21 @@ async def store_fetched_papers(
         await _parse_and_store_sections(api_client, corpus["id"], entries)
 
     return corpus["id"], paper_ids, new_paper_ids, stored_count
+
+
+def _warn_if_stale(fetched_by_source: Counter, existing_by_source: Counter) -> None:
+    """Warn about a source whose "new" papers are mostly already stored.
+
+    A fresh announcement is almost entirely unseen papers, so a mostly
+    known one suggests the feed served an earlier announcement.
+    """
+    for source, fetched in fetched_by_source.items():
+        existing = existing_by_source[source]
+        if existing > fetched / 2:
+            print(
+                f"WARNING: {existing} of {fetched} papers fetched from {source} were "
+                "already in the database; its feed may be stale."
+            )
 
 
 def _papers_matching(papers: List[dict], entries: List[PaperEntry]) -> List[dict]:
