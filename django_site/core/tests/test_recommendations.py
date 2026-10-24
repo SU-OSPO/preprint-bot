@@ -446,3 +446,83 @@ class RecommendationAddToProfileTests(_RecTestBase):
         resp = self._add(self.profile.pk, paper.pk)
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/auth/login/", resp.url)
+
+
+class RecommendationCreateProfileTests(_RecTestBase):
+    """recommendation_create_profile_view: create a new profile with a recommended paper."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(username="rec@example.com", password="SecurePass123!")
+
+    def _create_profile(self, paper_id, name="New Profile"):
+        return self.client.post(
+            f"/recommendations/create-profile/{paper_id}/",
+            {"name": name},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+    def test_create_profile_with_recommended_paper(self):
+        pa = Profile.objects.create(
+            user=self.user, name="Existing", source_categories={"arxiv": ["cs.AI"]}
+        )
+        paper = _make_paper("2301.00001", "Rec Paper", categories=["cs.AI"])
+        self._rec(self._run_for(pa), paper, 0.8)
+
+        resp = self._create_profile(paper.pk, name="Brand New Profile")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["profile"]["name"], "Brand New Profile")
+        self.assertEqual(data["paper"]["source_id"], "2301.00001")
+
+        # Verify profile and corpus link were created
+        profile = Profile.objects.get(pk=data["profile"]["id"])
+        self.assertEqual(profile.user, self.user)
+        corpus = _get_or_create_user_corpus(self.user, profile)
+        self.assertTrue(paper.corpora.filter(pk=corpus.pk).exists())
+
+    def test_create_profile_paper_not_recommended_404(self):
+        paper = _make_paper("2301.00001", "Not Rec")
+        resp = self._create_profile(paper.pk, name="New Profile")
+        self.assertEqual(resp.status_code, 404)
+        self.assertFalse(resp.json()["ok"])
+
+    def test_create_profile_duplicate_name_400(self):
+        pa = Profile.objects.create(
+            user=self.user, name="Existing", source_categories={"arxiv": ["cs.AI"]}
+        )
+        paper = _make_paper("2301.00001", "Rec Paper")
+        self._rec(self._run_for(pa), paper, 0.8)
+
+        # Try creating with duplicate name "Existing"
+        resp = self._create_profile(paper.pk, name="Existing")
+        self.assertEqual(resp.status_code, 400)
+        data = resp.json()
+        self.assertFalse(data["ok"])
+        self.assertIn("already exists", data["error"])
+
+    def test_create_profile_empty_name_400(self):
+        pa = Profile.objects.create(
+            user=self.user, name="Existing", source_categories={"arxiv": ["cs.AI"]}
+        )
+        paper = _make_paper("2301.00001", "Rec Paper")
+        self._rec(self._run_for(pa), paper, 0.8)
+
+        resp = self._create_profile(paper.pk, name="   ")
+        self.assertEqual(resp.status_code, 400)
+        data = resp.json()
+        self.assertFalse(data["ok"])
+        self.assertIn("required", data["error"])
+
+    def test_create_profile_requires_post(self):
+        paper = _make_paper("2301.00001", "Rec Paper")
+        resp = self.client.get(f"/recommendations/create-profile/{paper.pk}/")
+        self.assertEqual(resp.status_code, 405)
+
+    def test_create_profile_requires_login(self):
+        self.client.logout()
+        paper = _make_paper("2301.00001", "Rec Paper")
+        resp = self._create_profile(paper.pk, name="New Profile")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/auth/login/", resp.url)
