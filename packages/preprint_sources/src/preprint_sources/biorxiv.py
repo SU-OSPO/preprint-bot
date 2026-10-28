@@ -2,8 +2,9 @@
 bioRxiv preprint source.
 
 bioRxiv posts new papers every day, so "latest" means the previous day's
-postings, in Eastern Time. The clock is explicit so the result matches
-arXiv's and doesn't depend on the server's or CI's timezone.
+postings. Papers carry only a posting date, so the day is counted in
+Eastern Time, where bioRxiv is based, rather than in the server's
+timezone. That day has always ended, wherever the server runs.
 """
 
 from __future__ import annotations
