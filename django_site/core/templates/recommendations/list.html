@@ -562,7 +562,7 @@ function addToProfile(profileId, paperId) {
       } else {
         /* all profiles: briefly confirm, then rebuild dropdown with updated disabled state */
         const profileName = PROFILES.find(p => p.id === profileId);
-        btn.innerHTML = '<span class="text-sm" style="color:var(--success);">✓ Added to ' + esc(profileName ? profileName.name : 'profile') + '</span>';
+        btn.innerHTML = '<span class="text-sm" style="color:var(--success);">' + (data.already_linked ? 'Already in ' : '✓ Added to ') + esc(profileName ? profileName.name : 'profile') + '</span>';
         setTimeout(() => {
           /* find the rec data to get server-side in_corpus list */
           const rec = ALL_RECS.find(r => r.paper_id === paperId);
