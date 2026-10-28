@@ -7,6 +7,7 @@ import pytest
 
 from preprint_sources import (
     ArxivSource,
+    BiorxivSource,
     PreprintSource,
     all_source_names,
     enabled_names,
@@ -23,6 +24,14 @@ def test_get_source_returns_instance():
     src = get_source("arxiv")
     assert isinstance(src, ArxivSource)
     assert isinstance(src, PreprintSource)
+
+
+def test_biorxiv_is_registered():
+    assert "biorxiv" in all_source_names()
+
+
+def test_get_biorxiv_returns_instance():
+    assert isinstance(get_source("biorxiv"), BiorxivSource)
 
 
 def test_get_unknown_source_raises():
@@ -94,7 +103,7 @@ def test_demo_source_is_absent_by_default(monkeypatch, reimport_registry):
 def test_demo_source_registers_when_requested(monkeypatch, reimport_registry):
     monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv,demo")
     ps = reimport_registry()
-    assert ps.all_source_names() == ["arxiv", "demo"]
+    assert ps.all_source_names() == ["arxiv", "biorxiv", "demo"]
     assert ps.enabled_names() == ["arxiv", "demo"]
 
     demo = ps.get_source("demo")
