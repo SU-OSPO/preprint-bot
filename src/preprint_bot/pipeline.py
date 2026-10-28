@@ -8,6 +8,7 @@ import asyncio
 import logging
 import sys
 import traceback
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime, timezone, date as date_type
@@ -119,11 +120,14 @@ async def store_fetched_papers(
 ) -> tuple[int, set[int], set[int], int]:
     """Create a corpus and store fetched papers in the database.
 
-    Returns ``(corpus_id, paper_ids, new_paper_ids, stored_count)`` where
+    Returns ``(corpus_id, paper_ids, pending_ids, stored_count)`` where
     ``paper_ids`` is the full set of database IDs for all fetched papers
-    (both newly stored and already existing), ``new_paper_ids`` is the
-    subset that were newly created, and ``stored_count`` is how many
-    were newly created.
+    (both newly stored and already existing), ``pending_ids`` is the
+    subset still to be processed (newly created, or stored earlier but
+    never parsed), and ``stored_count`` is how many were newly created.
+
+    Only pending papers are downloaded and parsed, so a feed that repeats
+    papers from an earlier run does not redo or duplicate their work.
     """
     user = await api_client.get_or_create_user(SYSTEM_USER_EMAIL, SYSTEM_USER_NAME)
     print(f"Using system user: {user['email']}")
@@ -141,11 +145,19 @@ async def store_fetched_papers(
 
     stored_count = 0
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
-    new_paper_ids: set[int] = set()  # only newly created papers
+    pending_ids: set[int] = set()  # papers still to download, parse, embed, summarize
+    pending: List[PaperEntry] = []
+    fetched_by_source: Counter = Counter(p.source for p in entries)
+    existing_by_source: Counter = Counter()
     for paper in entries:
         existing = await api_client.get_paper_by_source_id(paper.source_id, paper.source)
         if existing:
             paper_ids.add(existing["id"])
+            existing_by_source[paper.source] += 1
+            # Stored by an earlier run that stopped before parsing it
+            if not skip_parse and not await api_client.get_sections_by_paper(existing["id"]):
+                pending_ids.add(existing["id"])
+                pending.append(paper)
             continue
 
         submitted_date = None
@@ -180,14 +192,18 @@ async def store_fetched_papers(
                 submitted_date=submitted_date,
             )
             paper_ids.add(created["id"])
-            new_paper_ids.add(created["id"])
+            pending_ids.add(created["id"])
+            pending.append(paper)
             stored_count += 1
         except Exception as e:
             print(f"Failed to store {paper.source_id}: {e}")
 
     print(f"Stored {stored_count} new papers in database ({len(paper_ids)} total)")
+    _warn_if_stale(fetched_by_source, existing_by_source)
+    if len(pending) > stored_count:
+        print(f"Resuming {len(pending) - stored_count} previously stored but unparsed papers")
 
-    if not skip_download and stored_count > 0:
+    if not skip_download and pending:
         stats = download_arxiv_pdfs(
             [
                 {
@@ -196,7 +212,7 @@ async def store_fetched_papers(
                     "source": p.source,
                     "arxiv_url": p.url,
                 }
-                for p in entries
+                for p in pending
             ],
             output_folder=str(PDF_DIR),
             use_s3=False,
@@ -210,11 +226,26 @@ async def store_fetched_papers(
                 f"Check network connectivity and file permissions."
             )
 
-    if not skip_parse and stored_count > 0:
+    if not skip_parse and pending:
         print("\nParsing PDFs with GROBID...")
-        await _parse_and_store_sections(api_client, corpus["id"], entries)
+        await _parse_and_store_sections(api_client, corpus["id"], pending)
 
-    return corpus["id"], paper_ids, new_paper_ids, stored_count
+    return corpus["id"], paper_ids, pending_ids, stored_count
+
+
+def _warn_if_stale(fetched_by_source: Counter, existing_by_source: Counter) -> None:
+    """Warn about a source whose "new" papers are mostly already stored.
+
+    A fresh announcement is almost entirely unseen papers, so a mostly
+    known one suggests the feed served an earlier announcement.
+    """
+    for source, fetched in fetched_by_source.items():
+        existing = existing_by_source[source]
+        if existing > fetched / 2:
+            print(
+                f"WARNING: {existing} of {fetched} papers fetched from {source} were "
+                "already in the database; its feed may be stale."
+            )
 
 
 def _papers_matching(papers: List[dict], entries: List[PaperEntry]) -> List[dict]:
@@ -242,7 +273,11 @@ async def _parse_and_store_sections(
     parsed = 0
     for paper in papers:
         pdf_path = paper.get("pdf_path")
+        # Rows stored before filenames carried the source still point at the
+        # old name, while a resumed download writes the current one.
         if not pdf_path or not Path(pdf_path).exists():
+            pdf_path = PDF_DIR / f"{safe_filename(paper['source_id'], paper.get('source', ''))}.pdf"
+        if not Path(pdf_path).exists():
             continue
 
         try:
@@ -270,6 +305,22 @@ async def _parse_and_store_sections(
     print(f"Parsed {parsed} papers, stored sections to database")
 
 
+async def _papers_needing_summary(
+    api_client: APIClient, paper_ids: set[int], mode: str = "abstract"
+) -> set[int]:
+    """IDs among *paper_ids* that have no *mode* summary yet.
+
+    Kept separate from the parse queue so a run interrupted after parsing
+    still gets its summaries, and a summarized paper is not redone.
+    """
+    missing: set[int] = set()
+    for paper_id in paper_ids:
+        summaries = await api_client.get_summaries_by_paper(paper_id)
+        if not any(s.get("mode") == mode for s in summaries):
+            missing.add(paper_id)
+    return missing
+
+
 async def summarize_papers(
     api_client: APIClient,
     corpus_id: int,
@@ -284,7 +335,7 @@ async def summarize_papers(
 
     if paper_ids is not None:
         papers = [p for p in papers if p["id"] in paper_ids]
-        print(f"  Filtered to {len(papers)} recommended papers")
+        print(f"  Filtered to {len(papers)} papers")
 
     if not papers:
         print("  No papers found to summarize")
@@ -565,7 +616,7 @@ async def run_pipeline(args):
         else:
             print(f"Fetched {len(entries)} papers")
 
-            corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
+            corpus_id, paper_ids, pending_ids, _ = await store_fetched_papers(
                 api_client,
                 entries,
                 skip_download=args.skip_download,
@@ -575,20 +626,25 @@ async def run_pipeline(args):
             print("\n" + "=" * 60)
             print("STEP 4: Generating Embeddings")
             print("=" * 60)
-            if not args.skip_embed and stored_count > 0:
+            if not args.skip_embed and pending_ids:
                 await embed_and_store_papers(
                     api_client,
                     corpus_id=corpus_id,
                     model_name=args.model,
-                    paper_ids=new_paper_ids,  # only embed newly created papers
+                    paper_ids=pending_ids,  # only embed papers not yet processed
                 )
-            elif stored_count == 0:
+            elif not pending_ids:
                 print("No new papers — skipping.")
 
             print("\n" + "=" * 60)
             print("STEP 5: Generating Summaries")
             print("=" * 60)
-            if not args.skip_summarize and stored_count > 0:
+            summary_ids = (
+                set()
+                if args.skip_summarize
+                else await _papers_needing_summary(api_client, paper_ids)
+            )
+            if summary_ids:
                 if args.summarizer == "llama":
                     if not Path(args.llm_model).exists():
                         print(
@@ -599,17 +655,27 @@ async def run_pipeline(args):
 
                         summarizer = LlamaSummarizer(model_path=args.llm_model)
                         await summarize_papers(
-                            api_client, corpus_id, summarizer, entries, mode="abstract"
+                            api_client,
+                            corpus_id,
+                            summarizer,
+                            entries,
+                            mode="abstract",
+                            paper_ids=summary_ids,
                         )
                 else:
                     summarizer = TransformerSummarizer()
                     await summarize_papers(
-                        api_client, corpus_id, summarizer, entries, mode="abstract"
+                        api_client,
+                        corpus_id,
+                        summarizer,
+                        entries,
+                        mode="abstract",
+                        paper_ids=summary_ids,
                     )
-            elif stored_count == 0:
-                print("No new papers — skipping.")
-            else:
+            elif args.skip_summarize:
                 print("Skipping summarization.")
+            else:
+                print("Every fetched paper is already summarized — skipping.")
 
             # Gather user corpora for recommendations
             try:
