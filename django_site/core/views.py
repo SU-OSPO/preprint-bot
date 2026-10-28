@@ -1653,11 +1653,12 @@ def recommendation_add_to_profile_view(request, profile_id, paper_id):
 
     corpus = _get_or_create_user_corpus(pb_user, profile)
 
-    already_linked = paper.corpora.filter(pk=corpus.pk).exists()
-    if already_linked:
+    # Let the (paper, corpus) unique constraint decide, so two concurrent
+    # adds of the same paper can't both report already_linked=False.
+    _, added = Paper.corpora.through.objects.get_or_create(paper=paper, corpus=corpus)
+    if not added:
         return JsonResponse({"ok": True, "already_linked": True})
 
-    _link_paper_to_corpus(paper, corpus)
     return JsonResponse(
         {
             "ok": True,
