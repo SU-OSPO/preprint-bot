@@ -44,9 +44,14 @@ def test_entry_from_first_version():
         pdf_url=f"https://www.biorxiv.org/content/{DOI}v1.full.pdf",
         authors=["Ji, Z.", "Zhang, H."],
         categories=["neuroscience"],
-        published="2026-10-26",
+        published="2026-10-27T00:00:00-04:00",
         source="biorxiv",
     )
+
+
+def test_published_rolls_into_next_year_at_eastern_midnight():
+    entry = _entry_from_item(_item(date="2026-12-31"))
+    assert entry.published == "2027-01-01T00:00:00-05:00"
 
 
 def test_entry_accepts_integer_version():

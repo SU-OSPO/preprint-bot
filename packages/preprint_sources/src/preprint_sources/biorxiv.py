@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -127,6 +127,10 @@ def _entry_from_item(item: dict) -> Optional[PaperEntry]:
         return None
 
     doi = item["doi"]
+
+    # align with arXiv's "published" field, which is the day after the paper was announced
+    posted = date.fromisoformat(item["date"])
+    run_day = datetime.combine(posted + timedelta(days=1), time(), _EASTERN)
     return PaperEntry(
         source_id=doi,
         title=item.get("title", "").strip(),
@@ -136,7 +140,7 @@ def _entry_from_item(item: dict) -> Optional[PaperEntry]:
         authors=[a.strip() for a in item.get("authors", "").split(";") if a.strip()],
         categories=[item["category"]],
         # The record's own "published" is a journal DOI (or "NA"), not a date.
-        published=item["date"],
+        published=run_day.isoformat(),
         source="biorxiv",
     )
 
