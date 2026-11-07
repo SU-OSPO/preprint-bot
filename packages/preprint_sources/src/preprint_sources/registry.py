@@ -17,10 +17,12 @@ from typing import Dict, List, Type
 from .arxiv import ArxivSource
 from .base import PreprintSource
 from .biorxiv import BiorxivSource
+from .medrxiv import MedrxivSource
 
 _CLASSES: Dict[str, Type[PreprintSource]] = {
     "arxiv": ArxivSource,
     "biorxiv": BiorxivSource,
+    "medrxiv": MedrxivSource,
 }
 
 _DEMO_NAME = "demo"
