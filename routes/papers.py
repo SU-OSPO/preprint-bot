@@ -59,6 +59,38 @@ async def get_papers_needing_embeddings():
         return results
 
 
+@router.get("/missing-sections", response_model=List[PaperResponse])
+async def get_papers_missing_sections(
+    corpus_id: int = Query(...),
+    days: int = Query(3, ge=1),
+):
+    """Papers in a corpus stored in the last *days* days that have a PDF URL but no sections."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT p.id, p.corpus_id, p.source_id, p.title, p.abstract, p.metadata,
+                   p.pdf_path, p.processed_text_path, p.submitted_date, p.source, p.created_at
+            FROM papers p
+            JOIN papers_corpora pc ON p.id = pc.paper_id
+            WHERE pc.corpus_id = $1
+              AND p.created_at >= NOW() - $2 * INTERVAL '1 day'
+              AND COALESCE(p.metadata->>'pdf_url', '') <> ''
+              AND NOT EXISTS (SELECT 1 FROM sections s WHERE s.paper_id = p.id)
+            ORDER BY p.created_at
+            """,
+            corpus_id,
+            days,
+        )
+        results = []
+        for row in rows:
+            result = dict(row)
+            if result["metadata"]:
+                result["metadata"] = json.loads(result["metadata"])
+            results.append(result)
+        return results
+
+
 @router.post("/", response_model=PaperResponse, status_code=201)
 async def create_paper(paper: PaperCreate):
     pool = await get_db_pool()

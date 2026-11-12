@@ -199,6 +199,15 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    async def get_papers_missing_sections(self, corpus_id: int, days: int) -> List[Dict]:
+        """Papers in *corpus_id* stored in the last *days* days with a PDF URL but no sections."""
+        response = await self.client.get(
+            f"{self.base_url}/papers/missing-sections",
+            params={"corpus_id": corpus_id, "days": days},
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def get_papers_needing_processing(self) -> List[Dict]:
         """Papers with a PDF but no sections extracted yet."""
         response = await self.client.get(f"{self.base_url}/papers/needing-processing")
@@ -411,6 +420,15 @@ class APIClient:
         response = await self.client.get(f"{self.base_url}/recommendations/?run_id={run_id}")
         response.raise_for_status()
         return response.json()
+
+    async def get_recommended_paper_ids(self, profile_id: int, paper_ids) -> set[int]:
+        """Which of *paper_ids* the profile has already been recommended."""
+        response = await self.client.get(
+            f"{self.base_url}/recommendations/profile/{profile_id}/paper-ids",
+            params={"paper_ids": sorted(paper_ids)},
+        )
+        response.raise_for_status()
+        return set(response.json())
 
     async def get_recommendations_with_papers(self, run_id: int, limit: int = 50) -> List[Dict]:
         response = await self.client.get(

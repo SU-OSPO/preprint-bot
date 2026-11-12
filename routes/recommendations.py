@@ -179,6 +179,24 @@ async def get_recommendations_by_profile(profile_id: int, limit: int = Query(500
         return results
 
 
+@recommendations_router.get("/profile/{profile_id}/paper-ids", response_model=List[int])
+async def get_recommended_paper_ids(profile_id: int, paper_ids: List[int] = Query(...)):
+    """Which of *paper_ids* any of the profile's runs has already recommended."""
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT r.paper_id
+            FROM recommendations r
+            JOIN recommendation_runs rr ON rr.id = r.run_id
+            WHERE rr.profile_id = $1 AND r.paper_id = ANY($2::int[])
+            """,
+            profile_id,
+            paper_ids,
+        )
+        return [row["paper_id"] for row in rows]
+
+
 @recommendations_router.get("/{rec_id}", response_model=RecommendationResponse)
 async def get_recommendation(rec_id: int):
     pool = await get_db_pool()
