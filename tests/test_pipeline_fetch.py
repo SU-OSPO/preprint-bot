@@ -187,3 +187,26 @@ class TestSourceScopedMatching:
         # Without a source the pre-multi-source name is unchanged, so paths
         # already stored on existing rows keep resolving.
         assert safe_filename("2401.00001") == "2401.00001"
+
+
+class TestStaleFeedWarning:
+    """A fresh announcement is almost all unseen papers; a mostly known one
+    means the feed probably served an earlier announcement."""
+
+    def test_warns_when_most_papers_already_stored(self, capsys):
+        from collections import Counter
+
+        from preprint_bot.pipeline import _warn_if_stale
+
+        _warn_if_stale(Counter(arxiv=10, biorxiv=10), Counter(arxiv=8, biorxiv=2))
+        out = capsys.readouterr().out
+        assert "8 of 10 papers fetched from arxiv" in out
+        assert "biorxiv" not in out
+
+    def test_silent_for_a_fresh_feed(self, capsys):
+        from collections import Counter
+
+        from preprint_bot.pipeline import _warn_if_stale
+
+        _warn_if_stale(Counter(arxiv=10), Counter(arxiv=5))
+        assert capsys.readouterr().out == ""

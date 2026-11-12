@@ -31,6 +31,9 @@ from .taxonomies.arxiv import (
 _RSS_BASE = "https://rss.arxiv.org/rss"
 _API_BASE = "https://export.arxiv.org/api/query"
 
+# rss.arxiv.org silently truncates a feed at this many entries (undocumented).
+_RSS_MAX_ENTRIES = 2000
+
 # Reused across calls; converts LaTeX text markup (e.g. ``\'e``) to Unicode.
 _LATEX2TEXT = LatexNodes2Text()
 
@@ -77,25 +80,57 @@ class ArxivSource(PreprintSource):
         exactly the papers from the most recent announcement.  We
         filter for ``announce_type == 'new'`` to skip replacements
         and cross-listings.
+
+        A feed is truncated at ``_RSS_MAX_ENTRIES``; one that reaches it
+        is split in two and each half refetched.  "new" means the paper's
+        primary category is in the feed, so the halves' new entries
+        together equal those of one untruncated feed.
         """
-        # Combine categories with '+' to fetch a single merged feed
-        cat_str = "+".join(categories)
-        url = f"{_RSS_BASE}/{cat_str}"
-
         logger.info("\nFetching latest arXiv papers via RSS")
-        logger.info(f"  Feed: {url}")
         logger.info(f"  Categories: {categories}")
-
-        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-
-        feed = feedparser.parse(resp.text)
 
         entries: List[PaperEntry] = []
         seen_ids: set[str] = set()
 
-        for item in feed.entries:
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
+            await self._collect_rss(client, list(categories), entries, seen_ids)
+
+        logger.info(f"  Found {len(entries)} new papers")
+        return entries
+
+    async def _collect_rss(
+        self,
+        client: httpx.AsyncClient,
+        categories: List[str],
+        entries: List[PaperEntry],
+        seen_ids: set[str],
+        wait: bool = False,
+    ) -> None:
+        """Append the new entries of the merged feed for *categories*.
+
+        Splits and recurses when the feed hits the entry cap.  *wait*
+        spaces this request from the previous one per arXiv's rate limit.
+        """
+        if wait:
+            await asyncio.sleep(self.request_delay_seconds)
+        items = await _fetch_rss_items(client, categories)
+
+        if len(items) >= _RSS_MAX_ENTRIES:
+            if len(categories) > 1:
+                logger.warning(
+                    f"  Feed hit the {_RSS_MAX_ENTRIES}-entry cap; "
+                    f"splitting {len(categories)} categories in two"
+                )
+                mid = len(categories) // 2
+                await self._collect_rss(client, categories[:mid], entries, seen_ids, wait=True)
+                await self._collect_rss(client, categories[mid:], entries, seen_ids, wait=True)
+                return
+            logger.warning(
+                f"  Feed for {categories[0]} hit the {_RSS_MAX_ENTRIES}-entry cap; "
+                "new papers past the cap are missing"
+            )
+
+        for item in items:
             # Only new submissions (skip replace, cross, replace-cross)
             announce_type = getattr(item, "arxiv_announce_type", "new")
             if announce_type != "new":
@@ -125,9 +160,6 @@ class ArxivSource(PreprintSource):
                     },
                 )
             )
-
-        logger.info(f"  Found {len(entries)} new papers")
-        return entries
 
     # ── API with submission windows (backfill) ─────────────────────
 
@@ -268,6 +300,18 @@ class ArxivSource(PreprintSource):
 
 
 # ── Helpers ────────────────────────────────────────────────────────
+
+
+async def _fetch_rss_items(client: httpx.AsyncClient, categories: List[str]) -> list:
+    """Raw entries of the merged RSS feed for *categories*."""
+    # Combine categories with '+' to fetch a single merged feed
+    url = f"{_RSS_BASE}/{'+'.join(categories)}"
+    logger.info(f"  Feed: {url}")
+    # A unique query string bypasses the CDN cache, which can serve the
+    # previous announcement for up to a day under a current-looking date.
+    resp = await client.get(url, params={"t": str(int(datetime.now(timezone.utc).timestamp()))})
+    resp.raise_for_status()
+    return feedparser.parse(resp.text).entries
 
 
 def _extract_arxiv_id(link: str) -> str | None:

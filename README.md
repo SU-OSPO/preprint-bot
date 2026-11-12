@@ -724,7 +724,11 @@ Run the pipeline daily at 1:30 AM after the arXiv RSS feed updates. See the syst
 The pipeline uses arXiv RSS feeds (primary) for daily runs and falls
 back to the arXiv search API with submission-window calculation for
 backfilling historical dates. The RSS approach automatically handles
-weekend gaps and holiday deferrals.
+weekend gaps and holiday deferrals. A feed is truncated at 2,000 entries,
+so one that reaches the cap is split into smaller feeds and refetched; each
+request also carries a unique query string so a cached copy of the previous
+announcement is never served. The pipeline warns when most fetched papers
+are already in the database, a sign of a stale feed.
 
 ## Database Operations
 
