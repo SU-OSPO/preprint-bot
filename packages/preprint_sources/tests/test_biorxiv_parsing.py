@@ -3,7 +3,7 @@
 from datetime import date, datetime, timezone
 
 from preprint_sources.base import PaperEntry
-from preprint_sources.biorxiv import _entry_from_item, _yesterday_et
+from preprint_sources.rxiv import _entry_from_item, _yesterday_et
 
 DOI = "10.64898/2026.10.25.761658"
 
@@ -36,7 +36,7 @@ def test_yesterday_et_uses_eastern_time():
 
 
 def test_entry_from_first_version():
-    assert _entry_from_item(_item()) == PaperEntry(
+    assert _entry_from_item(_item(), "https://www.biorxiv.org", "biorxiv") == PaperEntry(
         source_id=DOI,
         title="A Title",
         abstract="Body.",
@@ -50,14 +50,14 @@ def test_entry_from_first_version():
 
 
 def test_published_rolls_into_next_year_at_eastern_midnight():
-    entry = _entry_from_item(_item(date="2026-12-31"))
+    entry = _entry_from_item(_item(date="2026-12-31"), "https://www.biorxiv.org", "biorxiv")
     assert entry.published == "2027-01-01T00:00:00-05:00"
 
 
 def test_entry_accepts_integer_version():
     # The API sends "1" today; an integer 1 must not be dropped as a revision.
-    assert _entry_from_item(_item(version=1)) is not None
+    assert _entry_from_item(_item(version=1), "https://www.biorxiv.org", "biorxiv") is not None
 
 
 def test_revision_is_skipped():
-    assert _entry_from_item(_item(version="2")) is None
+    assert _entry_from_item(_item(version="2"), "https://www.biorxiv.org", "biorxiv") is None
