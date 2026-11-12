@@ -52,6 +52,10 @@ class ArxivSource(PreprintSource):
         return "arXiv"
 
     @property
+    def date_label(self) -> str:
+        return "Announced"
+
+    @property
     def request_delay_seconds(self) -> float:
         # arXiv asks for no more than one request every three seconds.
         return 3.0

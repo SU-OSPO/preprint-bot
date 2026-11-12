@@ -66,6 +66,7 @@ def test_optional_capabilities_default_off():
     assert src.supports_search() is False
     assert src.supports_add_by_id() is False
     assert src.label_for("code") == "code"
+    assert src.date_label == "Posted"
 
 
 async def test_optional_methods_raise_not_implemented():

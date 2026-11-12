@@ -7,6 +7,7 @@ def test_identity():
     src = ArxivSource()
     assert src.name == "arxiv"
     assert src.label == "arXiv"
+    assert src.date_label == "Announced"
 
 
 def test_landing_url():

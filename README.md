@@ -563,7 +563,7 @@ The web interface is a Django application located in `django_site/`. It reads an
 
 **Dashboard:**
 - Profile and corpus counts
-- Recent recommendations (today's papers)
+- Latest recommendations (the most recent day's received papers, backfills included)
 - Quick access to latest papers
 
 **Profiles:**
@@ -573,10 +573,10 @@ The web interface is a Django application located in `django_site/`. It reads an
 - Delete individual papers or entire profiles
 
 **Recommendations:**
-- Filter by profile, date range, score, and categories
+- Filter by profile, date received, score, and categories
 - Quick filters: Today, Last 7 days, Last 30 days, All time
 - Adjustable paper limit per profile
-- Date-grouped display with expandable paper cards
+- Grouped by the date each recommendation was received; cards show the paper's own date ("Announced" for arXiv, "Posted" for bioRxiv/medRxiv)
 - Direct links to arXiv
 
 **Account:**

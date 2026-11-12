@@ -47,15 +47,20 @@ class _RecTestBase(TestCase):
         # does NOT match the user_<pk>_profile_<pk> pattern the query scans.
         self.ref = Corpus.objects.create(user=self.user, name="ref_arxiv")
 
-    def _run_for(self, profile, total=10):
+    def _run_for(self, profile, total=10, created_at=None):
         corpus = _get_or_create_user_corpus(self.user, profile)
-        return RecommendationRun.objects.create(
+        run = RecommendationRun.objects.create(
             user=self.user,
             user_corpus=corpus,
             ref_corpus=self.ref,
             profile=profile,
             total_papers_fetched=total,
         )
+        if created_at:
+            # auto_now_add ignores a value passed to create()
+            RecommendationRun.objects.filter(pk=run.pk).update(created_at=created_at)
+            run.refresh_from_db()
+        return run
 
     def _rec(self, run, paper, score, rank=1):
         return Recommendation.objects.create(
@@ -134,14 +139,15 @@ class QueryProfileRecommendationsTests(_RecTestBase):
             {("arxiv", "From arXiv"), ("biorxiv", "From elsewhere")},
         )
 
-    def test_paper_without_date_gets_unknown(self):
+    def test_paper_without_date_has_no_paper_date(self):
         pa = Profile.objects.create(
             user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
         )
         self._rec(self._run_for(pa), _make_paper("2301.00001", "No Date", submitted_date=None), 0.5)
         r = _query_profile_recommendations(self.user, pa)[0]
-        self.assertIsNone(r["date_obj"])
-        self.assertEqual(r["date_str"], "Unknown Date")
+        self.assertIsNone(r["paper_date_str"])
+        # Still dated by when it was received.
+        self.assertIsNotNone(r["received_date"])
 
     def test_paper_with_date_is_formatted(self):
         pa = Profile.objects.create(
@@ -152,8 +158,39 @@ class QueryProfileRecommendationsTests(_RecTestBase):
         )
         self._rec(self._run_for(pa), dated, 0.5)
         r = _query_profile_recommendations(self.user, pa)[0]
-        self.assertEqual(r["date_obj"], date(2023, 6, 15))
-        self.assertEqual(r["date_str"], "15 June 2023")
+        self.assertEqual(r["paper_date_str"], "15 June 2023")
+        self.assertEqual(r["paper_date_label"], "Announced")
+
+    def test_paper_date_label_follows_source(self):
+        pa = Profile.objects.create(
+            user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
+        )
+        run = self._run_for(pa)
+        self._rec(run, _make_paper("1", "bio", source="biorxiv"), 0.9, rank=1)
+        self._rec(run, _make_paper("2", "med", source="medrxiv"), 0.8, rank=2)
+        self._rec(run, _make_paper("3", "upload", source="user"), 0.7, rank=3)
+        labels = {
+            r["title"]: r["paper_date_label"] for r in _query_profile_recommendations(self.user, pa)
+        }
+        self.assertEqual(labels, {"bio": "Posted", "med": "Posted", "upload": "Dated"})
+
+    def test_received_date_is_run_creation_in_local_time(self):
+        """Dated by the run, not the paper, using the site's time zone.
+
+        01:30 UTC on 12 Nov is 20:30 on 11 Nov in America/New_York.
+        """
+        pa = Profile.objects.create(
+            user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
+        )
+        run = self._run_for(pa, created_at=datetime(2026, 11, 12, 1, 30, tzinfo=timezone.utc))
+        paper = _make_paper(
+            "2301.00001", "Backfilled", submitted_date=datetime(2026, 11, 3, tzinfo=timezone.utc)
+        )
+        self._rec(run, paper, 0.5)
+        r = _query_profile_recommendations(self.user, pa)[0]
+        self.assertEqual(r["received_date"], date(2026, 11, 11))
+        self.assertEqual(r["received_str"], "11 November 2026")
+        self.assertEqual(r["paper_date_str"], "03 November 2026")
 
     def test_summary_only_from_abstract_mode(self):
         pa = Profile.objects.create(
@@ -267,8 +304,10 @@ class RecommendationsViewTests(_RecTestBase):
             "title",
             "score",
             "source_id",
-            "date_iso",
-            "date_str",
+            "received_iso",
+            "received_str",
+            "paper_date_str",
+            "paper_date_label",
             "abstract",
             "summary_text",
             "categories",
@@ -276,21 +315,23 @@ class RecommendationsViewTests(_RecTestBase):
             self.assertIn(field, r)
         self.assertEqual(r["source_id"], "2301.00001")
         self.assertAlmostEqual(r["score"], 0.85)
-        self.assertEqual(r["date_iso"], "2023-06-15")
-        self.assertEqual(r["date_str"], "15 June 2023")
+        self.assertEqual(r["paper_date_str"], "15 June 2023")
+        self.assertEqual(r["paper_date_label"], "Announced")
         self.assertEqual(r["abstract"], "An abstract.")
         self.assertEqual(r["summary_text"], "A summary.")
         self.assertEqual(r["categories"], ["cs.AI"])
-        self.assertNotIn("date_obj", r)  # stripped during serialization
+        self.assertNotIn("received_date", r)  # stripped during serialization
 
-    def test_recs_json_null_date_serialization(self):
+    def test_recs_json_received_date_serialization(self):
         pa = Profile.objects.create(
             user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
         )
-        self._rec(self._run_for(pa), _make_paper("2301.00001", "No Date", submitted_date=None), 0.5)
+        run = self._run_for(pa, created_at=datetime(2026, 11, 12, 15, 0, tzinfo=timezone.utc))
+        self._rec(run, _make_paper("2301.00001", "No Date", submitted_date=None), 0.5)
         r = json.loads(self.client.get("/recommendations/").context["recs_json"])[0]
-        self.assertIsNone(r["date_iso"])
-        self.assertEqual(r["date_str"], "Unknown Date")
+        self.assertEqual(r["received_iso"], "2026-11-12")
+        self.assertEqual(r["received_str"], "12 November 2026")
+        self.assertIsNone(r["paper_date_str"])
 
     def _filter_sources(self, url="/recommendations/"):
         return json.loads(self.client.get(url).context["filter_sources_json"])
@@ -446,3 +487,49 @@ class RecommendationAddToProfileTests(_RecTestBase):
         resp = self._add(self.profile.pk, paper.pk)
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/auth/login/", resp.url)
+
+
+class DashboardLatestTests(_RecTestBase):
+    """dashboard_view: "Latest Recommendations" is the most recent received date."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(username="rec@example.com", password="SecurePass123!")
+        self.profile = Profile.objects.create(
+            user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
+        )
+
+    def test_backfilled_papers_show_on_the_day_they_arrive(self):
+        nightly = self._run_for(
+            self.profile, created_at=datetime(2026, 11, 10, 12, 0, tzinfo=timezone.utc)
+        )
+        backfill = self._run_for(
+            self.profile, created_at=datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc)
+        )
+        # The nightly paper is dated later than the backfilled ones.
+        self._rec(
+            nightly,
+            _make_paper("1", "Nightly", submitted_date=datetime(2026, 11, 10, tzinfo=timezone.utc)),
+            0.9,
+        )
+        self._rec(
+            backfill,
+            _make_paper("2", "Old A", submitted_date=datetime(2026, 11, 3, tzinfo=timezone.utc)),
+            0.4,
+            rank=1,
+        )
+        self._rec(
+            backfill,
+            _make_paper("3", "Old B", submitted_date=datetime(2026, 11, 2, tzinfo=timezone.utc)),
+            0.6,
+            rank=2,
+        )
+        resp = self.client.get("/")
+        self.assertEqual([r["title"] for r in resp.context["today_recs"]], ["Old B", "Old A"])
+        self.assertEqual(resp.context["today_count"], 2)
+        self.assertEqual(resp.context["total_recs"], 3)
+        self.assertContains(resp, "Announced 03 November 2026")
+
+    def test_no_recommendations(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.context["today_recs"], [])

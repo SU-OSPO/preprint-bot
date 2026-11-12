@@ -733,16 +733,13 @@ def dashboard_view(request):
     all_recs = _query_profile_recommendations(pb_user)
     total_recs = len(all_recs)
 
-    # Filter to the most recent date for the "Latest" section
-    latest_date = None
-    for r in all_recs:
-        d = r.get("date_obj")
-        if d and (latest_date is None or d > latest_date):
-            latest_date = d
+    # Filter to the most recent received date for the "Latest" section,
+    # so backfilled papers show up on the day they arrive
+    latest_date = max((r["received_date"] for r in all_recs), default=None)
 
     if latest_date:
         today_recs = sorted(
-            [r for r in all_recs if r.get("date_obj") == latest_date],
+            [r for r in all_recs if r["received_date"] == latest_date],
             key=lambda x: x["score"],
             reverse=True,
         )
@@ -1497,10 +1494,9 @@ def recommendations_view(request):
     # Query all recommendations for this profile (or all)
     recs = _query_profile_recommendations(pb_user, selected_profile)
 
-    # Serialize for JS — convert date_obj to ISO string, drop it
+    # Serialize for JS — convert received_date to ISO string, drop it
     for r in recs:
-        r["date_iso"] = r["date_obj"].isoformat() if r.get("date_obj") else None
-        del r["date_obj"]
+        r["received_iso"] = r.pop("received_date").isoformat()
 
     # Categories for the filter pills, grouped by source.
     scoped = [selected_profile] if selected_profile else list(profiles)
@@ -1546,7 +1542,9 @@ def _query_profile_recommendations(pb_user, profile=None):
     Fetch recommendations for a profile (or all profiles if None).
 
     Returns a deduplicated list of recommendation dicts, unsorted
-    (the caller applies the final sort).
+    (the caller applies the final sort). Each is dated by when its run
+    was created (``received_date``, local time), with the paper's own
+    date kept separately (``paper_date_str``).
     """
     if profile:
         corpus_name = f"user_{pb_user.pk}_profile_{profile.pk}"
@@ -1577,7 +1575,7 @@ def _query_profile_recommendations(pb_user, profile=None):
     recs_list = list(
         Recommendation.objects.filter(run__in=runs)
         .select_related("paper", "run")
-        .order_by("-paper__submitted_date", "-score", "paper__source_id")[:5000]
+        .order_by("-run__created_at", "-score", "paper__source_id")[:5000]
     )
 
     # Prefetch summaries for all papers in one query
@@ -1605,9 +1603,8 @@ def _query_profile_recommendations(pb_user, profile=None):
         if key in seen and rec.score <= seen[key]["score"]:
             continue
 
+        received_date = timezone.localdate(rec.run.created_at)
         dt = paper.submitted_date
-        date_obj = dt.date() if dt else None
-        date_str = dt.strftime("%d %B %Y") if dt else "Unknown Date"
 
         seen[key] = {
             "paper_id": paper.pk,
@@ -1624,8 +1621,10 @@ def _query_profile_recommendations(pb_user, profile=None):
             "landing_url": paper.landing_url,
             "abstract": paper.abstract or "",
             "summary_text": summaries_map.get(paper.pk, ""),
-            "date_obj": date_obj,
-            "date_str": date_str,
+            "received_date": received_date,
+            "received_str": received_date.strftime("%d %B %Y"),
+            "paper_date_str": dt.strftime("%d %B %Y") if dt else None,
+            "paper_date_label": paper.date_label,
             "categories": paper.categories_list,
             "authors": paper.authors_list,
             "total_papers_fetched": rec.run.total_papers_fetched,

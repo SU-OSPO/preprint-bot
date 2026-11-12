@@ -37,7 +37,7 @@
     <div class="form-group">
       <label>Sort by</label>
       <select id="f-sort">
-        <option value="date">Date</option>
+        <option value="date">Date received</option>
         <option value="score">Similarity Score</option>
       </select>
     </div>
@@ -74,7 +74,7 @@
 
   {# ── Quick date buttons ─────────────────────────── #}
   <div style="margin-top:.75rem;">
-    <span class="text-sm" style="font-weight:600;">Date Range</span>
+    <span class="text-sm" style="font-weight:600;">Date Received</span>
   </div>
   <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem .4rem; margin-top:.3rem; flex-wrap:wrap;">
     <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
@@ -150,13 +150,6 @@ function truncWords(s, n) {
   const words = s.split(/\s+/);
   if (words.length <= n) return s;
   return words.slice(0, n).join(' ') + ' …';
-}
-
-/* ── Format date for display ─────────────────────── */
-function formatDate(isoStr) {
-  if (!isoStr) return 'Unknown Date';
-  const d = new Date(isoStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 /* ── Category label lookup, scoped to the paper's own server ─ */
@@ -238,8 +231,8 @@ function applyFilters() {
   /* filter */
   let recs = ALL_RECS.filter(r => {
     if (f.minScore > 0 && r.score < f.minScore) return false;
-    if (f.dateFrom && (!r.date_iso || r.date_iso < f.dateFrom)) return false;
-    if (f.dateTo && (!r.date_iso || r.date_iso > f.dateTo)) return false;
+    if (f.dateFrom && r.received_iso < f.dateFrom) return false;
+    if (f.dateTo && r.received_iso > f.dateTo) return false;
     if (f.keyword) {
       const kw = f.keyword;
       if (!(r.title || '').toLowerCase().includes(kw)
@@ -258,11 +251,9 @@ function applyFilters() {
   if (f.sort === 'score') {
     recs.sort((a, b) => b.score - a.score);
   } else {
-    /* date desc, then score desc within each date */
+    /* received date desc, then score desc within each date */
     recs.sort((a, b) => {
-      const da = a.date_iso || '';
-      const db = b.date_iso || '';
-      if (da !== db) return db.localeCompare(da);
+      if (a.received_iso !== b.received_iso) return b.received_iso.localeCompare(a.received_iso);
       return b.score - a.score;
     });
   }
@@ -301,15 +292,14 @@ function applyFilters() {
   }
 }
 
-/* ── Render grouped by date ───────────────────────── */
+/* ── Render grouped by received date ──────────────── */
 function renderGrouped(recs) {
   let html = '';
   let lastDate = null;
   recs.forEach(r => {
-    const dateKey = r.date_iso || 'unknown';
-    if (dateKey !== lastDate) {
-      html += '<div class="date-header">' + esc(r.date_str || formatDate(r.date_iso)) + '</div>';
-      lastDate = dateKey;
+    if (r.received_iso !== lastDate) {
+      html += '<div class="date-header">Received ' + esc(r.received_str) + '</div>';
+      lastDate = r.received_iso;
     }
     html += renderCard(r, false);
   });
@@ -340,13 +330,13 @@ function renderCard(r, showDate) {
     html += '<div class="text-sm text-dim" style="margin-bottom:.25rem;">' + esc(authorsStr) + '</div>';
   }
 
-  if (showDate) {
-    html += '<div class="text-sm text-dim" style="margin-bottom:.25rem;">';
-    if (r.source_id) html += '<span class="text-mono">' + esc(r.source_id) + '</span> &middot; ';
-    html += esc(r.date_str || formatDate(r.date_iso));
-    html += '</div>';
-  } else if (r.source_id) {
-    html += '<span class="text-sm text-dim text-mono">' + esc(r.source_id) + '</span>';
+  /* received date only when no date heading shows it; the paper's own date always */
+  const meta = [];
+  if (r.source_id) meta.push('<span class="text-mono">' + esc(r.source_id) + '</span>');
+  if (showDate) meta.push('Received ' + esc(r.received_str));
+  if (r.paper_date_str) meta.push(esc(r.paper_date_label + ' ' + r.paper_date_str));
+  if (meta.length) {
+    html += '<div class="text-sm text-dim" style="margin-bottom:.25rem;">' + meta.join(' &middot; ') + '</div>';
   }
 
   if (r.summary_text) {

@@ -173,3 +173,14 @@ def source_label(name: str) -> str:
         return get_source(name).label
     except KeyError:
         return name or "Unknown"
+
+
+def source_date_label(name: str) -> str:
+    """What a stored ``Paper.source`` value's paper date means, e.g. ``Posted``.
+
+    Falls back to a neutral label for uploads and removed sources.
+    """
+    try:
+        return get_source(name).date_label
+    except KeyError:
+        return "Dated"
