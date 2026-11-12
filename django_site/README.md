@@ -214,6 +214,9 @@ cd django_site
 python manage.py test core -v 2
 ```
 
+The suite always runs as an arXiv-only deployment, whatever `PREPRINT_ENABLED_SOURCES`
+your `.env` sets; tests that need several sources patch them in.
+
 Tests are in the `core/tests/` package. The current suite includes the following:
 
 - **`ParseArxivIdsTests`** — arXiv ID extraction from bare IDs, URLs, versioned
