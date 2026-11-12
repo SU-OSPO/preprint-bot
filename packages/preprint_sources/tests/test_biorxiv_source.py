@@ -12,6 +12,7 @@ def test_identity():
     src = BiorxivSource()
     assert src.name == "biorxiv"
     assert src.label == "bioRxiv"
+    assert src.date_label == "Posted"
 
 
 def test_landing_url_is_versionless():

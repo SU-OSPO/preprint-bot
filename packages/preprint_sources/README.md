@@ -27,6 +27,7 @@ from preprint_sources import get_source, enabled_sources, all_source_names
 src = get_source("arxiv")
 src.name            # "arxiv"
 src.label           # "arXiv"
+src.date_label      # "Announced" (what a paper's date means; default "Posted")
 src.landing_url("2401.12345")   # https://arxiv.org/abs/2401.12345
 src.category_tree()             # nested tree for the picker UI
 papers = await src.fetch_latest(["cs.AI", "cs.LG"])

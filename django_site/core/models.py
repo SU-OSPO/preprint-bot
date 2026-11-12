@@ -17,6 +17,7 @@ from pgvector.django import VectorField
 
 from preprint_sources import all_source_names, get_source
 
+from .sources import source_date_label as _source_date_label
 from .sources import source_label as _source_label
 
 # ── Users ──────────────────────────────────────────────────────────────────
@@ -244,6 +245,11 @@ class Paper(models.Model):
     def source_label(self):
         """Human-facing source name for UI badges, e.g. ``arXiv``."""
         return _source_label(self.source)
+
+    @property
+    def date_label(self):
+        """What ``submitted_date`` means for this source, e.g. ``Announced``."""
+        return _source_date_label(self.source)
 
     @property
     def categories_list(self):
