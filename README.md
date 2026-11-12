@@ -347,6 +347,8 @@ preprint_bot --date 2026-05-01
 preprint_bot --skip-download --skip-parse --skip-summarize
 ```
 
+If a server rejects a paper's PDF (bioRxiv and medRxiv rate-limit scripted downloads), the paper is still stored and recommended from its abstract. Each later run retries the PDFs of papers stored in the last 3 days (`FULLTEXT_RETRY_DAYS` in `pipeline.py`) that still have no sections; any that download are parsed, embedded and matched again, skipping profiles they were already recommended to.
+
 ## API Reference
 
 ### Users
@@ -398,6 +400,9 @@ Body: {
 # Get papers by corpus
 GET /papers/?corpus_id=1
 
+# Papers stored in the last N days that have a PDF URL but no sections
+GET /papers/missing-sections?corpus_id=1&days=3
+
 # Search similar papers
 POST /embeddings/search/similar
 Body: {
@@ -412,6 +417,9 @@ Body: {
 ```bash
 # Get recommendations for profile
 GET /recommendations/profile/{profile_id}?limit=50
+
+# Which of the given papers the profile has already been recommended
+GET /recommendations/profile/{profile_id}/paper-ids?paper_ids=1&paper_ids=2
 
 # Get recommendations with full paper details
 GET /recommendations/run/{run_id}/with-papers?limit=50
@@ -687,11 +695,14 @@ DEFAULT_MODEL_NAME = "all-mpnet-base-v2"  # Slower, 768 dims
 ```python
 # Downloads respect arXiv rate limits:
 # - 3 seconds between requests
-# - 100 requests per hour maximum
 # - Single connection only
 
+# A rejected download is retried up to 5 times, waiting 5, 10, 20 and 40 s
+# (plus jitter, or longer if the server sends Retry-After). After 3 papers in
+# a row fail, the rest of the run tries each paper once.
+
 # For 200 papers: ~10 minutes
-# For 1000 papers: ~50 minutes with automatic batching
+# For 1000 papers: ~50 minutes
 ```
 
 ## arXiv Integration
@@ -705,10 +716,10 @@ DEFAULT_MODEL_NAME = "all-mpnet-base-v2"  # Slower, 768 dims
 - Use respectful User-Agent header
 
 **Implementation:**
-- Automatic rate limiting with adaptive delays
-- Exponential backoff on 403/429/503 errors
+- Fixed 3-second delay between requests
+- Exponential backoff with jitter on 403/429/5xx errors, honoring `Retry-After`
 - Progress tracking with estimated time remaining
-- Automatic batching for large downloads (90 papers per batch)
+- PDFs that still fail are retried in the following runs (papers stored in the last 3 days)
 
 ### Publication Schedule
 
@@ -863,7 +874,7 @@ for attempt in range(3):
 ```
 Rate limited (HTTP 403/429/503)
 ```
-Solution: System automatically handles this with exponential backoff. If persistent, reduce `requests_per_hour` or increase `min_delay`.
+Solution: System automatically handles this with exponential backoff, and later runs retry PDFs that still failed. If persistent, increase `min_delay` or `max_retries` in `download_arxiv_pdfs`.
 
 ## Development
 

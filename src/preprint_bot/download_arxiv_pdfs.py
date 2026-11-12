@@ -1,5 +1,5 @@
 """
-Enhanced arXiv PDF downloader with better rate limiting and monitoring.
+Preprint PDF downloader with rate limiting and retries.
 """
 
 import os
@@ -7,11 +7,16 @@ import time
 import random
 import requests
 from tqdm import tqdm
-from datetime import datetime
-from collections import deque
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from typing import Optional
 from .config import USER_AGENT
 
 HEADERS = {"User-Agent": USER_AGENT}
+
+# Rejections worth retrying: rate limits (bioRxiv/medRxiv's Cloudflare
+# answers 403) and server errors. Any other response won't change in a minute.
+RETRYABLE_STATUSES = {403, 429, 500, 502, 503, 504}
 
 
 def safe_filename(source_id: str, source: str = "") -> str:
@@ -27,97 +32,22 @@ def safe_filename(source_id: str, source: str = "") -> str:
     return stem.replace("/", "_")
 
 
-class AdaptiveRateLimiter:
-    """
-    Adaptive rate limiter that adjusts based on server responses.
-    Tracks request history to enforce hourly limits.
-    """
-
-    def __init__(self, min_delay=5, max_delay=15, requests_per_hour=100):
-        self.min_delay = min_delay
-        self.max_delay = max_delay
-        self.requests_per_hour = requests_per_hour
-        self.last_request_time = 0
-
-        # Track request timestamps for hourly limit
-        self.request_history = deque(maxlen=requests_per_hour)
-
-        # Adaptive delay based on recent rate limits
-        self.current_delay = min_delay
-        self.consecutive_successes = 0
-        self.consecutive_rate_limits = 0
-
-    def wait(self):
-        """Wait with adaptive delay before allowing next request."""
-        # Check hourly limit
-        self._enforce_hourly_limit()
-
-        # Calculate delay with jitter
-        elapsed = time.time() - self.last_request_time
-        delay = random.uniform(self.current_delay, self.current_delay + 5)
-
-        if elapsed < delay:
-            sleep_time = delay - elapsed
-            print(f"Rate limiting: waiting {sleep_time:.1f}s...")
-            time.sleep(sleep_time)
-
-        self.last_request_time = time.time()
-        self.request_history.append(time.time())
-
-    def _enforce_hourly_limit(self):
-        """Ensure we don't exceed requests per hour."""
-        if len(self.request_history) >= self.requests_per_hour:
-            oldest_request = self.request_history[0]
-            time_since_oldest = time.time() - oldest_request
-
-            if time_since_oldest < 3600:  # Less than 1 hour
-                sleep_time = 3600 - time_since_oldest + random.uniform(1, 5)
-                print(f"\nHourly limit reached ({self.requests_per_hour} requests/hour)")
-                print(f"   Sleeping for {sleep_time/60:.1f} minutes...")
-                time.sleep(sleep_time)
-
-    def record_success(self):
-        """Adjust rate limit after successful request."""
-        self.consecutive_successes += 1
-        self.consecutive_rate_limits = 0
-
-        # Gradually decrease delay after consistent successes
-        if self.consecutive_successes >= 10:
-            self.current_delay = max(self.min_delay, self.current_delay * 0.9)
-            self.consecutive_successes = 0
-            print(f"   Reduced delay to {self.current_delay:.1f}s")
-
-    def record_rate_limit(self):
-        """Adjust rate limit after being rate limited."""
-        self.consecutive_rate_limits += 1
-        self.consecutive_successes = 0
-
-        # Increase delay after rate limiting
-        self.current_delay = min(self.max_delay, self.current_delay * 1.5)
-        print(f"Increased delay to {self.current_delay:.1f}s")
-
-    def get_stats(self):
-        """Get rate limiter statistics."""
-        if not self.request_history:
-            return {
-                "total_requests": 0,
-                "requests_last_hour": 0,
-                "current_delay": self.current_delay,
-            }
-
-        now = time.time()
-        recent = [t for t in self.request_history if now - t < 3600]
-
-        return {
-            "total_requests": len(self.request_history),
-            "requests_last_hour": len(recent),
-            "current_delay": self.current_delay,
-            "oldest_request": (
-                datetime.fromtimestamp(self.request_history[0]).strftime("%H:%M:%S")
-                if self.request_history
-                else "N/A"
-            ),
-        }
+def _retry_after_seconds(response) -> Optional[float]:
+    """Seconds a ``Retry-After`` header asks for (delay or HTTP date), or None."""
+    value = response.headers.get("Retry-After")
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
 def download_arxiv_pdfs(
@@ -125,14 +55,24 @@ def download_arxiv_pdfs(
     output_folder="arxiv_pipeline_data/arxiv_pdfs",
     use_s3=False,
     min_delay=3,  # arXiv requires 3 seconds minimum
-    max_retries=2,
+    max_retries=5,
     initial_backoff=5,
+    max_backoff=120,
+    max_consecutive_failures=3,
 ):
     """
     Downloads PDFs respecting arXiv's ToS:
     - 3 seconds between requests
     - Single connection only
     - NO hourly limit enforcement (let arXiv handle it)
+
+    A rejected or failed request (see RETRYABLE_STATUSES) is tried up to
+    *max_retries* times, waiting ``initial_backoff * 2**attempt`` seconds plus
+    up to 10% jitter between tries, or longer if the response's
+    ``Retry-After`` asks. A paper whose next wait would exceed *max_backoff*
+    is given up on for this run. Once *max_consecutive_failures* papers in a
+    row fail after retrying, the rest are tried once each, so a long outage
+    doesn't cost minutes per paper; the pipeline retries them in later runs.
     """
     os.makedirs(output_folder, exist_ok=True)
 
@@ -176,6 +116,9 @@ def download_arxiv_pdfs(
     print(f"{'='*60}\n")
 
     stats = {"downloaded": 0, "skipped": 0, "failed": 0, "start_time": time.time()}
+    attempts_per_paper = max_retries
+    # Papers in a row that were rejected and still failed after retrying
+    consecutive_failures = 0
 
     for paper in tqdm(paper_metadata, desc="Downloading", unit="paper"):
         # Use the source-provided PDF URL directly; the stored filename mirrors
@@ -192,7 +135,9 @@ def download_arxiv_pdfs(
 
         # Download with retry
         success = False
-        for attempt in range(max_retries):
+        rejected = False
+        for attempt in range(attempts_per_paper):
+            retry_after = None
             try:
                 # Enforce minimum delay
                 time.sleep(min_delay)
@@ -206,22 +151,42 @@ def download_arxiv_pdfs(
                     success = True
                     break
 
-                # Rate limited - exponential backoff
-                if r.status_code in [403, 429, 503]:
-                    if attempt < max_retries - 1:
-                        backoff = initial_backoff * (2**attempt)
-                        tqdm.write(f"  Rate limited, waiting {backoff}s...")
-                        time.sleep(backoff)
-                        continue
+                if r.status_code not in RETRYABLE_STATUSES:
+                    tqdm.write(f"  HTTP {r.status_code} for {source_id}, not retrying")
+                    break
+                retry_after = _retry_after_seconds(r)
 
             except Exception:
-                if attempt < max_retries - 1:
-                    time.sleep(initial_backoff)
-                    continue
+                pass
 
-        if not success:
+            # Rejected or errored - exponential backoff, or Retry-After if longer
+            rejected = True
+            if attempt == attempts_per_paper - 1:
+                break
+            backoff = max(initial_backoff * (2**attempt), retry_after or 0)
+            if backoff > max_backoff:
+                tqdm.write(f"  Asked to wait {backoff:.0f}s for {source_id}; giving up this run")
+                break
+            backoff += random.uniform(0, 0.1 * backoff)
+            tqdm.write(
+                f"  Attempt {attempt + 1}/{attempts_per_paper} failed for {source_id}, "
+                f"waiting {backoff:.1f}s..."
+            )
+            time.sleep(backoff)
+
+        if success:
+            consecutive_failures = 0
+        else:
             stats["failed"] += 1
             tqdm.write(f"  Failed: {source_id}")
+            if rejected:
+                consecutive_failures += 1
+            if attempts_per_paper > 1 and consecutive_failures >= max_consecutive_failures:
+                attempts_per_paper = 1
+                tqdm.write(
+                    f"  {consecutive_failures} papers in a row failed after retrying; "
+                    "trying the rest once each"
+                )
 
     # Final summary
     elapsed = time.time() - stats["start_time"]

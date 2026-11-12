@@ -11,6 +11,7 @@ tests/
 ├── test_config.py           # Configuration and directory structure tests
 ├── test_embed_papers.py     # Embedding and arXiv ID normalization tests
 ├── test_extract_grobid.py   # GROBID text extraction tests
+├── test_pdf_retry.py        # PDF download retries, within a run and in later runs
 ├── test_query_arxiv.py      # arXiv API query tests
 ├── test_schemas.py          # Pydantic schema validation tests
 ├── test_similarity_matcher.py  # Vector similarity computation tests
@@ -92,6 +93,16 @@ Tests GROBID text extraction and tokenization.
 - Empty string handling
 - Single sentence tokenization
 - Blank line separation in fallback mode
+
+### test_pdf_retry.py
+
+Tests retrying rejected PDF downloads (`download_arxiv_pdfs`, `pipeline.recover_missing_fulltext`).
+
+**Test Classes:**
+- `TestRetryAfter`: Parsing `Retry-After` as seconds or an HTTP date
+- `TestDownloadRetries`: Exponential backoff with jitter, `Retry-After`, non-retryable statuses, and the consecutive-failure cap
+- `TestRecoverMissingFulltext`: Later runs retry recent papers without sections, leaving this run's papers to the normal download
+- `TestRematch`: Recovered papers are matched again, skipping profiles they were already recommended to
 
 ### test_query_arxiv.py
 
