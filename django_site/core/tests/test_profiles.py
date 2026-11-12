@@ -124,7 +124,7 @@ class ProfileCRUDTests(TestCase):
         """
         self.client.post("/profiles/create/", self._valid_profile_data())
         profile = Profile.objects.get(user=self.user)
-        profile.source_categories = {"arxiv": ["cs.AI"], "biorxiv": ["neuro"]}
+        profile.source_categories = {"arxiv": ["cs.AI"], "demo": ["neuro"]}
         profile.save()
 
         resp = self.client.post(
@@ -133,7 +133,7 @@ class ProfileCRUDTests(TestCase):
         )
         self.assertEqual(resp.status_code, 302)
         profile.refresh_from_db()
-        self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "biorxiv": ["neuro"]})
+        self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "demo": ["neuro"]})
 
     def test_edit_rerender_does_not_override_submitted_categories(self):
         """A failed POST must not reseed the picker from the stored profile.
