@@ -6,6 +6,8 @@ the pipeline and the web app so neither hardcodes server-specific details.
 
 from .arxiv import ArxivSource
 from .base import PaperEntry, PreprintSource
+from .biorxiv import BiorxivSource
+from .medrxiv import MedrxivSource
 from .registry import (
     all_source_names,
     enabled_names,
@@ -19,6 +21,8 @@ __all__ = [
     "PaperEntry",
     "PreprintSource",
     "ArxivSource",
+    "BiorxivSource",
+    "MedrxivSource",
     "all_source_names",
     "get_source",
     "enabled_names",

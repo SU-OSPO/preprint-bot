@@ -27,8 +27,8 @@
       {% csrf_token %}
       {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <div class="form-group">
-        <label>Choose PDF files</label>
-        <input type="file" name="files" accept=".pdf" multiple>
+        <label for="upload-files-{{ p.pk }}">Choose PDF files</label>
+        <input type="file" name="files" id="upload-files-{{ p.pk }}" accept=".pdf" multiple>
       </div>
       <button type="submit" class="btn btn-sm btn-primary">Upload</button>
     </form>
@@ -53,8 +53,8 @@
         <input type="hidden" name="source" value="{{ add_sources.0.name }}">
       {% endif %}
       <div class="form-group">
-        <label>{% if add_sources|length == 1 %}{{ add_sources.0.label }} IDs{% else %}Paper IDs{% endif %}</label>
-        <textarea name="source_ids" rows="2"
+        <label for="add-ids-{{ p.pk }}">{% if add_sources|length == 1 %}{{ add_sources.0.label }} IDs{% else %}Paper IDs{% endif %}</label>
+        <textarea name="source_ids" id="add-ids-{{ p.pk }}" rows="2"
                   placeholder="{{ add_sources.0.id_hint }}"></textarea>
         <div class="form-help">Comma or newline separated. Accepts full URLs, prefixed IDs, or bare IDs.</div>
       </div>
@@ -83,12 +83,12 @@
     {% endif %}
     <div class="grid-2" style="gap:.75rem;">
       <div class="form-group">
-        <label>Title</label>
-        <input type="text" class="search-title" placeholder="e.g. neural network…">
+        <label for="search-title-{{ p.pk }}">Title</label>
+        <input type="text" id="search-title-{{ p.pk }}" class="search-title" placeholder="e.g. neural network…">
       </div>
       <div class="form-group">
-        <label>Author</label>
-        <input type="text" class="search-author" placeholder="e.g. LeCun…">
+        <label for="search-author-{{ p.pk }}">Author</label>
+        <input type="text" id="search-author-{{ p.pk }}" class="search-author" placeholder="e.g. LeCun…">
       </div>
     </div>
     <button type="button" class="btn btn-sm btn-primary search-btn"

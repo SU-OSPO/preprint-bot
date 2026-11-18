@@ -61,6 +61,7 @@ document.querySelectorAll('.search-title, .search-author').forEach(input => {
 });
 
 function doSearch(btn) {
+  if (btn.disabled) return;
   const panel   = btn.closest('.tab-panel');
   const title   = panel.querySelector('.search-title').value.trim();
   const author  = panel.querySelector('.search-author').value.trim();
