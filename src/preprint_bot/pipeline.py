@@ -116,12 +116,27 @@ def _format_duration(seconds: float) -> str:
     """Format duration into human-readable string."""
     if seconds < 60:
         return f"{seconds:.2f}s"
-    hours = int(seconds // 3600)
-    mins = int((seconds % 3600) // 60)
-    secs = seconds % 60
+    # Round before splitting, so 119.97s reads "2m 0.0s" and not "1m 60.0s".
+    total = round(seconds, 1)
+    hours = int(total // 3600)
+    mins = int((total % 3600) // 60)
+    secs = total % 60
     if hours > 0:
         return f"{hours}h {mins}m {secs:.1f}s"
     return f"{mins}m {secs:.1f}s"
+
+
+def _start_step(title: str) -> float:
+    """Print a step banner with its start timestamp and return the start time."""
+    print("=" * 60)
+    print(f"{title} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print("=" * 60)
+    return time.time()
+
+
+def _end_step(start: float) -> None:
+    """Log how long the step that began at `start` took."""
+    print(f"  Completed in {_format_duration(time.time() - start)}")
 
 
 async def store_fetched_papers(
@@ -542,25 +557,17 @@ async def run_pipeline(args):
             print("=" * 80 + "\n")
 
         # Step 1 always runs — process papers uploaded since the last run
-        print("=" * 60)
-        step1_start = time.time()
-        print(f"STEP 1: Processing User Papers [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-        print("=" * 60)
+        step1_start = _start_step("STEP 1: Processing User Papers")
         user_result = await process_unprocessed_papers(
             api_client, skip_parse=args.skip_parse, skip_embed=args.skip_embed
         )
-        print(
-            f"  Summary: {user_result['parsed']} parsed, {user_result['embedded']} embedded (completed in {_format_duration(time.time() - step1_start)})"
-        )
+        print(f"  Summary: {user_result['parsed']} parsed, {user_result['embedded']} embedded")
+        _end_step(step1_start)
 
-        print("\n" + "=" * 60)
-        step2_start = time.time()
-        print(
-            f"STEP 2: Getting Categories from User Profiles [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-        )
-        print("=" * 60)
+        print()
+        step2_start = _start_step("STEP 2: Getting Categories from User Profiles")
         categories_by_source = await get_all_profile_categories(api_client)
-        print(f"  Retrieved categories in {_format_duration(time.time() - step2_start)}")
+        _end_step(step2_start)
 
         if not categories_by_source:
             print("ERROR: No categories found in user profiles.")
@@ -576,21 +583,19 @@ async def run_pipeline(args):
                     pass
             sys.exit(1)
 
-        print("\n" + "=" * 60)
-        step3_start = time.time()
-        print(f"STEP 3: Fetching Preprint Papers [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-        print("=" * 60)
+        print()
+        step3_start = _start_step("STEP 3: Fetching Preprint Papers")
         entries = await fetch_preprint_papers(
             categories_by_source,
             target_date=target_date if args.date else None,
         )
 
+        print(f"Fetched {len(entries)} papers")
+        _end_step(step3_start)
+
         if not entries:
             print("No new papers fetched. Skipping steps 4–7.")
         else:
-            print(
-                f"Fetched {len(entries)} papers (completed in {_format_duration(time.time() - step3_start)})"
-            )
 
             corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
@@ -599,10 +604,8 @@ async def run_pipeline(args):
                 skip_parse=args.skip_parse,
             )
 
-            print("\n" + "=" * 60)
-            step4_start = time.time()
-            print(f"STEP 4: Generating Embeddings [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-            print("=" * 60)
+            print()
+            step4_start = _start_step("STEP 4: Generating Embeddings")
             if not args.skip_embed and stored_count > 0:
                 await embed_and_store_papers(
                     api_client,
@@ -610,15 +613,14 @@ async def run_pipeline(args):
                     model_name=args.model,
                     paper_ids=new_paper_ids,  # only embed newly created papers
                 )
-                print(f"  Embeddings completed in {_format_duration(time.time() - step4_start)}")
+                _end_step(step4_start)
             elif stored_count == 0:
                 print("No new papers — skipping.")
 
-            print("\n" + "=" * 60)
-            step5_start = time.time()
-            print(f"STEP 5: Generating Summaries [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-            print("=" * 60)
+            print()
+            step5_start = _start_step("STEP 5: Generating Summaries")
             if not args.skip_summarize and stored_count > 0:
+                summarizer = None
                 if args.summarizer == "llama":
                     if not Path(args.llm_model).exists():
                         print(
@@ -628,20 +630,14 @@ async def run_pipeline(args):
                         from .summarization_script import LlamaSummarizer
 
                         summarizer = LlamaSummarizer(model_path=args.llm_model)
-                        await summarize_papers(
-                            api_client, corpus_id, summarizer, entries, mode="abstract"
-                        )
-                        print(
-                            f"  Summarization completed in {_format_duration(time.time() - step5_start)}"
-                        )
                 else:
                     summarizer = TransformerSummarizer()
+
+                if summarizer is not None:
                     await summarize_papers(
                         api_client, corpus_id, summarizer, entries, mode="abstract"
                     )
-                    print(
-                        f"  Summarization completed in {_format_duration(time.time() - step5_start)}"
-                    )
+                    _end_step(step5_start)
             elif stored_count == 0:
                 print("No new papers — skipping.")
             else:
@@ -674,29 +670,21 @@ async def run_pipeline(args):
                         }
                     )
 
-            print("\n" + "=" * 60)
-            step6_start = time.time()
-            print(
-                f"STEP 6: Generating Recommendations [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-            )
-            print("=" * 60)
+            print()
+            step6_start = _start_step("STEP 6: Generating Recommendations")
             await generate_recommendations(
                 api_client, corpus_id, user_corpora, target_date, paper_ids=paper_ids
             )
-            print(f"  Recommendations completed in {_format_duration(time.time() - step6_start)}")
+            _end_step(step6_start)
 
-            print("\n" + "=" * 60)
-            step7_start = time.time()
-            print(f"STEP 7: Sending Email Digests [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-            print("=" * 60)
+            print()
+            step7_start = _start_step("STEP 7: Sending Email Digests")
             await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
-            print(f"  Email digests completed in {_format_duration(time.time() - step7_start)}")
+            _end_step(step7_start)
 
         # Cleanup always runs
-        print("\n" + "=" * 60)
-        step8_start = time.time()
-        print(f"STEP 8: Cleanup [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-        print("=" * 60)
+        print()
+        step8_start = _start_step("STEP 8: Cleanup")
         print("Cleaning up temporary arXiv PDF files...")
         try:
             deleted_pdfs = 0
@@ -705,7 +693,7 @@ async def run_pipeline(args):
                 deleted_pdfs += 1
             print(f"  ✓ Deleted {deleted_pdfs} PDFs")
             print("  ✓ User paper files are safe (hash-based storage)")
-            print(f"  Cleanup completed in {_format_duration(time.time() - step8_start)}")
+            _end_step(step8_start)
         except Exception as e:
             print(f"  Warning: Cleanup failed: {e}")
 
