@@ -55,6 +55,7 @@ from .sources import (
     category_label,
     category_trees,
     code_to_label_by_source,
+    leaf_codes_by_source,
     multiple_sources_enabled,
     order_source_names,
     paper_source_context,
@@ -1965,8 +1966,9 @@ def recommendation_create_profile_view(request, paper_id):
             status=400,
         )
 
-    source_name = getattr(paper, "source", None) or "arxiv"
-    categories = getattr(paper, "categories_list", [])
+    source_name = paper.source
+    valid_codes = leaf_codes_by_source().get(source_name, set())
+    categories = [c for c in paper.categories_list if c in valid_codes]
     source_categories = {source_name: categories} if categories else {}
 
     from django.db import IntegrityError
@@ -1985,8 +1987,6 @@ def recommendation_create_profile_view(request, paper_id):
             {"ok": False, "error": "A profile with that name already exists."},
             status=400,
         )
-    except Exception as e:
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
 
     return JsonResponse(
         {

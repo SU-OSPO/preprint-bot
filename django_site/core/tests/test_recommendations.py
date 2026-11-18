@@ -479,6 +479,7 @@ class RecommendationCreateProfileTests(_RecTestBase):
         # Verify profile and corpus link were created
         profile = Profile.objects.get(pk=data["profile"]["id"])
         self.assertEqual(profile.user, self.user)
+        self.assertEqual(profile.source_categories, {"arxiv": ["cs.AI"]})
         corpus = _get_or_create_user_corpus(self.user, profile)
         self.assertTrue(paper.corpora.filter(pk=corpus.pk).exists())
 
