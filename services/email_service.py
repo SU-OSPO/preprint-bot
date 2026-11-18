@@ -75,7 +75,7 @@ def build_digest_html(
         authors = format_authors(paper.get("authors") or [])
         summary = paper.get("summary_text") or paper.get("summary") or paper.get("abstract", "")
         # Papers with no public landing page point back at the dashboard
-        paper_url = paper_landing_url(paper) or paper.get("landing_url") or RECOMMENDATIONS_URL
+        paper_url = paper_landing_url(paper) or RECOMMENDATIONS_URL
 
         truncated_summary, was_truncated = truncate_to_sentences(summary, 3)
         read_more = (
@@ -158,10 +158,12 @@ def send_email(to_address: str, subject: str, html_body: str) -> bool:
 
 def send_admin_alert(subject: str, detail: str) -> bool:
     """Email the admin about a pipeline failure."""
+    # Fall back to EMAIL_FROM_ADDRESS when ADMIN_EMAIL is not configured
     recipient = ADMIN_EMAIL or EMAIL_FROM_ADDRESS
     if not recipient:
         print("Admin alert skipped: no ADMIN_EMAIL or EMAIL_FROM_ADDRESS set.")
         return False
+    # Strip CR/LF to prevent header injection, and bound the subject length.
     subject = subject.replace("\r", " ").replace("\n", " ")[:300]
     html_body = (
         "<p>The Preprint Bot pipeline reported an error:</p>"
