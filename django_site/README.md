@@ -83,10 +83,10 @@ chmod +x setup_database.sh
 #    → writes django_site/.env
 
 # 2. Create a virtual environment and install dependencies
+python3 -m venv django_site/venv
+source django_site/venv/bin/activate   # On Windows WSL this is the same
+pip install -r django_site/requirements.txt
 cd django_site
-python3 -m venv venv
-source venv/bin/activate          # On Windows WSL this is the same
-pip install -r requirements.txt
 
 # 3. Run migrations (creates all tables)
 python manage.py migrate
