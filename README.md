@@ -568,6 +568,7 @@ The web interface is a Django application located in `django_site/`. It reads an
 
 **Profiles:**
 - Create/edit profiles with arXiv categories, frequency, threshold, and max recommendations
+- Weekly digests are sent on Mondays and monthly digests on the 1st; the profile list shows each profile's next digest date
 - Upload PDFs directly through the web interface
 - View uploaded papers with file size
 - Delete individual papers or entire profiles

@@ -9,10 +9,13 @@ schema (``password_hash``), so existing FastAPI auth endpoints are not
 guaranteed to work against this schema without updates.
 """
 
+import datetime
+
 from django.db import models
 from django.db.models.functions import Lower
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.contrib.postgres.fields import ArrayField
+from django.utils import timezone
 from pgvector.django import VectorField
 
 from preprint_sources import all_source_names, get_source
@@ -119,6 +122,20 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user})"
+
+    def next_digest_date(self, today=None):
+        """Date of the next weekly/monthly digest, or None for daily profiles.
+
+        Mirrors the send rule in ``send_all_digests`` (pipeline.py): weekly on
+        Mondays, monthly on the 1st. The pipeline runs overnight, so today's
+        send is treated as already done.
+        """
+        today = today or timezone.localdate()
+        if self.frequency == "weekly":
+            return today + datetime.timedelta(days=7 - today.weekday())
+        if self.frequency == "monthly":
+            return (today.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
+        return None
 
     @property
     def categories_by_source(self):
