@@ -296,9 +296,8 @@ async def _parse_and_store_sections(
         except Exception as e:
             print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
 
-    print(
-        f"Parsed {parsed} papers, stored sections to database (completed in {_format_duration(time.time() - parse_start)})"
-    )
+    print(f"Parsed {parsed} papers, stored sections to database")
+    _end_step(parse_start)
 
 
 async def summarize_papers(
@@ -596,7 +595,6 @@ async def run_pipeline(args):
         if not entries:
             print("No new papers fetched. Skipping steps 4–7.")
         else:
-
             corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
                 entries,
