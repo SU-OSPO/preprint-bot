@@ -146,9 +146,14 @@ def _store_paper_upload(sha256_hex, uploaded_file):
     return dest
 
 
+def _profile_corpus_name(pb_user, profile):
+    """Name of the corpus that holds a profile's papers."""
+    return f"user_{pb_user.pk}_profile_{profile.pk}"
+
+
 def _get_or_create_user_corpus(pb_user, profile):
     """Get or create the corpus for a user's profile."""
-    corpus_name = f"user_{pb_user.pk}_profile_{profile.pk}"
+    corpus_name = _profile_corpus_name(pb_user, profile)
     corpus, _ = Corpus.objects.get_or_create(
         user=pb_user,
         name=corpus_name,
@@ -1415,6 +1420,53 @@ def paper_search_api_view(request, profile_id):
     )
 
 
+def _live_profile_papers(pb_user):
+    """Papers in any of the user's live profiles (a deleted profile leaves its corpus behind)."""
+    corpus_names = [_profile_corpus_name(pb_user, p) for p in Profile.objects.filter(user=pb_user)]
+    return Paper.objects.filter(corpora__user=pb_user, corpora__name__in=corpus_names).distinct()
+
+
+@pbuser_required
+def paper_search_existing_api_view(request, profile_id):
+    """JSON API: search papers already in the user's own profiles."""
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
+
+    title = request.GET.get("title", "").strip()
+    if not title:
+        return JsonResponse({"error": "Enter a title."}, status=400)
+    papers = _live_profile_papers(pb_user).filter(title__icontains=title)
+
+    in_profile = set(
+        Paper.objects.filter(
+            corpora__user=pb_user, corpora__name=_profile_corpus_name(pb_user, profile)
+        ).values_list("pk", flat=True)
+    )
+
+    return JsonResponse(
+        {
+            "results": [
+                {"id": p.pk, "title": p.title, "already_added": p.pk in in_profile} for p in papers
+            ]
+        }
+    )
+
+
+@pbuser_required
+@require_POST
+def paper_add_existing_view(request, profile_id, paper_id):
+    """JSON API: link a paper from another of the user's profiles into this one."""
+    pb_user = request.pb_user
+    profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
+    paper = get_object_or_404(_live_profile_papers(pb_user), pk=paper_id)
+    corpus = _get_or_create_user_corpus(pb_user, profile)
+
+    # Let the (paper, corpus) unique constraint decide, so two concurrent
+    # copies of the same paper can't both report added=True.
+    _, added = Paper.corpora.through.objects.get_or_create(paper=paper, corpus=corpus)
+    return JsonResponse({"ok": True, "added": added, "paper": _paper_json(paper)})
+
+
 # ── Recommendations ────────────────────────────────────────────────────────
 
 
@@ -1602,11 +1654,12 @@ def recommendation_add_to_profile_view(request, profile_id, paper_id):
 
     corpus = _get_or_create_user_corpus(pb_user, profile)
 
-    already_linked = paper.corpora.filter(pk=corpus.pk).exists()
-    if already_linked:
+    # Let the (paper, corpus) unique constraint decide, so two concurrent
+    # adds of the same paper can't both report already_linked=False.
+    _, added = Paper.corpora.through.objects.get_or_create(paper=paper, corpus=corpus)
+    if not added:
         return JsonResponse({"ok": True, "already_linked": True})
 
-    _link_paper_to_corpus(paper, corpus)
     return JsonResponse(
         {
             "ok": True,

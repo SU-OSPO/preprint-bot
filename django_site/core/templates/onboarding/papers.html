@@ -15,7 +15,7 @@
   </div>
 
   {# ── Add-paper tabs (shared with the profiles page) ── #}
-  {% include "profiles/_paper_tabs.html" with p=profile next_url=request.path %}
+  {% include "profiles/_paper_tabs.html" with p=profile next_url=request.path hide_copy_existing_profile_tab=True %}
 
   <hr>
 

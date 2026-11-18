@@ -1,8 +1,10 @@
-{# Add-paper interface: upload / add-by-id / search. #}
+{# Add-paper interface: upload / add-by-id / search / copy from existing profile. #}
 {# Expects `p` (the profile) plus `add_sources` and `search_sources` from #}
 {# core.sources.paper_source_context(). Optional `next_url` makes the #}
 {# non-AJAX upload return there instead of the profiles list (onboarding). #}
 {# Source pickers only appear once more than one source offers the tab. #}
+{# Optional `hide_copy_existing_profile_tab` hides the copy tab (onboarding: no other profile yet). #}
+
 <div class="paper-tabs" data-profile="{{ p.pk }}">
   <div class="tab-bar">
     <button type="button" class="tab-btn active" data-tab="upload-{{ p.pk }}">Upload PDF</button>
@@ -14,6 +16,9 @@
         Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}
       </button>
     {% endif %}
+    {% if not hide_copy_existing_profile_tab %}
+    <button type="button" class="tab-btn" data-tab="existing-{{ p.pk }}">Copy from Existing Profile</button>
+    {% endif %}
   </div>
 
   {# ── Tab 1: Upload PDF ────────────── #}
@@ -22,8 +27,8 @@
       {% csrf_token %}
       {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <div class="form-group">
-        <label>Choose PDF files</label>
-        <input type="file" name="files" accept=".pdf" multiple>
+        <label for="upload-files-{{ p.pk }}">Choose PDF files</label>
+        <input type="file" name="files" id="upload-files-{{ p.pk }}" accept=".pdf" multiple>
       </div>
       <button type="submit" class="btn btn-sm btn-primary">Upload</button>
     </form>
@@ -48,8 +53,8 @@
         <input type="hidden" name="source" value="{{ add_sources.0.name }}">
       {% endif %}
       <div class="form-group">
-        <label>{% if add_sources|length == 1 %}{{ add_sources.0.label }} IDs{% else %}Paper IDs{% endif %}</label>
-        <textarea name="source_ids" rows="2"
+        <label for="add-ids-{{ p.pk }}">{% if add_sources|length == 1 %}{{ add_sources.0.label }} IDs{% else %}Paper IDs{% endif %}</label>
+        <textarea name="source_ids" id="add-ids-{{ p.pk }}" rows="2"
                   placeholder="{{ add_sources.0.id_hint }}"></textarea>
         <div class="form-help">Comma or newline separated. Accepts full URLs, prefixed IDs, or bare IDs.</div>
       </div>
@@ -78,12 +83,12 @@
     {% endif %}
     <div class="grid-2" style="gap:.75rem;">
       <div class="form-group">
-        <label>Title</label>
-        <input type="text" class="search-title" placeholder="e.g. neural network…">
+        <label for="search-title-{{ p.pk }}">Title</label>
+        <input type="text" id="search-title-{{ p.pk }}" class="search-title" placeholder="e.g. neural network…">
       </div>
       <div class="form-group">
-        <label>Author</label>
-        <input type="text" class="search-author" placeholder="e.g. LeCun…">
+        <label for="search-author-{{ p.pk }}">Author</label>
+        <input type="text" id="search-author-{{ p.pk }}" class="search-author" placeholder="e.g. LeCun…">
       </div>
     </div>
     <button type="button" class="btn btn-sm btn-primary search-btn"
@@ -98,4 +103,26 @@
     <div class="search-results" style="margin-top:.75rem;"></div>
   </div>
   {% endif %}
+
+  {% if not hide_copy_existing_profile_tab %}
+  {# ── Tab 4: Copy from existing profile ─ #}
+  <div class="tab-panel" id="existing-{{ p.pk }}">
+    <div class="form-group">
+      <label for="existing-title-{{ p.pk }}">Title</label>
+      <input type="text" id="existing-title-{{ p.pk }}" class="existing-search-input" placeholder="e.g. neural network…">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary existing-search-btn"
+            data-url="{% url 'paper_search_existing_api' p.pk %}">Search</button>
+
+    {# spinner shown while waiting #}
+    <div class="search-spinner" style="display:none; margin-top:.75rem;">
+      <span class="spinner"></span> Searching your profiles…
+    </div>
+
+    {# results injected here by JS #}
+    <div class="existing-results" style="margin-top:.75rem;"
+         data-add-url="{% url 'paper_add_existing' p.pk 0 %}"></div>
+  </div>
+  {% endif %}
+
 </div>{# /paper-tabs #}
