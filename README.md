@@ -201,6 +201,8 @@ cd grobid-0.8.0
 
 Verify: `curl http://localhost:8070/api/isalive` should return `true`
 
+The pipeline sends up to `GROBID_CONCURRENCY` PDFs to GROBID at once (default 4, set in the root `.env`). Each request keeps about one CPU core busy, so set it to roughly the core count of the machine running GROBID, and no higher than the `concurrency` setting in GROBID's `grobid.yaml`. In testing, GROBID used about 5 GB of memory with 4 requests at once.
+
 ### 5. Python Package Installation
 ```bash
 # Clone repository
@@ -277,6 +279,8 @@ DATABASE_PASSWORD=your_db_password
 API_BASE_URL=http://127.0.0.1:8000
 SYSTEM_USER_EMAIL=system@yourdomain.edu
 USER_AGENT=PreprintBot/1.0 (contact@yourdomain.edu)
+# Optional: parallel GROBID requests (default 4); see GROBID Setup
+GROBID_CONCURRENCY=4
 ```
 
 **Create `django_site/.env`** (Django runtime settings):
@@ -849,18 +853,10 @@ for i in range(0, len(papers), 100):
     process_batch(batch)
 ```
 
-**GROBID Timeouts:**
+**GROBID Timeouts or 503 errors:**
+GROBID answers 503 while all its workers are busy; the pipeline retries 5xx responses twice (after 5 s and 10 s) before giving up on a paper. Repeated timeouts or 503s usually mean `GROBID_CONCURRENCY` is higher than GROBID can serve: lower it, or raise `concurrency` in `grobid.yaml`. For very long PDFs, the per-request timeout is set in `extract_grobid.py`:
 ```python
-# Increase timeout in extract_grobid.py
 resp = requests.post(GROBID_URL, files=files, timeout=300)
-
-# Add retry logic
-for attempt in range(3):
-    try:
-        result = extract_grobid_sections(pdf)
-        break
-    except:
-        time.sleep(2 ** attempt)
 ```
 
 **arXiv Rate Limiting:**

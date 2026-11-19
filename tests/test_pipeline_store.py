@@ -127,3 +127,67 @@ class TestSummarySelection:
         api = AsyncMock()
         api.get_summaries_by_paper.side_effect = lambda pid: summaries[pid]
         assert await _papers_needing_summary(api, {1, 2, 3}) == {1, 3}
+
+
+class TestParallelParsing:
+    """GROBID requests run concurrently, up to GROBID_CONCURRENCY at once."""
+
+    @staticmethod
+    def _papers(tmp_path, n):
+        rows = []
+        for i in range(n):
+            pdf = tmp_path / f"arxiv_2401.{i:05d}.pdf"
+            pdf.write_bytes(b"%PDF")
+            rows.append(
+                {"id": i, "source": "arxiv", "source_id": f"2401.{i:05d}", "pdf_path": str(pdf)}
+            )
+        return rows
+
+    @pytest.mark.asyncio
+    async def test_runs_requests_concurrently_up_to_the_cap(self, tmp_path):
+        import threading
+        import time
+
+        from preprint_bot.pipeline import _parse_and_store_sections
+
+        lock = threading.Lock()
+        state = {"now": 0, "peak": 0}
+
+        def slow_grobid(path):
+            with lock:
+                state["now"] += 1
+                state["peak"] = max(state["peak"], state["now"])
+            time.sleep(0.05)
+            with lock:
+                state["now"] -= 1
+            return {"sections": [{"header": "Intro", "text": "x"}]}
+
+        rows = self._papers(tmp_path, 8)
+        api = AsyncMock()
+        api.get_papers_by_corpus.return_value = rows
+        with (
+            patch("preprint_bot.pipeline.GROBID_CONCURRENCY", 3),
+            patch("preprint_bot.pipeline.extract_grobid_sections", side_effect=slow_grobid),
+        ):
+            await _parse_and_store_sections(api, 7, [_entry(r["source_id"]) for r in rows])
+        assert state["peak"] == 3
+        assert api.create_section.await_count == 8
+
+    @pytest.mark.asyncio
+    async def test_one_failing_paper_does_not_stop_the_others(self, tmp_path, capsys):
+        from preprint_bot.pipeline import _parse_and_store_sections
+
+        def grobid(path):
+            if path.name == "arxiv_2401.00001.pdf":
+                raise RuntimeError("500 Server Error")
+            return {"sections": [{"header": "Intro", "text": "x"}]}
+
+        rows = self._papers(tmp_path, 3)
+        api = AsyncMock()
+        api.get_papers_by_corpus.return_value = rows
+        with patch("preprint_bot.pipeline.extract_grobid_sections", side_effect=grobid):
+            await _parse_and_store_sections(api, 7, [_entry(r["source_id"]) for r in rows])
+        out = capsys.readouterr().out
+        assert "Failed to process 2401.00001" in out
+        assert "Parsed 2 papers" in out
+        assert api.create_section.await_count == 2

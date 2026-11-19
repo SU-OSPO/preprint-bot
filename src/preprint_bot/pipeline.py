@@ -20,6 +20,7 @@ from .config import (
     API_BASE_URL,
     DATA_DIR,
     DEFAULT_MODEL_NAME,
+    GROBID_CONCURRENCY,
     PDF_DIR,
     SYSTEM_USER_EMAIL,
     SYSTEM_USER_NAME,
@@ -299,18 +300,23 @@ async def _parse_and_store_sections(
     papers = await api_client.get_papers_by_corpus(corpus_id)
     papers = _papers_matching(papers, entries)
 
-    parsed = 0
-    for paper in papers:
+    # GROBID is CPU-bound per request, so several requests at once use more
+    # of its cores; the cap keeps it within its worker pool.
+    slots = asyncio.Semaphore(GROBID_CONCURRENCY)
+
+    async def parse_one(paper: dict) -> bool:
         pdf_path = paper.get("pdf_path")
         # Rows stored before filenames carried the source still point at the
         # old name, while a resumed download writes the current one.
         if not pdf_path or not Path(pdf_path).exists():
             pdf_path = PDF_DIR / f"{safe_filename(paper['source_id'], paper.get('source', ''))}.pdf"
         if not Path(pdf_path).exists():
-            continue
+            return False
 
         try:
-            info = extract_grobid_sections(Path(pdf_path))
+            async with slots:
+                # The GROBID call blocks, so it runs off the event loop.
+                info = await asyncio.to_thread(extract_grobid_sections, Path(pdf_path))
 
             sections_stored = 0
             for sec in info.get("sections", []):
@@ -324,12 +330,16 @@ async def _parse_and_store_sections(
                 except Exception:
                     pass
 
-            parsed += 1
             if sections_stored > 0:
                 print(f"  {paper['source_id']}: {sections_stored} sections")
+            return True
 
         except Exception as e:
             print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
+            return False
+
+    print(f"  Running up to {GROBID_CONCURRENCY} GROBID requests at once")
+    parsed = sum(await asyncio.gather(*(parse_one(p) for p in papers)))
 
     print(f"Parsed {parsed} papers, stored sections to database")
     _end_step(parse_start)
