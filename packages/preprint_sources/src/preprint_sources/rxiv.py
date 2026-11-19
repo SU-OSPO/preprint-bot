@@ -110,6 +110,8 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
         # The record's own "published" is a journal DOI (or "NA"), not a date.
         published=run_day.isoformat(),
         source=source,
+        # published is shifted to the run day, so keep the server's own posting date too.
+        metadata={"posted": item["date"]},
     )
 
 
