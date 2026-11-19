@@ -96,9 +96,8 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
 
     doi = item["doi"]
 
-    # align with arXiv's "published" field, which is the day after the paper was announced
-    posted = date.fromisoformat(item["date"])
-    run_day = datetime.combine(posted + timedelta(days=1), time(), _EASTERN)
+    # the posting day, as midnight Eastern Time
+    posted = datetime.combine(date.fromisoformat(item["date"]), time(), _EASTERN)
     return PaperEntry(
         source_id=doi,
         title=item.get("title", "").strip(),
@@ -108,7 +107,7 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
         authors=[a.strip() for a in item.get("authors", "").split(";") if a.strip()],
         categories=[item["category"]],
         # The record's own "published" is a journal DOI (or "NA"), not a date.
-        published=run_day.isoformat(),
+        published=posted.isoformat(),
         source=source,
     )
 
