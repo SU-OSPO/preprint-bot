@@ -593,7 +593,7 @@ async def run_pipeline(args):
         _end_step(step3_start)
 
         if not entries:
-            print("No new papers fetched. Skipping steps 4–7.")
+            print("No new papers fetched. Skipping steps 4–6.")
         else:
             corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
@@ -675,10 +675,11 @@ async def run_pipeline(args):
             )
             _end_step(step6_start)
 
-            print()
-            step7_start = _start_step("STEP 7: Sending Email Digests")
-            await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
-            _end_step(step7_start)
+        # Digests always run
+        print()
+        step7_start = _start_step("STEP 7: Sending Email Digests")
+        await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
+        _end_step(step7_start)
 
         # Cleanup always runs
         print()
