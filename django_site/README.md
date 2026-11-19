@@ -124,6 +124,7 @@ to browse data.
 | `SUPPORT_EMAIL`      | `support@example.com`| Shown on the help page              |
 | `SITE_NAME`          | `Preprint Bot`       | Site display name                   |
 | `SHOW_BETA_BANNER`   | `True`               | Dismissable beta feedback banner    |
+| `PREPRINT_ENABLED_SOURCES` | `arxiv`       | Comma-separated preprint sources to enable (`arxiv`, `biorxiv`, `medrxiv`); must match the pipeline's |
 | `SOURCE_SEARCH_MAX_RESULTS` | `500`         | Max papers returned by a source search (legacy `ARXIV_SEARCH_MAX_RESULTS` treated as an alias) |
 | `SOURCE_SEARCH_PER_PAGE`    | `50`          | Results per page in source search (legacy `ARXIV_SEARCH_PER_PAGE` treated as an alias) |
 | `ACCENT_COLOR`             | (empty)        | CSS accent color override, e.g. `#e65100` |

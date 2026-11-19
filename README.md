@@ -4,12 +4,12 @@
 
 ## Overview
 
-Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from arXiv. Researchers create profiles with arXiv categories, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
+Preprint Bot addresses the challenge of information discovery in academic research by automating the process of finding relevant papers from preprint servers. Sources are pluggable: arXiv is enabled by default, and bioRxiv and medRxiv can be turned on (see [Enabling Preprint Sources](#enabling-preprint-sources)). Researchers create profiles with categories from each enabled source, upload their own papers, and receive personalized recommendations based on semantic similarity between their work and newly published preprints.
 
 ## Key Features
 
 ### Core Functionality
-- **Automated arXiv Integration**: Fetch new papers daily, aligned to arXiv's announcement schedule
+- **Multiple Preprint Sources**: Fetch new papers daily from arXiv (on by default), bioRxiv, and medRxiv, each on its own schedule
 - **Multi-Profile Support**: Create multiple research profiles with different categories and papers per user
 - **Semantic Search**: Vector similarity matching using sentence transformer embeddings
 - **PDF Processing**: GROBID-based text extraction with section-level granularity
@@ -74,15 +74,21 @@ preprint-bot/
 │   ├── pipeline.py                # Main orchestration pipeline
 │   ├── api_client.py              # Async API client
 │   ├── config.py                  # Global configuration constants
-│   ├── sources/                   # Preprint server adapters
-│   │   ├── base.py                # PaperEntry dataclass + PreprintSource ABC
-│   │   └── arxiv.py               # arXiv RSS source (+ API fallback)
 │   ├── download_arxiv_pdfs.py     # PDF downloading with rate limiting
 │   ├── extract_grobid.py          # GROBID text extraction
 │   ├── embed_papers.py            # Sentence transformer embeddings
 │   ├── summarization_script.py    # Transformer and LLaMA summarization
 │   ├── db_similarity_matcher.py   # Database-integrated similarity matching
 │   └── user_mode_processor.py     # User paper processing
+├── packages/preprint_sources/     # Preprint server adapters, shared by pipeline and Django
+│   └── src/preprint_sources/      # See packages/preprint_sources/README.md
+│       ├── base.py                # PaperEntry dataclass + PreprintSource ABC
+│       ├── arxiv.py               # arXiv RSS source (+ API fallback)
+│       ├── rxiv.py                # Shared base for bioRxiv and medRxiv
+│       ├── biorxiv.py             # bioRxiv source
+│       ├── medrxiv.py             # medRxiv source
+│       ├── registry.py            # Source registry + PREPRINT_ENABLED_SOURCES
+│       └── taxonomies/            # Per-source category trees
 ├── tests/                         # Pytest test suite
 │   ├── conftest.py                # Shared fixtures
 │   ├── test_config.py             # Configuration tests
@@ -105,9 +111,9 @@ The system uses a 15-table PostgreSQL schema managed entirely via Django migrati
 
 **Core Tables:**
 - `users`: User accounts with email-based authentication and optional ORCID linking (extends Django's `AbstractBaseUser`)
-- `profiles`: Research profiles with preferences; arXiv categories are stored as an `ArrayField` column
-- `corpora`: Paper collections (arXiv corpus or user-uploaded)
-- `papers`: Paper metadata, arXiv IDs, SHA-256 content hashes, and file paths
+- `profiles`: Research profiles with preferences; categories are stored in `source_categories`, a JSON object keyed by source (e.g. `{"arxiv": ["cs.LG"], "biorxiv": ["ecology"]}`)
+- `corpora`: Paper collections (fetched preprints or user-uploaded)
+- `papers`: Paper metadata, `source` and `source_id` (e.g. an arXiv ID or bioRxiv DOI), SHA-256 content hashes, and file paths
 - `sections`: Extracted paper sections from GROBID
 - `embeddings`: Vector embeddings (384-dimensional); linked to paper or section
 - `summaries`: Generated paper summaries
@@ -291,6 +297,7 @@ DJANGO_DEBUG=False
 DJANGO_ALLOWED_HOSTS=yourdomain.edu
 API_BASE_URL=http://127.0.0.1:8000
 PDF_DATA_DIR=/srv/preprint-bot/pdf_data
+PREPRINT_ENABLED_SOURCES=arxiv
 ```
 
 **Create `django_site/preprint_bot_web/local_settings.py`** (from the example):
@@ -306,6 +313,24 @@ echo "django_site/.env" >> .gitignore
 echo "django_site/preprint_bot_web/local_settings.py" >> .gitignore
 echo "config.py" >> .gitignore
 ```
+
+#### Enabling Preprint Sources
+
+`PREPRINT_ENABLED_SOURCES` selects which preprint servers are used. It is a comma-separated list of source names (`arxiv`, `biorxiv`, `medrxiv`); the default is `arxiv`. Unknown names are ignored.
+
+```bash
+export PREPRINT_ENABLED_SOURCES=arxiv,biorxiv,medrxiv
+```
+
+- **Set it for both the web app and the pipeline.** The web app uses it for the category picker and profile validation; the pipeline uses it to decide which sources to fetch. If only the web app has a source, users can select its categories but nothing is fetched for them; if only the pipeline has it, users cannot select it.
+- **Django** reads it from `django_site/.env`, like its other settings.
+- **The pipeline** reads it only from its process environment: `export` it in the shell, or add `Environment="PREPRINT_ENABLED_SOURCES=arxiv,biorxiv"` to the systemd service. The root `.env` does **not** reach it, because that file is read only into the pipeline's `Settings` fields.
+- **Reinstall the shared package on every deployment.** The source code lives in `packages/preprint_sources`, which is installed into each environment rather than imported from the checkout. After pulling changes, reinstall it into **both** the pipeline's and the web app's environments, or a newly added source's code will be missing:
+  ```bash
+  pip install ./packages/preprint_sources
+  ```
+
+Turning a source off keeps profiles' selections for it; the pipeline logs and skips them until the source is turned back on.
 
 ## Usage
 
@@ -334,13 +359,13 @@ Access points:
 
 ### Pipeline Workflow
 
-The pipeline is a single unified command. It automatically reads arXiv categories from all user profiles, fetches new papers, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests. See the [Command Line Interface](#command-line-interface) section for the full argument reference.
+The pipeline is a single unified command. It automatically reads each profile's categories for every enabled source, fetches new papers from those sources, processes user-uploaded PDFs, generates embeddings, runs similarity matching, and sends email digests. See the [Command Line Interface](#command-line-interface) section for the full argument reference.
 
 ```bash
-# Run the full pipeline (fetches the latest arXiv announcement)
+# Run the full pipeline (fetches the latest papers from each enabled source)
 preprint_bot
 
-# Backfill a specific historical date
+# Backfill a specific historical date (see the --date notes below)
 preprint_bot --date 2026-05-01
 
 # Skip slow steps during development or testing
@@ -451,7 +476,7 @@ Database credentials, API URL, system user email, and User-Agent string. These a
 Hardcoded settings that change infrequently — arXiv categories, similarity thresholds, model name, file paths, and email settings. Fill in all fields marked `TODO`. Never commit this file.
 
 **`django_site/.env`** (Django runtime settings):
-Database credentials, Django secret key, allowed hosts, debug flag, API URL, and PDF data directory. Never commit this file.
+Database credentials, Django secret key, allowed hosts, debug flag, API URL, PDF data directory, and enabled preprint sources. Never commit this file.
 
 **`django_site/preprint_bot_web/local_settings.py`** (Django deployment overrides):
 Deployment-specific Django settings — script prefix, static/media URLs, CSRF trusted origins, ORCID credentials, branding (site name, accent/nav colours, support email), registration control, and SSL proxy header. Copy from `local_settings.py.example` and fill in your values. Never commit this file.
@@ -507,16 +532,22 @@ EMAIL_FROM_ADDRESS=your_email@university.edu
 
 ## Command Line Interface
 
-The pipeline is invoked as a single unified `preprint_bot` command. arXiv categories are read automatically from user profiles — there is no need to specify them on the command line.
+The pipeline is invoked as a single unified `preprint_bot` command. Categories for each enabled source are read automatically from user profiles — there is no need to specify them on the command line.
 
 ### Running the Pipeline
 ```bash
-# Fetch and process the latest arXiv announcement (default)
+# Fetch and process the latest papers from each enabled source (default)
 preprint_bot
 
 # Backfill a specific historical date
 preprint_bot --date 2026-01-15
 ```
+
+What `--date` fetches depends on the source:
+- **arXiv:** the announcement made on the evening of that date (20:00 US Eastern). Fridays and Saturdays have no announcement, so nothing is fetched.
+- **bioRxiv and medRxiv:** the papers posted on that date, counted in US Eastern Time.
+
+In both cases, that is what the nightly run on the following morning would have fetched.
 
 ### Skipping Steps
 ```bash
@@ -538,7 +569,7 @@ preprint_bot --summarizer llama --llm-model models/llama-3.2-3b-instruct-q4_k_m.
 ### All Arguments
 ```
 --date DATE                   Fetch papers for a specific historical date
-                              (YYYY-MM-DD); omit to fetch the latest announcement
+                              (YYYY-MM-DD); omit to fetch the latest papers
 --model MODEL                 Sentence transformer model name
                               (default: all-MiniLM-L6-v2)
 --summarizer {transformer,llama}
@@ -567,7 +598,7 @@ The web interface is a Django application located in `django_site/`. It reads an
 - Quick access to latest papers
 
 **Profiles:**
-- Create/edit profiles with arXiv categories, frequency, threshold, and max recommendations
+- Create/edit profiles with categories from each enabled source, frequency, threshold, and max recommendations
 - Upload PDFs directly through the web interface
 - View uploaded papers with file size
 - Delete individual papers or entire profiles
@@ -577,7 +608,7 @@ The web interface is a Django application located in `django_site/`. It reads an
 - Quick filters: Today, Last 7 days, Last 30 days, All time
 - Adjustable paper limit per profile
 - Date-grouped display with expandable paper cards
-- Direct links to arXiv
+- Direct links to each paper's source
 
 **Account:**
 - User registration and login
@@ -960,6 +991,7 @@ Type=oneshot
 User=preprint-bot
 WorkingDirectory=/opt/preprint-bot
 Environment="PATH=/opt/preprint-bot/venv/bin"
+Environment="PREPRINT_ENABLED_SOURCES=arxiv"
 ExecStart=/opt/preprint-bot/daily_pipeline.sh
 ```
 
