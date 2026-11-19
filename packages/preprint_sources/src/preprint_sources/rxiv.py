@@ -46,9 +46,9 @@ class RxivSource(PreprintSource):
         """Fetch the first versions posted on *target_date* in *categories*.
 
         The API filters by one category per request. The day's first page
-        shows how many pages the whole day takes: if requesting each category
-        takes fewer requests, they are fetched one by one, otherwise the rest
-        of the day is paged through. Records are filtered here either way.
+        shows how many pages the whole day takes: if fewer categories are
+        selected than pages remain, they are fetched one by one, otherwise the
+        rest of the day is paged through. Records are filtered here either way.
         Any HTTP or API error raises instead of returning a partial list.
         """
         day = target_date.strftime("%Y-%m-%d")
