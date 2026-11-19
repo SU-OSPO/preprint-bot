@@ -96,7 +96,7 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
 
     doi = item["doi"]
 
-    # align with arXiv's "published" field, which is the day after the paper was announced
+    # Papers reach the daily run the day after posting, so date them with that day.
     posted = date.fromisoformat(item["date"])
     run_day = datetime.combine(posted + timedelta(days=1), time(), _EASTERN)
     return PaperEntry(
