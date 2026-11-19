@@ -1,5 +1,5 @@
 # test_pipeline_digests.py
-"""Digest sending in run_pipeline does not depend on papers being fetched (#190)."""
+"""Digest sending in run_pipeline does not depend on papers being fetched."""
 
 from argparse import Namespace
 from unittest.mock import AsyncMock, MagicMock, patch

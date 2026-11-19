@@ -675,8 +675,7 @@ async def run_pipeline(args):
             )
             _end_step(step6_start)
 
-        # Digests always run: weekly/monthly sends are date-gated and would
-        # otherwise be skipped on a day with no new papers
+        # Digests always run
         print()
         step7_start = _start_step("STEP 7: Sending Email Digests")
         await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
