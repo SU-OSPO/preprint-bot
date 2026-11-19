@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -44,9 +45,11 @@ class RxivSource(PreprintSource):
     ) -> List[PaperEntry]:
         """Fetch the first versions posted on *target_date* in *categories*.
 
-        The category filter takes one category per request, so the whole day
-        is fetched once and filtered here. Any HTTP or API error raises instead
-        of returning a partial list.
+        The API filters by one category per request. The day's first page
+        shows how many pages the whole day takes: if requesting each category
+        takes fewer requests, they are fetched one by one, otherwise the rest
+        of the day is paged through. Records are filtered here either way.
+        Any HTTP or API error raises instead of returning a partial list.
         """
         day = target_date.strftime("%Y-%m-%d")
         wanted = set(categories)
@@ -54,30 +57,49 @@ class RxivSource(PreprintSource):
         logger.info(f"\nFetching {self.label} papers posted on {day}")
         logger.info(f"  Categories: {categories}")
 
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
+            records, total = await _fetch_page(client, self._server, day, 0)
+            pages = math.ceil(total / len(records)) if records else 0
+            # With the first page in hand, the rest of the day takes pages - 1
+            # requests, and each category at least one.
+            if len(wanted) < pages - 1:
+                logger.info(f"  Fetching each category instead of all {pages} pages")
+                records = []
+                for category in sorted(wanted):
+                    records += await self._fetch_all(client, day, category=category)
+            elif pages > 1:
+                records += await self._fetch_all(client, day, cursor=len(records))
+
         entries: List[PaperEntry] = []
         seen_ids: set[str] = set()
-        cursor = 0
-
-        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
-            while True:
-                items, total = await _fetch_page(client, self._server, day, cursor)
-                for item in items:
-                    entry = _entry_from_item(item, self._site, self.name)
-                    if entry is None or entry.categories[0] not in wanted:
-                        continue
-                    if entry.source_id in seen_ids:
-                        continue
-                    seen_ids.add(entry.source_id)
-                    entries.append(entry)
-
-                # The cursor is the start point of the next page, so advance by what came back.
-                cursor += len(items)
-                if not items or cursor >= total:
-                    break
-                await asyncio.sleep(self.request_delay_seconds)
+        for item in records:
+            entry = _entry_from_item(item, self._site, self.name)
+            if entry is None or entry.categories[0] not in wanted:
+                continue
+            if entry.source_id in seen_ids:
+                continue
+            seen_ids.add(entry.source_id)
+            entries.append(entry)
 
         logger.info(f"  Total: {len(entries)} new papers")
         return entries
+
+    async def _fetch_all(
+        self, client: httpx.AsyncClient, day: str, cursor: int = 0, category: Optional[str] = None
+    ) -> list:
+        """Page through a day's postings from *cursor* on, in *category* if given.
+
+        It runs after the day's first page, so every request waits first.
+        """
+        records: list = []
+        while True:
+            await asyncio.sleep(self.request_delay_seconds)
+            items, total = await _fetch_page(client, self._server, day, cursor, category=category)
+            records += items
+            # The cursor is the start point of the next page, so advance by what came back.
+            cursor += len(items)
+            if not items or cursor >= total:
+                return records
 
 
 def _yesterday_et(now: Optional[datetime] = None) -> date:
@@ -116,15 +138,23 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
 
 
 async def _fetch_page(
-    client: httpx.AsyncClient, server: str, day: str, cursor: int
+    client: httpx.AsyncClient,
+    server: str,
+    day: str,
+    cursor: int,
+    category: Optional[str] = None,
 ) -> Tuple[list, int]:
-    """Fetch one page of a day's postings as ``(items, total)``.
+    """Fetch one page of a day's postings as ``(items, total)``, in *category* if given.
 
     The API reports errors with HTTP 200 and a ``status`` message, so both
     are checked. "no posts found" is not an error: the day has no postings
     left from *cursor* on.
     """
-    resp = await client.get(f"{_API_ROOT}/{server}/{day}/{day}/{cursor}")
+    url = f"{_API_ROOT}/{server}/{day}/{day}/{cursor}"
+    if category:
+        # Codes are lowercase words; the API takes them with underscores for spaces.
+        url += "?category=" + category.replace(" ", "_")
+    resp = await client.get(url)
     resp.raise_for_status()
     data = resp.json()
 
@@ -133,6 +163,12 @@ async def _fetch_page(
         return [], 0
     if status != "ok":
         raise RuntimeError(f"{server} API error for {day} at cursor {cursor}: {status}")
+
+    # An unknown category is no error to the API: it returns every category, as "all".
+    # Treat it as having no posts, as paging through the whole day would.
+    if category and data["messages"][0].get("category") == "all":
+        logger.warning(f"  {server} API doesn't know category {category!r}; skipped")
+        return [], 0
 
     # The API sends "total" as a string; convert it before comparing with cursor.
     return data.get("collection", []), int(data["messages"][0]["total"])
