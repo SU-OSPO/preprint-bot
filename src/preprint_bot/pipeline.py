@@ -411,6 +411,7 @@ async def send_all_digests(api_client: APIClient, run_date: str = None):
         frequency = profile.get("frequency", "daily")
 
         # Check if today is the right day to send for this frequency
+        # (keep in sync with Profile.next_digest_date in django_site/core/models.py)
         if frequency == "weekly":
             # Send on Mondays only
             if run_date_obj.weekday() != 0:
