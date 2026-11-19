@@ -1,7 +1,7 @@
 """Tests for BiorxivSource.fetch_latest / fetch_by_date with the network mocked."""
 
 from datetime import date, datetime
-from unittest.mock import ANY, AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, call, patch
 
 import httpx
 import pytest
@@ -58,10 +58,40 @@ class TestFetchPage:
         with pytest.raises(httpx.HTTPStatusError):
             await _fetch_page(client, "biorxiv", DAY, 0)
 
+    async def test_category_is_sent_with_underscores(self):
+        client = _client(
+            {
+                "messages": [{"status": "ok", "total": "1", "category": "cell biology"}],
+                "collection": [_record("x", category="cell biology")],
+            }
+        )
+        await _fetch_page(client, "biorxiv", DAY, 0, category="cell biology")
+        client.get.assert_awaited_once_with(
+            f"https://api.biorxiv.org/details/biorxiv/{DAY}/{DAY}/0?category=cell_biology"
+        )
+
+    async def test_unknown_category_has_no_posts(self, caplog):
+        # The API answers an unknown category with every category's records.
+        client = _client(
+            {
+                "messages": [{"status": "ok", "total": "378", "category": "all"}],
+                "collection": [_record("x", category="zoology")],
+            }
+        )
+        assert await _fetch_page(client, "biorxiv", DAY, 0, category="cel biology") == ([], 0)
+        assert "'cel biology'" in caplog.text
+
+    async def test_records_are_kept_unless_the_category_comes_back_as_all(self):
+        # Only "all" shows the filter was ignored; anything else is filtered locally anyway.
+        records = [_record("x", category="cell biology")]
+        client = _client({"messages": [{"status": "ok", "total": "1"}], "collection": records})
+        assert await _fetch_page(client, "biorxiv", DAY, 0, category="cell biology") == (records, 1)
+
 
 A = _record("10.64898/a")
 B_V2 = _record("10.64898/b", version="2")
 C_GENOMICS = _record("10.64898/c", category="genomics")
+OTHER = _record("10.64898/o", category="zoology")
 
 
 class TestFetchByDate:
@@ -96,6 +126,58 @@ class TestFetchByDate:
         mock_page.return_value = ([], 0)
         await BiorxivSource().fetch_by_date(datetime(2026, 10, 26), ["neuroscience"])
         assert mock_page.call_args.args == (ANY, "biorxiv", DAY, 0)
+
+    @patch("preprint_sources.rxiv.asyncio.sleep", new_callable=AsyncMock)
+    @patch("preprint_sources.rxiv._fetch_page", new_callable=AsyncMock)
+    async def test_few_categories_are_fetched_one_by_one(self, mock_page, mock_sleep):
+        # The day takes 10 pages of 3; two categories take fewer requests.
+        mock_page.side_effect = [([OTHER] * 3, 30), ([C_GENOMICS], 1), ([A], 1)]
+
+        out = await BiorxivSource().fetch_by_date(date(2026, 10, 26), ["neuroscience", "genomics"])
+
+        assert [e.source_id for e in out] == ["10.64898/c", "10.64898/a"]
+        assert mock_page.call_args_list == [
+            call(ANY, "biorxiv", DAY, 0),
+            call(ANY, "biorxiv", DAY, 0, category="genomics"),
+            call(ANY, "biorxiv", DAY, 0, category="neuroscience"),
+        ]
+        # A wait before each request after the first.
+        assert mock_sleep.await_count == 2
+
+    @patch("preprint_sources.rxiv.asyncio.sleep", new_callable=AsyncMock)
+    @patch("preprint_sources.rxiv._fetch_page", new_callable=AsyncMock)
+    async def test_a_category_is_paged_through(self, mock_page, _mock_sleep):
+        n1, n2, n3, n4 = (_record(f"10.64898/n{i}") for i in range(1, 5))
+        mock_page.side_effect = [([OTHER] * 3, 30), ([n1, n2, n3], 4), ([n4], 4)]
+
+        out = await BiorxivSource().fetch_by_date(date(2026, 10, 26), ["neuroscience"])
+
+        assert len(out) == 4
+        assert mock_page.call_args_list[1:] == [
+            call(ANY, "biorxiv", DAY, 0, category="neuroscience"),
+            call(ANY, "biorxiv", DAY, 3, category="neuroscience"),
+        ]
+
+    @patch("preprint_sources.rxiv.asyncio.sleep", new_callable=AsyncMock)
+    @patch("preprint_sources.rxiv._fetch_page", new_callable=AsyncMock)
+    async def test_as_many_categories_as_pages_left_page_through_the_day(
+        self, mock_page, _mock_sleep
+    ):
+        # 3 pages: 2 more either way, so the day is paged through, without categories.
+        mock_page.side_effect = [([OTHER] * 3, 9), ([A] * 3, 9), ([C_GENOMICS] * 3, 9)]
+
+        out = await BiorxivSource().fetch_by_date(date(2026, 10, 26), ["neuroscience", "genomics"])
+
+        assert [e.source_id for e in out] == ["10.64898/a", "10.64898/c"]
+        assert [c.args[3] for c in mock_page.call_args_list] == [0, 3, 6]
+        assert all(c.kwargs.get("category") is None for c in mock_page.call_args_list)
+
+    @patch("preprint_sources.rxiv._fetch_page", new_callable=AsyncMock)
+    async def test_a_one_page_day_takes_one_request(self, mock_page):
+        mock_page.side_effect = [([A, C_GENOMICS], 2)]
+        out = await BiorxivSource().fetch_by_date(date(2026, 10, 26), ["neuroscience"])
+        assert [e.source_id for e in out] == ["10.64898/a"]
+        assert mock_page.await_count == 1
 
     @patch("preprint_sources.rxiv._fetch_page", new_callable=AsyncMock)
     async def test_page_error_propagates(self, mock_page):
