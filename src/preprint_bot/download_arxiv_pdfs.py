@@ -170,7 +170,7 @@ def download_arxiv_pdfs(
     est_time = (total * min_delay) / 60
 
     print(f"\n{'='*60}")
-    print(f"arXiv Download ({min_delay}s delay between requests)")
+    print(f"PDF Download ({min_delay}s delay between requests)")
     print(f"Papers: {total}")
     print(f"Estimated time: {est_time:.1f} minutes")
     print(f"{'='*60}\n")
