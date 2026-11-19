@@ -103,6 +103,8 @@ class ProfileListNextDigestTests(TestCase):
     def test_editor_explains_schedule(self):
         resp = self.client.get("/profiles/create/")
         self.assertContains(resp, "monthly digests on the 1st of each month")
+        # Linked to the dropdown's aria-describedby for screen readers
+        self.assertContains(resp, 'id="id_frequency_helptext"')
 
 
 class ProfileCRUDTests(TestCase):
