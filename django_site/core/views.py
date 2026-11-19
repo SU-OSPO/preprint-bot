@@ -1606,7 +1606,7 @@ def _query_profile_recommendations(pb_user, profile=None):
             continue
 
         received_date = timezone.localdate(rec.run.created_at)
-        dt = paper.submitted_date
+        paper_date = paper.paper_date
 
         seen[key] = {
             "paper_id": paper.pk,
@@ -1625,7 +1625,7 @@ def _query_profile_recommendations(pb_user, profile=None):
             "summary_text": summaries_map.get(paper.pk, ""),
             "received_date": received_date,
             "received_str": received_date.strftime("%d %B %Y"),
-            "paper_date_str": dt.strftime("%d %B %Y") if dt else None,
+            "paper_date_str": paper_date.strftime("%d %B %Y") if paper_date else None,
             "paper_date_label": paper.date_label,
             "categories": paper.categories_list,
             "authors": paper.authors_list,

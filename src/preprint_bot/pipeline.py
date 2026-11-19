@@ -411,6 +411,7 @@ async def send_all_digests(api_client: APIClient, run_date: str = None):
         frequency = profile.get("frequency", "daily")
 
         # Check if today is the right day to send for this frequency
+        # (keep in sync with Profile.next_digest_date in django_site/core/models.py)
         if frequency == "weekly":
             # Send on Mondays only
             if run_date_obj.weekday() != 0:
@@ -593,7 +594,7 @@ async def run_pipeline(args):
         _end_step(step3_start)
 
         if not entries:
-            print("No new papers fetched. Skipping steps 4–7.")
+            print("No new papers fetched. Skipping steps 4–6.")
         else:
             corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
                 api_client,
@@ -675,10 +676,11 @@ async def run_pipeline(args):
             )
             _end_step(step6_start)
 
-            print()
-            step7_start = _start_step("STEP 7: Sending Email Digests")
-            await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
-            _end_step(step7_start)
+        # Digests always run
+        print()
+        step7_start = _start_step("STEP 7: Sending Email Digests")
+        await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
+        _end_step(step7_start)
 
         # Cleanup always runs
         print()

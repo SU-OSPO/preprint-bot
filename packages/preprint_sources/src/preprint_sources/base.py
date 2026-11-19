@@ -28,7 +28,7 @@ class PaperEntry:
     pdf_url: str  # direct link to the PDF
     authors: List[str]
     categories: List[str]  # in this source's taxonomy
-    published: str  # ISO datetime string (original submission)
+    published: str  # from fetch_latest, the day the paper becomes available to the daily run
     source: str  # "arxiv", "biorxiv", ...
     metadata: dict = field(default_factory=dict)  # extra server-specific data
 

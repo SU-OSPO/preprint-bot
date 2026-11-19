@@ -93,7 +93,7 @@ function buildTree(nodes, container, sourceName) {
       cb.value = value;
       cb.className = 'cat-cb';
       cb.dataset.source = sourceName;
-      cb.dataset.code = node.value;
+      cb.dataset.label = node.label;
       cb.style.cssText = 'flex-shrink:0; width:1rem; height:1rem; margin:0;';
       if (initialSet.has(value)) cb.checked = true;
       cb.addEventListener('change', () => { syncHidden(); renderTags(); });
@@ -275,12 +275,12 @@ function renderTags() {
   const checked = [...document.querySelectorAll('.cat-cb:checked')];
   tagsEl.innerHTML = '';
   checked.forEach(cb => {
-    const code = cb.dataset.code;
-    /* Codes repeat across servers, so name the source when there is more
-       than one. */
+    const name = cb.dataset.label;
+    /* Subjects repeat across servers (bioRxiv and medRxiv both have
+       Pathology), so name the source when there is more than one. */
     const text = MULTI_SOURCE
-      ? sourceLabelOf(cb.dataset.source) + ' · ' + code
-      : code;
+      ? sourceLabelOf(cb.dataset.source) + ' · ' + name
+      : name;
 
     const tag = document.createElement('span');
     tag.className = 'tag';

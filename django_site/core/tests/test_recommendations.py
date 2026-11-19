@@ -174,6 +174,23 @@ class QueryProfileRecommendationsTests(_RecTestBase):
         }
         self.assertEqual(labels, {"bio": "Posted", "med": "Posted", "upload": "Dated"})
 
+    def test_paper_date_prefers_the_stored_posting_day(self):
+        """bioRxiv/medRxiv submitted_date is the day after posting; show metadata["posted"]."""
+        pa = Profile.objects.create(
+            user=self.user, name="A", source_categories={"arxiv": ["cs.AI"]}
+        )
+        paper = Paper.objects.create(
+            source_id="10.1101/x",
+            title="bio",
+            source="biorxiv",
+            submitted_date=datetime(2026, 10, 27, 4, 0, tzinfo=timezone.utc),
+            metadata={"posted": "2026-10-26"},
+        )
+        self._rec(self._run_for(pa), paper, 0.5)
+        r = _query_profile_recommendations(self.user, pa)[0]
+        self.assertEqual(r["paper_date_str"], "26 October 2026")
+        self.assertEqual(r["paper_date_label"], "Posted")
+
     def test_received_date_is_run_creation_in_local_time(self):
         """Dated by the run, not the paper, using the site's time zone.
 

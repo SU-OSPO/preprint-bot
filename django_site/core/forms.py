@@ -98,7 +98,11 @@ class ProfileForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(attrs={"placeholder": "e.g. AI Research"}),
     )
-    frequency = forms.ChoiceField(choices=FREQUENCY_CHOICES, initial="daily")
+    frequency = forms.ChoiceField(
+        choices=FREQUENCY_CHOICES,
+        initial="daily",
+        help_text="Weekly digests are sent on Mondays and monthly digests on the 1st of each month.",
+    )
     threshold = forms.FloatField(
         min_value=0.40,
         max_value=0.75,
