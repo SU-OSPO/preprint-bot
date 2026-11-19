@@ -83,10 +83,10 @@ chmod +x setup_database.sh
 #    → writes django_site/.env
 
 # 2. Create a virtual environment and install dependencies
+python3 -m venv django_site/venv
+source django_site/venv/bin/activate   # On Windows WSL this is the same
+pip install -r django_site/requirements.txt
 cd django_site
-python3 -m venv venv
-source venv/bin/activate          # On Windows WSL this is the same
-pip install -r requirements.txt
 
 # 3. Run migrations (creates all tables)
 python manage.py migrate
@@ -124,6 +124,7 @@ to browse data.
 | `SUPPORT_EMAIL`      | `support@example.com`| Shown on the help page              |
 | `SITE_NAME`          | `Preprint Bot`       | Site display name                   |
 | `SHOW_BETA_BANNER`   | `True`               | Dismissable beta feedback banner    |
+| `PREPRINT_ENABLED_SOURCES` | `arxiv`       | Comma-separated preprint sources to enable (`arxiv`, `biorxiv`, `medrxiv`); must match the pipeline's |
 | `SOURCE_SEARCH_MAX_RESULTS` | `500`         | Max papers returned by a source search (legacy `ARXIV_SEARCH_MAX_RESULTS` treated as an alias) |
 | `SOURCE_SEARCH_PER_PAGE`    | `50`          | Results per page in source search (legacy `ARXIV_SEARCH_PER_PAGE` treated as an alias) |
 | `ACCENT_COLOR`             | (empty)        | CSS accent color override, e.g. `#e65100` |
