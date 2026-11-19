@@ -3,7 +3,9 @@
 Light, shared package of **preprint-server source adapters** for Preprint Bot.
 
 Each supported server implements the `PreprintSource` interface: fetching new
-papers, its category taxonomy, and source-aware landing/PDF URLs. The package
+papers, its category taxonomy, and source-aware landing/PDF URLs. Title/author
+search is a separate `SearchProvider` interface, because one search service can
+cover several servers (e.g. OSF's index spans every server OSF hosts). The package
 is deliberately dependency-lean so that **both** the heavy pipeline package
 (`preprint_bot`) and the lean Django web app can depend on it without either
 pulling in the other's dependencies.
@@ -13,20 +15,21 @@ pulling in the other's dependencies.
 ```
 src/preprint_sources/
   base.py            # PaperEntry, PreprintSource (the interface)
-  arxiv.py           # ArxivSource
+  search.py          # SearchProvider (the search interface)
+  arxiv.py           # ArxivSource, ArxivSearchProvider
   rxiv.py            # RxivSource, shared by bioRxiv and medRxiv
   biorxiv.py         # BiorxivSource
   medrxiv.py         # MedrxivSource
   demo.py            # DemoSource (development only; see below)
   taxonomies/        # per-source category trees (arxiv.py, biorxiv.py, medrxiv.py)
-  registry.py        # name -> class, enabled_sources()
+  registry.py        # name -> class, enabled_sources(), enabled_search_providers()
   settings.py        # USER_AGENT (env-overridable)
 ```
 
 ## Usage
 
 ```python
-from preprint_sources import get_source, enabled_sources, all_source_names
+from preprint_sources import get_source, enabled_sources, enabled_search_providers
 
 src = get_source("arxiv")
 src.name            # "arxiv"
@@ -39,6 +42,11 @@ papers = await src.fetch_latest(["cs.AI", "cs.LG"])
 #   PREPRINT_ENABLED_SOURCES="arxiv,biorxiv"
 for source in enabled_sources():
     ...
+
+# Search providers covering at least one enabled source; each result's
+# ``source`` names the server it belongs to.
+for provider in enabled_search_providers():
+    results = await provider.search(title="attention", author="Vaswani")
 ```
 
 ## Adding a source
@@ -60,12 +68,24 @@ for source in enabled_sources():
    pipeline, and reinstall this package into both environments (see the root
    README's "Enabling Preprint Sources").
 
+## Adding a search provider
+
+1. Implement `SearchProvider` (in `search.py`) in the module of the service it
+   queries. `sources` lists the source names its results can carry, and every
+   `PaperEntry` it returns sets `source` to one of them.
+2. Register it in `registry.py` `_SEARCH_CLASSES`.
+
+A provider needs no setting of its own: it is enabled whenever at least one of
+its `sources` is enabled, and consumers drop results from disabled sources.
+Results can only be added to a profile through a source that supports
+add-by-id.
+
 ## The `demo` source (development only)
 
 `demo.py` is a stand-in second server for exercising multi-source behaviour
 before a real one exists — the category picker's per-source tabs, per-source
 validation, grouped paper badges, and the add-paper tabs hiding a capability a
-source lacks (`demo` supports neither search nor add-by-id).
+source lacks (`demo` has no add-by-id, and no search provider covers it).
 
 It is registered **only** when named in `PREPRINT_ENABLED_SOURCES`, so by
 default it is absent from `all_source_names()`, `Paper.SOURCE_CHOICES`, the

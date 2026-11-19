@@ -125,8 +125,8 @@ to browse data.
 | `SITE_NAME`          | `Preprint Bot`       | Site display name                   |
 | `SHOW_BETA_BANNER`   | `True`               | Dismissable beta feedback banner    |
 | `PREPRINT_ENABLED_SOURCES` | `arxiv`       | Comma-separated preprint sources to enable (`arxiv`, `biorxiv`, `medrxiv`); must match the pipeline's |
-| `SOURCE_SEARCH_MAX_RESULTS` | `500`         | Max papers returned by a source search (legacy `ARXIV_SEARCH_MAX_RESULTS` treated as an alias) |
-| `SOURCE_SEARCH_PER_PAGE`    | `50`          | Results per page in source search (legacy `ARXIV_SEARCH_PER_PAGE` treated as an alias) |
+| `SOURCE_SEARCH_MAX_RESULTS` | `500`         | Max papers returned by a search (legacy `ARXIV_SEARCH_MAX_RESULTS` treated as an alias) |
+| `SOURCE_SEARCH_PER_PAGE`    | `50`          | Results per page in search results (legacy `ARXIV_SEARCH_PER_PAGE` treated as an alias) |
 | `ACCENT_COLOR`             | (empty)        | CSS accent color override, e.g. `#e65100` |
 | `NAV_COLOR`                | (empty)        | Navbar background color override, e.g. `#1b5e20` |
 | `REGISTRATION_OPEN`        | `True`         | Set to `False` to block new account creation |
@@ -291,8 +291,8 @@ CI runs these automatically via GitHub Actions (`.github/workflows/test.yml`,
   pipeline use the `Paper.corpora` ManyToManyField exclusively. The FK
   can be dropped in a future migration once the pipeline is fully verified.
 
-- The arXiv search API endpoint enforces a per-session cooldown (3 seconds
-  between searches) to prevent excessive requests to arXiv.
+- The search API endpoint enforces a per-session cooldown set by each search
+  provider (3 seconds for arXiv) to prevent excessive requests upstream.
 
 - Profile category validation only accepts leaf arXiv categories (e.g.
   `cs.AI`, `hep-th`), not parent group codes like `cs` or `physics`.

@@ -83,11 +83,12 @@ preprint-bot/
 ├── packages/preprint_sources/     # Preprint server adapters, shared by pipeline and Django
 │   └── src/preprint_sources/      # See packages/preprint_sources/README.md
 │       ├── base.py                # PaperEntry dataclass + PreprintSource ABC
-│       ├── arxiv.py               # arXiv RSS source (+ API fallback)
+│       ├── search.py              # SearchProvider ABC (one search can span several sources)
+│       ├── arxiv.py               # arXiv RSS source (+ API fallback) and search provider
 │       ├── rxiv.py                # Shared base for bioRxiv and medRxiv
 │       ├── biorxiv.py             # bioRxiv source
 │       ├── medrxiv.py             # medRxiv source
-│       ├── registry.py            # Source registry + PREPRINT_ENABLED_SOURCES
+│       ├── registry.py            # Source + search provider registry, PREPRINT_ENABLED_SOURCES
 │       └── taxonomies/            # Per-source category trees
 ├── tests/                         # Pytest test suite
 │   ├── conftest.py                # Shared fixtures
@@ -331,6 +332,8 @@ export PREPRINT_ENABLED_SOURCES=arxiv,biorxiv,medrxiv
   ```
 
 Turning a source off keeps profiles' selections for it; the pipeline logs and skips them until the source is turned back on.
+
+Search follows the same setting: the add-paper **Search** tab offers each search provider that covers at least one enabled source (currently only arXiv has one), and shows only results from enabled sources.
 
 ## Usage
 
