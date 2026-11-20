@@ -57,6 +57,11 @@ class PreprintSource(ABC):
         ...
 
     @property
+    def date_label(self) -> str:
+        """What a paper's ``published`` date means on this server, for UI labels."""
+        return "Posted"
+
+    @property
     def request_delay_seconds(self) -> float:
         """Minimum gap between successive requests to this server.
 

@@ -12,6 +12,7 @@ def test_identity():
     src = MedrxivSource()
     assert src.name == "medrxiv"
     assert src.label == "medRxiv"
+    assert src.date_label == "Posted"
 
 
 def test_landing_url_is_versionless():

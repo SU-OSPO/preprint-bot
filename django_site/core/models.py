@@ -20,6 +20,7 @@ from pgvector.django import VectorField
 
 from preprint_sources import all_source_names, get_source
 
+from .sources import source_date_label as _source_date_label
 from .sources import source_label as _source_label
 
 # ── Users ──────────────────────────────────────────────────────────────────
@@ -261,6 +262,26 @@ class Paper(models.Model):
     def source_label(self):
         """Human-facing source name for UI badges, e.g. ``arXiv``."""
         return _source_label(self.source)
+
+    @property
+    def date_label(self):
+        """What ``paper_date`` means for this source, e.g. ``Announced``."""
+        return _source_date_label(self.source)
+
+    @property
+    def paper_date(self):
+        """The paper's own date: the server's posting date when stored, else ``submitted_date``.
+
+        bioRxiv/medRxiv date ``submitted_date`` the day after posting, to line up
+        with arXiv, and keep the real posting day in ``metadata["posted"]``.
+        """
+        posted = self.metadata.get("posted") if isinstance(self.metadata, dict) else None
+        if posted:
+            try:
+                return datetime.date.fromisoformat(posted)
+            except (TypeError, ValueError):
+                pass
+        return self.submitted_date.date() if self.submitted_date else None
 
     @property
     def categories_list(self):

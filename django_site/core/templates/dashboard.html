@@ -49,8 +49,10 @@
       </div>
     {% endif %}
 
-    {% if rec.source_id %}
-      <span class="text-sm text-dim text-mono">{{ rec.source_id }}</span>
+    {% if rec.source_id or rec.paper_date_str %}
+      <div class="text-sm text-dim">
+        {% if rec.source_id %}<span class="text-mono">{{ rec.source_id }}</span>{% endif %}{% if rec.source_id and rec.paper_date_str %} &middot; {% endif %}{% if rec.paper_date_str %}{{ rec.paper_date_label }} {{ rec.paper_date_str }}{% endif %}
+      </div>
     {% endif %}
 
     {% if rec.summary_text %}
