@@ -286,7 +286,12 @@ class ArxivSearchProvider(SearchProvider):
         return _REQUEST_DELAY_SECONDS
 
     async def search(
-        self, *, title: str = "", author: str = "", max_results: int = 100
+        self,
+        *,
+        title: str = "",
+        author: str = "",
+        max_results: int = 100,
+        sources: Optional[List[str]] = None,
     ) -> List[PaperEntry]:
         """Phrase-match the title and/or author fields, newest first.
 
@@ -294,6 +299,8 @@ class ArxivSearchProvider(SearchProvider):
         ``ValueError`` if neither is given, since arXiv would otherwise
         return the entire corpus.
         """
+        if sources is not None and "arxiv" not in sources:
+            return []
         parts = []
         if title.strip():
             parts.append(_phrase_term("ti", title))

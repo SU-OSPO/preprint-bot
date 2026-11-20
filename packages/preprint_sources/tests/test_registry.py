@@ -91,12 +91,17 @@ def test_search_providers_only_cover_registered_sources():
 
 def test_search_provider_enabled_by_its_sources(monkeypatch):
     monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv,biorxiv")
-    assert [p.name for p in enabled_search_providers()] == ["arxiv"]
+    assert [p.name for p in enabled_search_providers()] == ["arxiv", "europepmc"]
+
+
+def test_one_covered_source_is_enough(monkeypatch):
+    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "medrxiv")
+    assert [p.name for p in enabled_search_providers()] == ["europepmc"]
 
 
 def test_search_provider_disabled_without_its_sources(monkeypatch):
-    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "biorxiv,medrxiv")
-    assert enabled_search_providers() == []
+    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv")
+    assert [p.name for p in enabled_search_providers()] == ["arxiv"]
 
 
 # ── The development-only demo source ───────────────────────────────

@@ -20,6 +20,7 @@ src/preprint_sources/
   rxiv.py            # RxivSource, shared by bioRxiv and medRxiv
   biorxiv.py         # BiorxivSource
   medrxiv.py         # MedrxivSource
+  europepmc.py       # EuropePmcSearchProvider (bioRxiv and medRxiv)
   demo.py            # DemoSource (development only; see below)
   taxonomies/        # per-source category trees (arxiv.py, biorxiv.py, medrxiv.py)
   registry.py        # name -> class, enabled_sources(), enabled_search_providers()
@@ -76,7 +77,9 @@ for provider in enabled_search_providers():
 2. Register it in `registry.py` `_SEARCH_CLASSES`.
 
 A provider needs no setting of its own: it is enabled whenever at least one of
-its `sources` is enabled, and consumers drop results from disabled sources.
+its `sources` is enabled. Callers pass the enabled ones as `search(sources=...)`
+so a provider can leave the rest out of its query, and still drop results from
+disabled sources.
 Results can only be added to a profile through a source that supports
 add-by-id.
 

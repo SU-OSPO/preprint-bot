@@ -10,7 +10,7 @@ server's PreprintSource.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from .base import PaperEntry
 
@@ -43,7 +43,16 @@ class SearchProvider(ABC):
 
     @abstractmethod
     async def search(
-        self, *, title: str = "", author: str = "", max_results: int = 100
+        self,
+        *,
+        title: str = "",
+        author: str = "",
+        max_results: int = 100,
+        sources: Optional[List[str]] = None,
     ) -> List[PaperEntry]:
-        """Find papers by title and/or author, newest first."""
+        """Find papers by title and/or author, newest first.
+
+        *sources* limits results to those source names (default: all of
+        ``sources``), so a caller can leave out servers it has turned off.
+        """
         ...

@@ -13,7 +13,7 @@
     {% endif %}
     {% if search_providers %}
       <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">
-        Search{% if search_providers|length == 1 %} {{ search_providers.0.label }}{% endif %}
+        Search{% if search_providers|length == 1 %} {{ search_providers.0.display_label }}{% endif %}
       </button>
     {% endif %}
     {% if not hide_copy_existing_profile_tab %}
@@ -74,7 +74,7 @@
         <label for="search-provider-{{ p.pk }}">Search with</label>
         <select id="search-provider-{{ p.pk }}" class="search-provider">
           {% for s in search_providers %}
-            <option value="{{ s.name }}">{{ s.label }}</option>
+            <option value="{{ s.name }}">{{ s.display_label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -96,7 +96,7 @@
 
     {# spinner shown while waiting #}
     <div class="search-spinner" style="display:none; margin-top:.75rem;">
-      <span class="spinner"></span> Searching{% if search_providers|length == 1 %} {{ search_providers.0.label }}{% endif %}…
+      <span class="spinner"></span> Searching{% if search_providers|length == 1 %} {{ search_providers.0.display_label }}{% endif %}…
     </div>
 
     {# results injected here by JS #}

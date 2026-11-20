@@ -88,6 +88,7 @@ preprint-bot/
 │       ├── rxiv.py                # Shared base for bioRxiv and medRxiv
 │       ├── biorxiv.py             # bioRxiv source
 │       ├── medrxiv.py             # medRxiv source
+│       ├── europepmc.py           # Europe PMC search provider (bioRxiv + medRxiv)
 │       ├── registry.py            # Source + search provider registry, PREPRINT_ENABLED_SOURCES
 │       └── taxonomies/            # Per-source category trees
 ├── tests/                         # Pytest test suite
@@ -337,7 +338,7 @@ export PREPRINT_ENABLED_SOURCES=arxiv,biorxiv,medrxiv
 
 Turning a source off keeps profiles' selections for it; the pipeline logs and skips them until the source is turned back on.
 
-Search follows the same setting: the add-paper **Search** tab offers each search provider that covers at least one enabled source (currently only arXiv has one), and shows only results from enabled sources.
+Search follows the same setting: the add-paper **Search** tab offers each search provider that covers at least one enabled source (arXiv's own search for arXiv, and Europe PMC for bioRxiv and medRxiv), and shows only results from enabled sources.
 
 ## Usage
 

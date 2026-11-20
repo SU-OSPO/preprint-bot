@@ -21,6 +21,7 @@ from typing import Dict, List, Type
 from .arxiv import ArxivSearchProvider, ArxivSource
 from .base import PreprintSource
 from .biorxiv import BiorxivSource
+from .europepmc import EuropePmcSearchProvider
 from .medrxiv import MedrxivSource
 from .search import SearchProvider
 
@@ -32,6 +33,7 @@ _CLASSES: Dict[str, Type[PreprintSource]] = {
 
 _SEARCH_CLASSES: Dict[str, Type[SearchProvider]] = {
     "arxiv": ArxivSearchProvider,
+    "europepmc": EuropePmcSearchProvider,
 }
 
 _DEMO_NAME = "demo"

@@ -75,8 +75,18 @@ def resolve_source(name: str, capability: str) -> Optional[PreprintSource]:
 
 
 def describe_search_providers() -> List[dict]:
-    """Enabled search providers, described for the search tab."""
-    return [{"name": p.name, "label": p.label} for p in enabled_search_providers()]
+    """Enabled search providers, described for the search tab.
+
+    ``display_label`` names the enabled sources a provider searches when they
+    differ from the provider itself, e.g. "Europe PMC (bioRxiv, medRxiv)".
+    """
+    enabled = set(enabled_names())
+    described = []
+    for p in enabled_search_providers():
+        labels = [get_source(name).label for name in p.sources if name in enabled]
+        display = p.label if labels == [p.label] else f"{p.label} ({', '.join(labels)})"
+        described.append({"name": p.name, "label": p.label, "display_label": display})
+    return described
 
 
 def resolve_search_provider(name: str) -> Optional[SearchProvider]:

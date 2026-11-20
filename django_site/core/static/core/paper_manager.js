@@ -162,13 +162,17 @@ function renderSearchResults(box) {
     html += ' &middot; ' + addedResults.length + ' already in profile';
   }
   html += '<span class="sel-count"></span>';
-  html += '</span>'
-    + '<div style="display:flex;gap:.4rem;">'
-    + '<button type="button" class="btn btn-sm" onclick="togglePageCb(this,true)">Select Page</button>'
-    + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,true)" data-action="select-all">Select All ('
-    + addableCount(box) + ')</button>'
-    + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,false)">Deselect All</button>'
-    + '</div></div>';
+  html += '</span>';
+  /* Selection controls only when results can be added (see the add button below) */
+  if (addUrl) {
+    html += '<div style="display:flex;gap:.4rem;">'
+      + '<button type="button" class="btn btn-sm" onclick="togglePageCb(this,true)">Select Page</button>'
+      + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,true)" data-action="select-all">Select All ('
+      + addableCount(box) + ')</button>'
+      + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,false)">Deselect All</button>'
+      + '</div>';
+  }
+  html += '</div>';
 
   /* main results form */
   const profileId = box.closest('.paper-tabs').dataset.profile;
