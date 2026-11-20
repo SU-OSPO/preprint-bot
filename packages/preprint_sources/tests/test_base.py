@@ -63,7 +63,6 @@ class _Minimal(PreprintSource):
 
 def test_optional_capabilities_default_off():
     src = _Minimal()
-    assert src.supports_search() is False
     assert src.supports_add_by_id() is False
     assert src.label_for("code") == "code"
 
@@ -72,8 +71,6 @@ async def test_optional_methods_raise_not_implemented():
     src = _Minimal()
     with pytest.raises(NotImplementedError):
         await src.fetch_by_date(None, [])
-    with pytest.raises(NotImplementedError):
-        await src.search(title="x")
     with pytest.raises(NotImplementedError):
         src.normalize_id("x")
     with pytest.raises(NotImplementedError):

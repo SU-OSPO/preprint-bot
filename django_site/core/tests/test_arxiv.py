@@ -1,21 +1,23 @@
-"""Tests for the add-by-ID (AJAX) and source search API views.
+"""Tests for the add-by-ID (AJAX) and search API views.
 
-Both views are source-generic; these exercise them through the arXiv source,
-which is the one every deployment enables by default.
+Both views are source-generic; these exercise them through the arXiv source
+and search provider, which every deployment enables by default.
 """
 
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
-from django.test import TestCase, override_settings
-from preprint_sources import ArxivSource, PaperEntry
+from django.test import SimpleTestCase, TestCase, override_settings
+from preprint_sources import ArxivSearchProvider, ArxivSource, PaperEntry
 
 from core.models import PBUser, Paper, Profile
+from core.sources import paper_source_context, resolve_search_provider
 from core.views import _compute_sha256, _get_or_create_user_corpus
 
 
-def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z"):
+def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z", source="arxiv"):
     """Build a PaperEntry the way ArxivSource would return one."""
     return PaperEntry(
         source_id=source_id,
@@ -28,7 +30,7 @@ def _entry(source_id, title, authors, published="2023-01-15T00:00:00Z"):
         authors=list(authors),
         categories=["cs.AI"],
         published=published,
-        source="arxiv",
+        source=source,
     )
 
 
@@ -238,13 +240,13 @@ class SearchApiTests(TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("error", resp.json())
 
-    def test_unknown_source_returns_400(self):
-        resp = self._search(title="x", source="not-a-source")
+    def test_unknown_provider_returns_400(self):
+        resp = self._search(title="x", provider="not-a-provider")
         self.assertEqual(resp.status_code, 400)
         self.assertIn("error", resp.json())
 
     @patch.object(
-        ArxivSource,
+        ArxivSearchProvider,
         "search",
         new=AsyncMock(
             return_value=[_entry("2301.00001", "Deep Learning", ["Alice Smith", "Bob Jones"])]
@@ -254,11 +256,13 @@ class SearchApiTests(TestCase):
         resp = self._search(title="deep learning")
         self.assertEqual(resp.status_code, 200)
         payload = resp.json()
-        self.assertEqual(payload["source"], "arxiv")
+        self.assertEqual(payload["provider"], "arxiv")
         self.assertEqual(payload["label"], "arXiv")
         results = payload["results"]
         self.assertEqual(len(results), 1)
         r = results[0]
+        self.assertEqual(r["source"], "arxiv")
+        self.assertEqual(r["source_label"], "arXiv")
         self.assertEqual(r["source_id"], "2301.00001")
         self.assertEqual(r["title"], "Deep Learning")
         self.assertEqual(r["authors"], "Alice Smith, Bob Jones")
@@ -267,7 +271,7 @@ class SearchApiTests(TestCase):
         self.assertFalse(r["already_added"])
 
     @patch.object(
-        ArxivSource,
+        ArxivSearchProvider,
         "search",
         new=AsyncMock(
             return_value=[
@@ -287,8 +291,45 @@ class SearchApiTests(TestCase):
         self.assertTrue(by_id["2301.00001"]["already_added"])
         self.assertFalse(by_id["2401.99999"]["already_added"])
 
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "arxiv,biorxiv"})
     @patch.object(
-        ArxivSource,
+        ArxivSearchProvider,
+        "search",
+        new=AsyncMock(
+            return_value=[
+                _entry("2301.00001", "Same Id", ["A"]),
+                _entry("2301.00001", "Same Id", ["A"], source="biorxiv"),
+            ]
+        ),
+    )
+    def test_already_added_matches_on_source_too(self):
+        # Both sources pass the enabled-source filter, so only the
+        # (source, source_id) match can tell the two results apart.
+        corpus = _get_or_create_user_corpus(self.user, self.profile)
+        other = Paper.objects.create(
+            source_id="2301.00001", sha256="d" * 64, title="Same Id", source="biorxiv"
+        )
+        other.corpora.add(corpus)
+        results = self._search(title="x").json()["results"]
+        by_source = {r["source"]: r["already_added"] for r in results}
+        self.assertEqual(by_source, {"arxiv": False, "biorxiv": True})
+
+    @patch.object(
+        ArxivSearchProvider,
+        "search",
+        new=AsyncMock(
+            return_value=[
+                _entry("2301.00001", "Enabled", ["A"]),
+                _entry("10.1101/2024.01.01.000001", "Disabled", ["B"], source="biorxiv"),
+            ]
+        ),
+    )
+    def test_results_from_disabled_sources_are_dropped(self):
+        results = self._search(title="x").json()["results"]
+        self.assertEqual([r["source_id"] for r in results], ["2301.00001"])
+
+    @patch.object(
+        ArxivSearchProvider,
         "search",
         new=AsyncMock(
             return_value=[
@@ -302,20 +343,22 @@ class SearchApiTests(TestCase):
         self.assertIn("Author 24", r["authors"])  # 25 shown (0..24), then et al.
         self.assertNotIn("Author 25", r["authors"])
 
-    @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
+    @patch.object(ArxivSearchProvider, "search", new=AsyncMock(return_value=[]))
     def test_second_search_rate_limited(self):
         self._search(title="foo")  # first: allowed
         resp = self._search(title="foo")  # within the source's cooldown
         self.assertEqual(resp.status_code, 429)
 
-    @patch.object(ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("boom")))
+    @patch.object(ArxivSearchProvider, "search", new=AsyncMock(side_effect=RuntimeError("boom")))
     def test_source_failure_returns_500(self):
         resp = self._search(title="foo")
         self.assertEqual(resp.status_code, 500)
         self.assertIn("error", resp.json())
 
     @patch.object(
-        ArxivSource, "search", new=AsyncMock(side_effect=RuntimeError("HTTP 429 too many requests"))
+        ArxivSearchProvider,
+        "search",
+        new=AsyncMock(side_effect=RuntimeError("HTTP 429 too many requests")),
     )
     def test_upstream_rate_limit_returns_429(self):
         resp = self._search(title="foo")
@@ -328,9 +371,27 @@ class SearchApiTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/auth/login/", resp.url)
 
-    @patch.object(ArxivSource, "search", new=AsyncMock(return_value=[]))
+    @patch.object(ArxivSearchProvider, "search", new=AsyncMock(return_value=[]))
     def test_search_other_users_profile_404(self):
         other = PBUser.objects.create_user(email="o2@example.com", password="SecurePass123!")
         op = Profile.objects.create(user=other, name="OP", source_categories={"arxiv": ["cs.AI"]})
         resp = self.client.get(f"/profiles/{op.pk}/search/", {"title": "x"})
         self.assertEqual(resp.status_code, 404)
+
+
+class SearchProviderResolutionTests(SimpleTestCase):
+    """core.sources: which search providers the search tab offers."""
+
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "arxiv"})
+    def test_arxiv_provider_offered_with_arxiv_enabled(self):
+        self.assertEqual(
+            paper_source_context()["search_providers"], [{"name": "arxiv", "label": "arXiv"}]
+        )
+        self.assertEqual(resolve_search_provider("").name, "arxiv")
+        self.assertEqual(resolve_search_provider("arxiv").name, "arxiv")
+
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "biorxiv"})
+    def test_no_provider_without_its_sources(self):
+        self.assertEqual(paper_source_context()["search_providers"], [])
+        self.assertIsNone(resolve_search_provider(""))
+        self.assertIsNone(resolve_search_provider("arxiv"))

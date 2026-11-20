@@ -34,7 +34,6 @@ def test_leaf_codes_and_labels():
 
 def test_declared_capabilities():
     src = ArxivSource()
-    assert src.supports_search() is True
     assert src.supports_add_by_id() is True
     assert src.id_hint  # placeholder examples for the UI
     assert src.request_delay_seconds == 3.0  # arXiv asks for 1 req / 3s

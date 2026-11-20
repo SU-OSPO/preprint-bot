@@ -2,8 +2,9 @@
 
 Views and templates need a little more than the raw :mod:`preprint_sources`
 registry: a bridge from synchronous Django views into the sources' async API,
-and a JSON-friendly description of what each enabled source can do so the
-add-paper UI can render itself instead of hardcoding arXiv.
+and a JSON-friendly description of what each enabled source and search
+provider can do so the add-paper UI can render itself instead of hardcoding
+arXiv.
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from typing import Dict, Iterator, List, Optional
 
 from preprint_sources import (
     PreprintSource,
+    SearchProvider,
     enabled_names,
+    enabled_search_providers,
     enabled_sources,
     get_source,
 )
@@ -46,7 +49,6 @@ def describe_sources() -> List[dict]:
         {
             "name": src.name,
             "label": src.label,
-            "supports_search": src.supports_search(),
             "supports_add_by_id": src.supports_add_by_id(),
             "id_hint": src.id_hint,
             # Client-side pacing for the per-id add loop.
@@ -60,9 +62,9 @@ def resolve_source(name: str, capability: str) -> Optional[PreprintSource]:
     """The source a request should act on, or ``None``.
 
     A named source is honoured only if it is enabled and actually supports
-    *capability* (``"supports_search"`` / ``"supports_add_by_id"``).  With no
-    name — the common case while a deployment runs a single source — the
-    first enabled source with that capability is used.
+    *capability* (e.g. ``"supports_add_by_id"``).  With no name — the common
+    case while a deployment runs a single source — the first enabled source
+    with that capability is used.
     """
     if name:
         src = enabled_source(name)
@@ -72,17 +74,34 @@ def resolve_source(name: str, capability: str) -> Optional[PreprintSource]:
     return next((s for s in enabled_sources() if getattr(s, capability)()), None)
 
 
+def describe_search_providers() -> List[dict]:
+    """Enabled search providers, described for the search tab."""
+    return [{"name": p.name, "label": p.label} for p in enabled_search_providers()]
+
+
+def resolve_search_provider(name: str) -> Optional[SearchProvider]:
+    """The search provider a request should use, or ``None``.
+
+    A named provider is honoured only if it is enabled; with no name, the
+    first enabled provider is used.
+    """
+    providers = enabled_search_providers()
+    if name:
+        return next((p for p in providers if p.name == name), None)
+    return providers[0] if providers else None
+
+
 def paper_source_context() -> dict:
     """Template context for the add-paper tabs.
 
-    Each list is empty when no enabled source offers the capability, which
-    is how the templates decide whether to render that tab at all.
+    Each list is empty when nothing enabled offers the capability, which is
+    how the templates decide whether to render that tab at all.
     """
     sources = describe_sources()
     return {
         "paper_sources": sources,
         "add_sources": [s for s in sources if s["supports_add_by_id"]],
-        "search_sources": [s for s in sources if s["supports_search"]],
+        "search_providers": describe_search_providers(),
     }
 
 

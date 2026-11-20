@@ -4,6 +4,8 @@ arXiv preprint source.
 Primary method: RSS feed (contains exactly the latest announcement).
 Fallback: arXiv search API with submission-window calculation (for
 backfilling historical dates).
+
+ArxivSearchProvider covers title/author search through the same API.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import httpx
 from pylatexenc.latex2text import LatexNodes2Text
 
 from .base import PaperEntry, PreprintSource
+from .search import SearchProvider
 from .settings import USER_AGENT
 from .taxonomies.arxiv import (
     ARXIV_CATEGORY_TREE,
@@ -30,6 +33,9 @@ from .taxonomies.arxiv import (
 
 _RSS_BASE = "https://rss.arxiv.org/rss"
 _API_BASE = "https://export.arxiv.org/api/query"
+
+# arXiv asks for no more than one request every three seconds.
+_REQUEST_DELAY_SECONDS = 3.0
 
 # rss.arxiv.org silently truncates a feed at this many entries (undocumented).
 _RSS_MAX_ENTRIES = 2000
@@ -56,8 +62,7 @@ class ArxivSource(PreprintSource):
 
     @property
     def request_delay_seconds(self) -> float:
-        # arXiv asks for no more than one request every three seconds.
-        return 3.0
+        return _REQUEST_DELAY_SECONDS
 
     def landing_url(self, source_id: str) -> str:
         return f"https://arxiv.org/abs/{source_id}"
@@ -211,44 +216,6 @@ class ArxivSource(PreprintSource):
         logger.info(f"  Total: {len(entries)} new papers")
         return entries
 
-    # ── Search (title / author) ────────────────────────────────────
-
-    def supports_search(self) -> bool:
-        return True
-
-    async def search(
-        self, *, title: str = "", author: str = "", max_results: int = 100
-    ) -> List[PaperEntry]:
-        """Phrase-match the title and/or author fields, newest first.
-
-        Both terms are combined with AND when supplied.  Raises
-        ``ValueError`` if neither is given, since arXiv would otherwise
-        return the entire corpus.
-        """
-        parts = []
-        if title.strip():
-            parts.append(_phrase_term("ti", title))
-        if author.strip():
-            parts.append(_phrase_term("au", author))
-        if not parts:
-            raise ValueError("search requires a title or an author")
-
-        query = "+AND+".join(parts)
-        logger.info(f"\nSearching arXiv: {query} (max {max_results})")
-
-        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
-            items = await _api_fetch_all(client, query, limit=max_results)
-
-        entries: List[PaperEntry] = []
-        seen_ids: set[str] = set()
-        for item in items:
-            entry = _entry_from_api_item(item)
-            if entry is None or entry.source_id in seen_ids:
-                continue
-            seen_ids.add(entry.source_id)
-            entries.append(entry)
-        return entries
-
     # ── Add by id ──────────────────────────────────────────────────
 
     def supports_add_by_id(self) -> bool:
@@ -296,6 +263,59 @@ class ArxivSource(PreprintSource):
             entry = _entry_from_api_item(item)
             if entry is not None:
                 entries[entry.source_id] = entry
+        return entries
+
+
+class ArxivSearchProvider(SearchProvider):
+    """Title/author search over arXiv via its search API."""
+
+    @property
+    def name(self) -> str:
+        return "arxiv"
+
+    @property
+    def label(self) -> str:
+        return "arXiv"
+
+    @property
+    def sources(self) -> List[str]:
+        return ["arxiv"]
+
+    @property
+    def request_delay_seconds(self) -> float:
+        return _REQUEST_DELAY_SECONDS
+
+    async def search(
+        self, *, title: str = "", author: str = "", max_results: int = 100
+    ) -> List[PaperEntry]:
+        """Phrase-match the title and/or author fields, newest first.
+
+        Both terms are combined with AND when supplied.  Raises
+        ``ValueError`` if neither is given, since arXiv would otherwise
+        return the entire corpus.
+        """
+        parts = []
+        if title.strip():
+            parts.append(_phrase_term("ti", title))
+        if author.strip():
+            parts.append(_phrase_term("au", author))
+        if not parts:
+            raise ValueError("search requires a title or an author")
+
+        query = "+AND+".join(parts)
+        logger.info(f"\nSearching arXiv: {query} (max {max_results})")
+
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
+            items = await _api_fetch_all(client, query, limit=max_results)
+
+        entries: List[PaperEntry] = []
+        seen_ids: set[str] = set()
+        for item in items:
+            entry = _entry_from_api_item(item)
+            if entry is None or entry.source_id in seen_ids:
+                continue
+            seen_ids.add(entry.source_id)
+            entries.append(entry)
         return entries
 
 

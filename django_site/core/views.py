@@ -55,11 +55,13 @@ from .sources import (
     category_label,
     category_trees,
     code_to_label_by_source,
+    enabled_source,
     leaf_codes_by_source,
     multiple_sources_enabled,
     order_source_names,
     paper_source_context,
     preserve_disabled_selections,
+    resolve_search_provider,
     resolve_source,
     run_sync,
     source_label,
@@ -1338,17 +1340,17 @@ def _download_source_papers(pb_user, profile, source, source_ids):
 
 @pbuser_required
 def paper_search_api_view(request, profile_id):
-    """JSON API: search a preprint source by title/author for inline results."""
+    """JSON API: search by title/author with a search provider for inline results."""
     pb_user = request.pb_user
     profile = get_object_or_404(Profile, pk=profile_id, user=pb_user)
 
-    source = resolve_source(request.GET.get("source", ""), "supports_search")
-    if source is None:
-        return JsonResponse({"error": "No source available to search."}, status=400)
+    provider = resolve_search_provider(request.GET.get("provider", ""))
+    if provider is None:
+        return JsonResponse({"error": "No search available."}, status=400)
 
-    # Rate limit: honour the source's own request spacing, per session
-    cooldown = source.request_delay_seconds
-    session_key = f"search_ts_{source.name}"
+    # Rate limit: honour the provider's own request spacing, per session
+    cooldown = provider.request_delay_seconds
+    session_key = f"search_ts_{provider.name}"
     now = time.time()
     last_search = request.session.get(session_key, 0)
     if cooldown and now - last_search < cooldown:
@@ -1367,7 +1369,7 @@ def paper_search_api_view(request, profile_id):
 
     try:
         entries = run_sync(
-            source.search(
+            provider.search(
                 title=title_q,
                 author=author_q,
                 max_results=django_settings.SOURCE_SEARCH_MAX_RESULTS,
@@ -1377,45 +1379,51 @@ def paper_search_api_view(request, profile_id):
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.exception("%s search failed", source.name)
-        # Detect upstream rate limiting from the source
+        logger.exception("%s search failed", provider.name)
+        # Detect upstream rate limiting from the provider
         is_rate_limited = (
             hasattr(exc, "response") and getattr(exc.response, "status_code", None) == 429
         ) or "429" in str(exc)
         if is_rate_limited:
             return JsonResponse(
                 {
-                    "error": f"{source.label} is rate-limiting requests. Please wait a minute and try again."
+                    "error": f"{provider.label} is rate-limiting requests. Please wait a minute and try again."
                 },
                 status=429,
             )
         detail = str(exc) if django_settings.DEBUG else "Search failed. Please try again."
         return JsonResponse({"error": detail}, status=500)
 
-    # Existing paper source_ids for this profile (to flag already-added ones)
+    # A provider can cover several sources; keep results from enabled ones only
+    sources = {name: enabled_source(name) for name in {entry.source for entry in entries}}
+    entries = [entry for entry in entries if sources[entry.source] is not None]
+
+    # Existing (source, source_id) pairs for this profile (to flag already-added ones)
     corpus = _get_or_create_user_corpus(pb_user, profile)
     existing_ids = set(
         Paper.objects.filter(
-            corpora=corpus, source=source.name, source_id__isnull=False
-        ).values_list("source_id", flat=True)
+            corpora=corpus, source__in=list(sources), source_id__isnull=False
+        ).values_list("source", "source_id")
     )
 
     results = [
         {
+            "source": entry.source,
+            "source_label": sources[entry.source].label,
             "source_id": entry.source_id,
             "title": entry.title,
             "authors": _format_author_list(entry.authors),
             "published": _published_date_str(entry.published),
-            "landing_url": source.landing_url(entry.source_id),
-            "already_added": entry.source_id in existing_ids,
+            "landing_url": sources[entry.source].landing_url(entry.source_id),
+            "already_added": (entry.source, entry.source_id) in existing_ids,
         }
         for entry in entries
     ]
 
     return JsonResponse(
         {
-            "source": source.name,
-            "label": source.label,
+            "provider": provider.name,
+            "label": provider.label,
             "results": results,
         }
     )
