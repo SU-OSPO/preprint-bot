@@ -1,8 +1,15 @@
+import time
+
 import requests
 from lxml import etree
 
 GROBID_URL = "http://localhost:8070/api/processFulltextDocument"
 NS = {"tei": "http://www.tei-c.org/ns/1.0"}
+
+# GROBID answers 503 while all its workers are busy, and other 5xx are often
+# transient; such responses are retried after these waits (seconds).
+_RETRY_STATUSES = {500, 502, 503, 504}
+_RETRY_WAITS = (5, 10)
 
 
 def extract_grobid_sections(src):
@@ -18,17 +25,23 @@ def extract_grobid_sections(src):
             pdf_bytes = fp.read()
 
     # 2. Call GROBID
-    try:
-        resp = requests.post(
-            GROBID_URL,
-            files={"input": ("file.pdf", pdf_bytes)},
-            data={"consolidateHeader": "1"},
-            timeout=60,
-        )
-        resp.raise_for_status()
-    except Exception as e:
-        print(f"GROBID error: {e}")
-        raise
+    for wait in (*_RETRY_WAITS, None):
+        try:
+            resp = requests.post(
+                GROBID_URL,
+                files={"input": ("file.pdf", pdf_bytes)},
+                data={"consolidateHeader": "1"},
+                timeout=60,
+            )
+            if resp.status_code in _RETRY_STATUSES and wait is not None:
+                print(f"GROBID returned {resp.status_code}; retrying in {wait}s")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            break
+        except Exception as e:
+            print(f"GROBID error: {e}")
+            raise
 
     root = etree.fromstring(resp.content)
     if root.tag != f"{{{NS['tei']}}}TEI":

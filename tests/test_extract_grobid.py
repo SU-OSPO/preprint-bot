@@ -198,3 +198,40 @@ class TestGrobidOutputRobustness:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestGrobidRetry:
+    """GROBID answers 503 while its workers are busy; 5xx is retried."""
+
+    @staticmethod
+    def _status(code):
+        resp = Mock()
+        resp.status_code = code
+        resp.raise_for_status = Mock(side_effect=Exception(f"GROBID {code}"))
+        return resp
+
+    @patch("preprint_bot.extract_grobid.time.sleep")
+    @patch("preprint_bot.extract_grobid.requests.post")
+    def test_retries_busy_grobid_then_succeeds(self, mock_post, mock_sleep):
+        mock_post.side_effect = [self._status(503), _grobid_response()]
+        result = extract_grobid_sections(b"x")
+        assert result["title"] == "A Study of Deterministic Testing"
+        assert mock_post.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("preprint_bot.extract_grobid.time.sleep")
+    @patch("preprint_bot.extract_grobid.requests.post")
+    def test_gives_up_after_the_retries(self, mock_post, mock_sleep):
+        mock_post.return_value = self._status(503)
+        with pytest.raises(Exception, match="GROBID 503"):
+            extract_grobid_sections(b"x")
+        assert mock_post.call_count == 3
+
+    @patch("preprint_bot.extract_grobid.time.sleep")
+    @patch("preprint_bot.extract_grobid.requests.post")
+    def test_client_errors_are_not_retried(self, mock_post, mock_sleep):
+        mock_post.return_value = self._status(400)
+        with pytest.raises(Exception, match="GROBID 400"):
+            extract_grobid_sections(b"x")
+        assert mock_post.call_count == 1
+        mock_sleep.assert_not_called()

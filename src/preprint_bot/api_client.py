@@ -327,6 +327,11 @@ class APIClient:
         response.raise_for_status()
         return response.json()
 
+    async def get_summaries_by_paper(self, paper_id: int) -> List[Dict]:
+        response = await self.client.get(f"{self.base_url}/summaries/paper/{paper_id}")
+        response.raise_for_status()
+        return response.json()
+
     async def create_recommendation_run(
         self,
         profile_id: int,

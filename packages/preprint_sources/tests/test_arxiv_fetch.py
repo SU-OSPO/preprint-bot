@@ -102,6 +102,71 @@ class TestFetchLatest:
         mock_parse.return_value = _feed([_rss_item("https://example.com/no-abs")])
         assert await ArxivSource().fetch_latest(["cs.AI"]) == []
 
+    @patch("preprint_sources.arxiv.feedparser.parse")
+    @patch("preprint_sources.arxiv.httpx.AsyncClient")
+    async def test_request_bypasses_cdn_cache(self, mock_client, mock_parse):
+        cm = _mock_async_client()
+        mock_client.return_value = cm
+        mock_parse.return_value = _feed([])
+        await ArxivSource().fetch_latest(["cs.AI"])
+        call = cm.__aenter__.return_value.get.call_args
+        assert call.args[0] == "https://rss.arxiv.org/rss/cs.AI"
+        assert call.kwargs["params"]["t"]
+
+
+def _capped_feed(n_new=10):
+    """A feed at the entry cap: *n_new* new items, the rest replacements."""
+    from preprint_sources.arxiv import _RSS_MAX_ENTRIES
+
+    items = [_rss_item(f"https://arxiv.org/abs/2401.{i:05d}") for i in range(n_new)]
+    items += [
+        _rss_item(f"https://arxiv.org/abs/2312.{i:05d}", announce="replace")
+        for i in range(_RSS_MAX_ENTRIES - n_new)
+    ]
+    return _feed(items)
+
+
+class TestFetchLatestEntryCap:
+    @patch("preprint_sources.arxiv.asyncio.sleep", new_callable=AsyncMock)
+    @patch("preprint_sources.arxiv.feedparser.parse")
+    @patch("preprint_sources.arxiv.httpx.AsyncClient")
+    async def test_capped_feed_is_split_and_merged(self, mock_client, mock_parse, mock_sleep):
+        cm = _mock_async_client()
+        mock_client.return_value = cm
+        mock_parse.side_effect = [
+            _capped_feed(),
+            _feed([_rss_item("https://arxiv.org/abs/2401.10001")]),
+            _feed(
+                [
+                    _rss_item("https://arxiv.org/abs/2401.10002"),
+                    # cross-listed into the first half's category; not new here
+                    _rss_item("https://arxiv.org/abs/2401.10001", announce="cross"),
+                ]
+            ),
+        ]
+        papers = await ArxivSource().fetch_latest(["cs.AI", "cs.LG", "cs.CV"])
+
+        urls = [c.args[0] for c in cm.__aenter__.return_value.get.call_args_list]
+        assert urls == [
+            "https://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CV",
+            "https://rss.arxiv.org/rss/cs.AI",
+            "https://rss.arxiv.org/rss/cs.LG+cs.CV",
+        ]
+        # The truncated feed's entries are discarded in favour of the halves'.
+        assert [p.source_id for p in papers] == ["2401.10001", "2401.10002"]
+        assert mock_sleep.await_count == 2  # rate limit between the refetches
+
+    @patch("preprint_sources.arxiv.feedparser.parse")
+    @patch("preprint_sources.arxiv.httpx.AsyncClient")
+    async def test_capped_single_category_warns_and_keeps_entries(
+        self, mock_client, mock_parse, caplog
+    ):
+        mock_client.return_value = _mock_async_client()
+        mock_parse.return_value = _capped_feed(n_new=3)
+        papers = await ArxivSource().fetch_latest(["cs.AI"])
+        assert len(papers) == 3
+        assert "cs.AI hit the 2000-entry cap" in caplog.text
+
 
 class TestFetchByDate:
     @patch("preprint_sources.arxiv._get_announcement_window", return_value=None)
