@@ -385,12 +385,29 @@ class SearchProviderResolutionTests(SimpleTestCase):
     @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "arxiv"})
     def test_arxiv_provider_offered_with_arxiv_enabled(self):
         self.assertEqual(
-            paper_source_context()["search_providers"], [{"name": "arxiv", "label": "arXiv"}]
+            paper_source_context()["search_providers"],
+            [{"name": "arxiv", "label": "arXiv", "display_label": "arXiv"}],
         )
         self.assertEqual(resolve_search_provider("").name, "arxiv")
         self.assertEqual(resolve_search_provider("arxiv").name, "arxiv")
+        self.assertIsNone(resolve_search_provider("europepmc"))
 
-    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "biorxiv"})
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "arxiv,biorxiv"})
+    def test_europepmc_offered_for_enabled_rxiv_servers_only(self):
+        self.assertEqual(
+            paper_source_context()["search_providers"],
+            [
+                {"name": "arxiv", "label": "arXiv", "display_label": "arXiv"},
+                {
+                    "name": "europepmc",
+                    "label": "Europe PMC",
+                    "display_label": "Europe PMC (bioRxiv)",
+                },
+            ],
+        )
+        self.assertEqual(resolve_search_provider("europepmc").name, "europepmc")
+
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "not-a-source"})
     def test_no_provider_without_its_sources(self):
         self.assertEqual(paper_source_context()["search_providers"], [])
         self.assertIsNone(resolve_search_provider(""))

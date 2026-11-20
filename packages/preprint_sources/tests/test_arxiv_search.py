@@ -78,6 +78,11 @@ class TestSearch:
         with pytest.raises(ValueError):
             await ArxivSearchProvider().search()
 
+    @patch("preprint_sources.arxiv._api_fetch_all", new_callable=AsyncMock)
+    async def test_sources_without_arxiv_return_nothing(self, mock_fetch):
+        assert await ArxivSearchProvider().search(title="x", sources=["biorxiv"]) == []
+        mock_fetch.assert_not_called()
+
 
 class TestFetchByIds:
     @patch("preprint_sources.arxiv._api_fetch_by_ids", new_callable=AsyncMock)
