@@ -291,19 +291,28 @@ class SearchApiTests(TestCase):
         self.assertTrue(by_id["2301.00001"]["already_added"])
         self.assertFalse(by_id["2401.99999"]["already_added"])
 
+    @patch.dict(os.environ, {"PREPRINT_ENABLED_SOURCES": "arxiv,biorxiv"})
     @patch.object(
         ArxivSearchProvider,
         "search",
-        new=AsyncMock(return_value=[_entry("2301.00001", "Same Id", ["A"])]),
+        new=AsyncMock(
+            return_value=[
+                _entry("2301.00001", "Same Id", ["A"]),
+                _entry("2301.00001", "Same Id", ["A"], source="biorxiv"),
+            ]
+        ),
     )
     def test_already_added_matches_on_source_too(self):
+        # Both sources pass the enabled-source filter, so only the
+        # (source, source_id) match can tell the two results apart.
         corpus = _get_or_create_user_corpus(self.user, self.profile)
         other = Paper.objects.create(
             source_id="2301.00001", sha256="d" * 64, title="Same Id", source="biorxiv"
         )
         other.corpora.add(corpus)
         results = self._search(title="x").json()["results"]
-        self.assertFalse(results[0]["already_added"])
+        by_source = {r["source"]: r["already_added"] for r in results}
+        self.assertEqual(by_source, {"arxiv": False, "biorxiv": True})
 
     @patch.object(
         ArxivSearchProvider,
