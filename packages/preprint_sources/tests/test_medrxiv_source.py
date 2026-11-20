@@ -1,4 +1,4 @@
-"""Tests for MedrxivSource identity, URLs, and taxonomy (no network)."""
+"""Tests for MedrxivSource identity, URLs, taxonomy, and id parsing (no network)."""
 
 from preprint_sources.medrxiv import MedrxivSource
 from preprint_sources.taxonomies.medrxiv import (
@@ -32,5 +32,19 @@ def test_taxonomy_comes_from_the_medrxiv_module():
 def test_declared_capabilities():
     src = MedrxivSource()
     assert src.supports_search() is False
-    assert src.supports_add_by_id() is False
+    assert src.supports_add_by_id() is True
+    assert "https://www.medrxiv.org/content/" in src.id_hint
     assert src.request_delay_seconds == 3.0
+
+
+def test_normalize_id_accepts_medrxiv_urls_and_dois():
+    src = MedrxivSource()
+    doi = "10.64898/2026.10.25.26312345"
+    assert src.normalize_id(f"https://www.medrxiv.org/content/{doi}v2.full.pdf") == doi
+    assert src.normalize_id(f"doi:{doi}") == doi
+    assert src.normalize_id("10.1101/2020.03.19.20039123") == "10.1101/2020.03.19.20039123"
+
+
+def test_normalize_id_rejects_biorxiv_urls():
+    url = "https://www.biorxiv.org/content/10.64898/2026.10.25.761658v1"
+    assert MedrxivSource().normalize_id(url) is None

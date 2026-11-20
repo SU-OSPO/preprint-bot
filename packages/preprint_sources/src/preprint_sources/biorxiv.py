@@ -22,6 +22,7 @@ class BiorxivSource(RxivSource):
 
     _server = "biorxiv"
     _site = "https://www.biorxiv.org"
+    _example_doi = "10.64898/2026.10.13.758934"
 
     @property
     def name(self) -> str:

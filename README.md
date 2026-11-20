@@ -24,6 +24,7 @@ Preprint Bot addresses the challenge of information discovery in academic resear
 ### User Features
 - **Profile Management**: Create profiles with categories, frequency, and thresholds
 - **Paper Upload**: Upload personal papers (PDFs) organized by profile
+- **Add by ID**: Add papers to a profile by arXiv ID, or by bioRxiv/medRxiv DOI or URL
 - **Smart Filtering**: Filter recommendations by date, score, and categories
 - **Email Digests**: Automated email notifications with top recommendations
 
