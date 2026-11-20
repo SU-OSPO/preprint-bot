@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Pipeline
     SYSTEM_USER_EMAIL: str = "abcd@syr.edu"
     USER_AGENT: str = "PreprintBot/1.0"
+    # Parallel GROBID requests; about the GROBID host's core count, and no
+    # more than the `concurrency` set in its grobid.yaml.
+    GROBID_CONCURRENCY: int = 4
 
 
 settings = Settings()
@@ -64,6 +67,7 @@ API_BASE_URL = settings.API_BASE_URL
 SYSTEM_USER_EMAIL = settings.SYSTEM_USER_EMAIL
 SYSTEM_USER_NAME = "Preprint Bot"
 USER_AGENT = settings.USER_AGENT
+GROBID_CONCURRENCY = max(1, settings.GROBID_CONCURRENCY)
 
 # Corpus naming. One shared pool holds fetched papers from every enabled
 # source; the name predates multi-source support and is kept because renaming
