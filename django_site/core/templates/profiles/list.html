@@ -45,6 +45,9 @@
       <div>
         <span class="text-sm text-dim">Frequency</span><br>
         <strong>{{ p.frequency|title }}</strong>
+        {% with next_digest=p.next_digest_date %}
+          {% if p.email_notify and next_digest %}<span class="text-sm text-dim">(next on {{ next_digest|date:"D, M j" }})</span>{% endif %}
+        {% endwith %}
       </div>
       <div>
         <span class="text-sm text-dim">Threshold</span><br>

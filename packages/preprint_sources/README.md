@@ -14,7 +14,11 @@ pulling in the other's dependencies.
 src/preprint_sources/
   base.py            # PaperEntry, PreprintSource (the interface)
   arxiv.py           # ArxivSource
-  taxonomies/        # per-source category trees (e.g. arxiv.py)
+  rxiv.py            # RxivSource, shared by bioRxiv and medRxiv
+  biorxiv.py         # BiorxivSource
+  medrxiv.py         # MedrxivSource
+  demo.py            # DemoSource (development only; see below)
+  taxonomies/        # per-source category trees (arxiv.py, biorxiv.py, medrxiv.py)
   registry.py        # name -> class, enabled_sources()
   settings.py        # USER_AGENT (env-overridable)
 ```
@@ -41,7 +45,20 @@ for source in enabled_sources():
 
 1. Implement `PreprintSource` in a new module (e.g., `biorxiv.py`).
 2. Register it in `registry.py` `_CLASSES`.
-3. Add its name to `PREPRINT_ENABLED_SOURCES`.
+3. Generate a migration from `django_site/`:
+   ```bash
+   python manage.py makemigrations core
+   ```
+   Registering a source adds a choice to `Paper.source`, so Django needs a
+   choices-only `AlterField` (see `0016_alter_paper_source`). It changes no
+   SQL, but without it `makemigrations --check` fails and the next unrelated
+   migration picks up the change. Until
+   [#173](https://github.com/SU-OSPO/preprint-bot/issues/173) is fixed, the
+   generated file also contains an unrelated `sent_in_email` `AlterField`;
+   delete that operation before committing.
+4. Add its name to `PREPRINT_ENABLED_SOURCES` for both the web app and the
+   pipeline, and reinstall this package into both environments (see the root
+   README's "Enabling Preprint Sources").
 
 ## The `demo` source (development only)
 

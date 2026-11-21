@@ -1,8 +1,9 @@
 """Tests for profile create/read/update/delete."""
 
+import datetime
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from core.models import PBUser, Profile
 
 
@@ -30,6 +31,80 @@ class ProfileListSourceLabelTests(TestCase):
         with patch("core.sources.enabled_names", return_value=["arxiv", "biorxiv"]):
             resp = self.client.get("/profiles/")
         self.assertTrue(resp.context["show_source_labels"])
+
+
+class NextDigestDateTests(SimpleTestCase):
+    """Weekly digests go out on Mondays, monthly on the 1st."""
+
+    def _next(self, frequency, today):
+        return Profile(frequency=frequency).next_digest_date(today=today)
+
+    def test_daily_has_no_date(self):
+        self.assertIsNone(self._next("daily", datetime.date(2026, 11, 18)))
+
+    def test_weekly_midweek(self):
+        # Wednesday -> following Monday
+        self.assertEqual(
+            self._next("weekly", datetime.date(2026, 11, 18)), datetime.date(2026, 11, 23)
+        )
+
+    def test_weekly_on_monday_is_next_week(self):
+        self.assertEqual(
+            self._next("weekly", datetime.date(2026, 11, 16)), datetime.date(2026, 11, 23)
+        )
+
+    def test_monthly_midmonth(self):
+        self.assertEqual(
+            self._next("monthly", datetime.date(2026, 11, 18)), datetime.date(2026, 12, 1)
+        )
+
+    def test_monthly_on_the_1st_is_next_month(self):
+        self.assertEqual(
+            self._next("monthly", datetime.date(2026, 11, 1)), datetime.date(2026, 12, 1)
+        )
+
+    def test_monthly_rolls_over_year(self):
+        self.assertEqual(
+            self._next("monthly", datetime.date(2026, 12, 31)), datetime.date(2027, 1, 1)
+        )
+
+
+class ProfileListNextDigestTests(TestCase):
+    """The profile list shows when the next weekly/monthly digest is due."""
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(
+            email="next@example.com",
+            password="SecurePass123!",
+        )
+        self.client.login(username="next@example.com", password="SecurePass123!")
+
+    def _create(self, **kwargs):
+        return Profile.objects.create(
+            user=self.user, source_categories={"arxiv": ["cs.AI"]}, **kwargs
+        )
+
+    def test_weekly_shows_next_date(self):
+        profile = self._create(name="W", frequency="weekly")
+        expected = profile.next_digest_date().strftime("%a, %b %-d")
+        resp = self.client.get("/profiles/")
+        self.assertContains(resp, f"(next on {expected})")
+
+    def test_daily_shows_no_date(self):
+        self._create(name="D", frequency="daily")
+        resp = self.client.get("/profiles/")
+        self.assertNotContains(resp, "next on")
+
+    def test_paused_shows_no_date(self):
+        self._create(name="P", frequency="monthly", email_notify=False)
+        resp = self.client.get("/profiles/")
+        self.assertNotContains(resp, "next on")
+
+    def test_editor_explains_schedule(self):
+        resp = self.client.get("/profiles/create/")
+        self.assertContains(resp, "monthly digests on the 1st of each month")
+        # Linked to the dropdown's aria-describedby for screen readers
+        self.assertContains(resp, 'id="id_frequency_helptext"')
 
 
 class ProfileCRUDTests(TestCase):
@@ -124,7 +199,7 @@ class ProfileCRUDTests(TestCase):
         """
         self.client.post("/profiles/create/", self._valid_profile_data())
         profile = Profile.objects.get(user=self.user)
-        profile.source_categories = {"arxiv": ["cs.AI"], "biorxiv": ["neuro"]}
+        profile.source_categories = {"arxiv": ["cs.AI"], "demo": ["neuro"]}
         profile.save()
 
         resp = self.client.post(
@@ -133,7 +208,7 @@ class ProfileCRUDTests(TestCase):
         )
         self.assertEqual(resp.status_code, 302)
         profile.refresh_from_db()
-        self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "biorxiv": ["neuro"]})
+        self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "demo": ["neuro"]})
 
     def test_edit_rerender_does_not_override_submitted_categories(self):
         """A failed POST must not reseed the picker from the stored profile.

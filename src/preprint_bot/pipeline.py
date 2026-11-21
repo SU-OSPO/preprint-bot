@@ -7,7 +7,9 @@ import argparse
 import asyncio
 import logging
 import sys
+import time
 import traceback
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime, timezone, date as date_type
@@ -18,6 +20,7 @@ from .config import (
     API_BASE_URL,
     DATA_DIR,
     DEFAULT_MODEL_NAME,
+    GROBID_CONCURRENCY,
     PDF_DIR,
     SYSTEM_USER_EMAIL,
     SYSTEM_USER_NAME,
@@ -114,6 +117,33 @@ async def fetch_preprint_papers(
     return entries
 
 
+def _format_duration(seconds: float) -> str:
+    """Format duration into human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    # Round before splitting, so 119.97s reads "2m 0.0s" and not "1m 60.0s".
+    total = round(seconds, 1)
+    hours = int(total // 3600)
+    mins = int((total % 3600) // 60)
+    secs = total % 60
+    if hours > 0:
+        return f"{hours}h {mins}m {secs:.1f}s"
+    return f"{mins}m {secs:.1f}s"
+
+
+def _start_step(title: str) -> float:
+    """Print a step banner with its start timestamp and return the start time."""
+    print("=" * 60)
+    print(f"{title} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print("=" * 60)
+    return time.time()
+
+
+def _end_step(start: float) -> None:
+    """Log how long the step that began at `start` took."""
+    print(f"  Completed in {_format_duration(time.time() - start)}")
+
+
 async def store_fetched_papers(
     api_client: APIClient,
     entries: List[PaperEntry],
@@ -122,11 +152,14 @@ async def store_fetched_papers(
 ) -> tuple[int, set[int], set[int], int]:
     """Create a corpus and store fetched papers in the database.
 
-    Returns ``(corpus_id, paper_ids, new_paper_ids, stored_count)`` where
+    Returns ``(corpus_id, paper_ids, pending_ids, stored_count)`` where
     ``paper_ids`` is the full set of database IDs for all fetched papers
-    (both newly stored and already existing), ``new_paper_ids`` is the
-    subset that were newly created, and ``stored_count`` is how many
-    were newly created.
+    (both newly stored and already existing), ``pending_ids`` is the
+    subset still to be processed (newly created, or stored earlier but
+    never parsed), and ``stored_count`` is how many were newly created.
+
+    Only pending papers are downloaded and parsed, so a feed that repeats
+    papers from an earlier run does not redo or duplicate their work.
     """
     user = await api_client.get_or_create_user(SYSTEM_USER_EMAIL, SYSTEM_USER_NAME)
     print(f"Using system user: {user['email']}")
@@ -144,11 +177,19 @@ async def store_fetched_papers(
 
     stored_count = 0
     paper_ids: set[int] = set()  # all paper IDs (new + existing)
-    new_paper_ids: set[int] = set()  # only newly created papers
+    pending_ids: set[int] = set()  # papers still to download, parse, embed, summarize
+    pending: List[PaperEntry] = []
+    fetched_by_source: Counter = Counter(p.source for p in entries)
+    existing_by_source: Counter = Counter()
     for paper in entries:
         existing = await api_client.get_paper_by_source_id(paper.source_id, paper.source)
         if existing:
             paper_ids.add(existing["id"])
+            existing_by_source[paper.source] += 1
+            # Stored by an earlier run that stopped before parsing it
+            if not skip_parse and not await api_client.get_sections_by_paper(existing["id"]):
+                pending_ids.add(existing["id"])
+                pending.append(paper)
             continue
 
         submitted_date = None
@@ -183,14 +224,18 @@ async def store_fetched_papers(
                 submitted_date=submitted_date,
             )
             paper_ids.add(created["id"])
-            new_paper_ids.add(created["id"])
+            pending_ids.add(created["id"])
+            pending.append(paper)
             stored_count += 1
         except Exception as e:
             print(f"Failed to store {paper.source_id}: {e}")
 
     print(f"Stored {stored_count} new papers in database ({len(paper_ids)} total)")
+    _warn_if_stale(fetched_by_source, existing_by_source)
+    if len(pending) > stored_count:
+        print(f"Resuming {len(pending) - stored_count} previously stored but unparsed papers")
 
-    if not skip_download and stored_count > 0:
+    if not skip_download and pending:
         stats = download_arxiv_pdfs(
             [
                 {
@@ -199,7 +244,7 @@ async def store_fetched_papers(
                     "source": p.source,
                     "arxiv_url": p.url,
                 }
-                for p in entries
+                for p in pending
             ],
             output_folder=str(PDF_DIR),
             use_s3=False,
@@ -213,11 +258,26 @@ async def store_fetched_papers(
                 f"Check network connectivity and file permissions."
             )
 
-    if not skip_parse and stored_count > 0:
+    if not skip_parse and pending:
         print("\nParsing PDFs with GROBID...")
-        await _parse_and_store_sections(api_client, corpus["id"], entries)
+        await _parse_and_store_sections(api_client, corpus["id"], pending)
 
-    return corpus["id"], paper_ids, new_paper_ids, stored_count
+    return corpus["id"], paper_ids, pending_ids, stored_count
+
+
+def _warn_if_stale(fetched_by_source: Counter, existing_by_source: Counter) -> None:
+    """Warn about a source whose "new" papers are mostly already stored.
+
+    A fresh announcement is almost entirely unseen papers, so a mostly
+    known one suggests the feed served an earlier announcement.
+    """
+    for source, fetched in fetched_by_source.items():
+        existing = existing_by_source[source]
+        if existing > fetched / 2:
+            print(
+                f"WARNING: {existing} of {fetched} papers fetched from {source} were "
+                "already in the database; its feed may be stale."
+            )
 
 
 def _papers_matching(papers: List[dict], entries: List[PaperEntry]) -> List[dict]:
@@ -246,15 +306,26 @@ async def _parse_and_store_sections(
 
 async def _parse_papers(api_client: APIClient, papers: List[dict]) -> set[int]:
     """Run GROBID on each paper row's PDF; return the IDs that got sections."""
-    parsed = 0
+    parse_start = time.time()
     with_sections: set[int] = set()
-    for paper in papers:
+
+    # GROBID is CPU-bound per request, so several requests at once use more
+    # of its cores; the cap keeps it within its worker pool.
+    slots = asyncio.Semaphore(GROBID_CONCURRENCY)
+
+    async def parse_one(paper: dict) -> bool:
         pdf_path = paper.get("pdf_path")
+        # Rows stored before filenames carried the source still point at the
+        # old name, while a resumed download writes the current one.
         if not pdf_path or not Path(pdf_path).exists():
-            continue
+            pdf_path = PDF_DIR / f"{safe_filename(paper['source_id'], paper.get('source', ''))}.pdf"
+        if not Path(pdf_path).exists():
+            return False
 
         try:
-            info = extract_grobid_sections(Path(pdf_path))
+            async with slots:
+                # The GROBID call blocks, so it runs off the event loop.
+                info = await asyncio.to_thread(extract_grobid_sections, Path(pdf_path))
 
             sections_stored = 0
             for sec in info.get("sections", []):
@@ -268,15 +339,20 @@ async def _parse_papers(api_client: APIClient, papers: List[dict]) -> set[int]:
                 except Exception:
                     pass
 
-            parsed += 1
             if sections_stored > 0:
                 with_sections.add(paper["id"])
                 print(f"  {paper['source_id']}: {sections_stored} sections")
+            return True
 
         except Exception as e:
             print(f"  Failed to process {paper.get('source_id', paper['id'])}: {e}")
+            return False
+
+    print(f"  Running up to {GROBID_CONCURRENCY} GROBID requests at once")
+    parsed = sum(await asyncio.gather(*(parse_one(p) for p in papers)))
 
     print(f"Parsed {parsed} papers, stored sections to database")
+    _end_step(parse_start)
     return with_sections
 
 
@@ -320,6 +396,22 @@ async def recover_missing_fulltext(
     return recovered
 
 
+async def _papers_needing_summary(
+    api_client: APIClient, paper_ids: set[int], mode: str = "abstract"
+) -> set[int]:
+    """IDs among *paper_ids* that have no *mode* summary yet.
+
+    Kept separate from the parse queue so a run interrupted after parsing
+    still gets its summaries, and a summarized paper is not redone.
+    """
+    missing: set[int] = set()
+    for paper_id in paper_ids:
+        summaries = await api_client.get_summaries_by_paper(paper_id)
+        if not any(s.get("mode") == mode for s in summaries):
+            missing.add(paper_id)
+    return missing
+
+
 async def summarize_papers(
     api_client: APIClient,
     corpus_id: int,
@@ -334,7 +426,7 @@ async def summarize_papers(
 
     if paper_ids is not None:
         papers = [p for p in papers if p["id"] in paper_ids]
-        print(f"  Filtered to {len(papers)} recommended papers")
+        print(f"  Filtered to {len(papers)} papers")
 
     if not papers:
         print("  No papers found to summarize")
@@ -446,6 +538,7 @@ async def send_all_digests(api_client: APIClient, run_date: str = None):
         frequency = profile.get("frequency", "daily")
 
         # Check if today is the right day to send for this frequency
+        # (keep in sync with Profile.next_digest_date in django_site/core/models.py)
         if frequency == "weekly":
             # Send on Mondays only
             if run_date_obj.weekday() != 0:
@@ -578,6 +671,7 @@ async def run_pipeline(args):
         except Exception as e:
             print(f"Warning: could not record processing run: {e}")
 
+        pipeline_start = time.time()
         if args.date:
             target_date = datetime.strptime(args.date, "%Y-%m-%d")
             print("\n" + "=" * 80)
@@ -590,18 +684,17 @@ async def run_pipeline(args):
             print("=" * 80 + "\n")
 
         # Step 1 always runs — process papers uploaded since the last run
-        print("=" * 60)
-        print("STEP 1: Processing User Papers")
-        print("=" * 60)
+        step1_start = _start_step("STEP 1: Processing User Papers")
         user_result = await process_unprocessed_papers(
             api_client, skip_parse=args.skip_parse, skip_embed=args.skip_embed
         )
         print(f"  Summary: {user_result['parsed']} parsed, {user_result['embedded']} embedded")
+        _end_step(step1_start)
 
-        print("\n" + "=" * 60)
-        print("STEP 2: Getting Categories from User Profiles")
-        print("=" * 60)
+        print()
+        step2_start = _start_step("STEP 2: Getting Categories from User Profiles")
         categories_by_source = await get_all_profile_categories(api_client)
+        _end_step(step2_start)
 
         if not categories_by_source:
             print("ERROR: No categories found in user profiles.")
@@ -617,20 +710,20 @@ async def run_pipeline(args):
                     pass
             sys.exit(1)
 
-        print("\n" + "=" * 60)
-        print("STEP 3: Fetching Preprint Papers")
-        print("=" * 60)
+        print()
+        step3_start = _start_step("STEP 3: Fetching Preprint Papers")
         entries = await fetch_preprint_papers(
             categories_by_source,
             target_date=target_date if args.date else None,
         )
 
-        if not entries:
-            print("No new papers fetched. Skipping steps 4–7.")
-        else:
-            print(f"Fetched {len(entries)} papers")
+        print(f"Fetched {len(entries)} papers")
+        _end_step(step3_start)
 
-            corpus_id, paper_ids, new_paper_ids, stored_count = await store_fetched_papers(
+        if not entries:
+            print("No new papers fetched. Skipping steps 4–6.")
+        else:
+            corpus_id, paper_ids, pending_ids, _ = await store_fetched_papers(
                 api_client,
                 entries,
                 skip_download=args.skip_download,
@@ -638,7 +731,7 @@ async def run_pipeline(args):
             )
 
             recovered_ids: set[int] = set()
-            if not args.skip_download and not args.skip_parse:
+            if not args.skip_download and not args.skip_parse and not args.skip_embed:
                 print("\nRetrying missing full text from earlier runs...")
                 try:
                     recovered_ids = await recover_missing_fulltext(
@@ -647,24 +740,29 @@ async def run_pipeline(args):
                 except Exception as e:
                     print(f"  Warning: full-text retry failed: {e}")
 
-            print("\n" + "=" * 60)
-            print("STEP 4: Generating Embeddings")
-            print("=" * 60)
-            embed_ids = new_paper_ids | recovered_ids
+            print()
+            step4_start = _start_step("STEP 4: Generating Embeddings")
+            embed_ids = pending_ids | recovered_ids
             if not args.skip_embed and embed_ids:
                 await embed_and_store_papers(
                     api_client,
                     corpus_id=corpus_id,
                     model_name=args.model,
-                    paper_ids=embed_ids,  # only embed new papers and those with recovered full text
+                    paper_ids=embed_ids,  # only embed unprocessed papers and those with recovered full text
                 )
+                _end_step(step4_start)
             elif not embed_ids:
                 print("No new papers — skipping.")
 
-            print("\n" + "=" * 60)
-            print("STEP 5: Generating Summaries")
-            print("=" * 60)
-            if not args.skip_summarize and stored_count > 0:
+            print()
+            step5_start = _start_step("STEP 5: Generating Summaries")
+            summary_ids = (
+                set()
+                if args.skip_summarize
+                else await _papers_needing_summary(api_client, paper_ids)
+            )
+            if summary_ids:
+                summarizer = None
                 if args.summarizer == "llama":
                     if not Path(args.llm_model).exists():
                         print(
@@ -674,18 +772,23 @@ async def run_pipeline(args):
                         from .summarization_script import LlamaSummarizer
 
                         summarizer = LlamaSummarizer(model_path=args.llm_model)
-                        await summarize_papers(
-                            api_client, corpus_id, summarizer, entries, mode="abstract"
-                        )
                 else:
                     summarizer = TransformerSummarizer()
+
+                if summarizer is not None:
                     await summarize_papers(
-                        api_client, corpus_id, summarizer, entries, mode="abstract"
+                        api_client,
+                        corpus_id,
+                        summarizer,
+                        entries,
+                        mode="abstract",
+                        paper_ids=summary_ids,
                     )
-            elif stored_count == 0:
-                print("No new papers — skipping.")
-            else:
+                    _end_step(step5_start)
+            elif args.skip_summarize:
                 print("Skipping summarization.")
+            else:
+                print("Every fetched paper is already summarized — skipping.")
 
             # Gather user corpora for recommendations
             try:
@@ -714,9 +817,8 @@ async def run_pipeline(args):
                         }
                     )
 
-            print("\n" + "=" * 60)
-            print("STEP 6: Generating Recommendations")
-            print("=" * 60)
+            print()
+            step6_start = _start_step("STEP 6: Generating Recommendations")
             await generate_recommendations(
                 api_client,
                 corpus_id,
@@ -725,16 +827,17 @@ async def run_pipeline(args):
                 paper_ids=paper_ids,
                 rematch_ids=recovered_ids,
             )
+            _end_step(step6_start)
 
-            print("\n" + "=" * 60)
-            print("STEP 7: Sending Email Digests")
-            print("=" * 60)
-            await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
+        # Digests always run
+        print()
+        step7_start = _start_step("STEP 7: Sending Email Digests")
+        await send_all_digests(api_client, run_date=target_date.strftime("%Y-%m-%d"))
+        _end_step(step7_start)
 
         # Cleanup always runs
-        print("\n" + "=" * 60)
-        print("STEP 8: Cleanup")
-        print("=" * 60)
+        print()
+        step8_start = _start_step("STEP 8: Cleanup")
         print("Cleaning up temporary arXiv PDF files...")
         try:
             deleted_pdfs = 0
@@ -743,6 +846,7 @@ async def run_pipeline(args):
                 deleted_pdfs += 1
             print(f"  ✓ Deleted {deleted_pdfs} PDFs")
             print("  ✓ User paper files are safe (hash-based storage)")
+            _end_step(step8_start)
         except Exception as e:
             print(f"  Warning: Cleanup failed: {e}")
 
@@ -754,6 +858,7 @@ async def run_pipeline(args):
             f"  • User papers: {user_result['parsed']} parsed, {user_result['embedded']} embedded"
         )
         print(f"  • Preprint papers: {len(entries)} fetched")
+        print(f"  • Total duration: {_format_duration(time.time() - pipeline_start)}")
         print("=" * 80 + "\n")
 
         if processing_run_id is not None:

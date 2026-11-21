@@ -12,6 +12,7 @@ tests/
 ├── test_embed_papers.py     # Embedding and arXiv ID normalization tests
 ├── test_extract_grobid.py   # GROBID text extraction tests
 ├── test_pdf_retry.py        # PDF download retries, within a run and in later runs
+├── test_pipeline_digests.py # Digest step runs even when no papers are fetched
 ├── test_query_arxiv.py      # arXiv API query tests
 ├── test_schemas.py          # Pydantic schema validation tests
 ├── test_similarity_matcher.py  # Vector similarity computation tests
@@ -103,6 +104,13 @@ Tests retrying rejected PDF downloads (`download_arxiv_pdfs`, `pipeline.recover_
 - `TestDownloadRetries`: Exponential backoff with jitter, `Retry-After`, non-retryable statuses, and the consecutive-failure cap
 - `TestRecoverMissingFulltext`: Later runs retry recent papers without sections, leaving this run's papers to the normal download
 - `TestRematch`: Recovered papers are matched again, skipping profiles they were already recommended to
+
+### test_pipeline_digests.py
+
+Tests that `run_pipeline` sends digests on days when no new papers are fetched, so date-gated weekly/monthly digests are not skipped.
+
+**Key Tests:**
+- Digest step runs once with the run date when the fetch returns nothing
 
 ### test_query_arxiv.py
 

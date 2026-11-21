@@ -53,6 +53,11 @@ class OnboardingTests(TestCase):
         resp = self.client.get("/onboarding/profile/")
         self.assertEqual(resp.status_code, 200)
 
+    def test_profile_step_explains_digest_schedule(self):
+        resp = self.client.get("/onboarding/profile/")
+        self.assertContains(resp, "monthly digests on the 1st of each month")
+        self.assertContains(resp, 'id="id_frequency_helptext"')
+
     # ── Skip ──────────────────────────────────────────────
 
     def test_skip_ends_onboarding(self):
