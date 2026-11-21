@@ -139,9 +139,12 @@ function setActiveSource(sourceName) {
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-  // The search box is shared but filters one tree at a time; say which.
+  /* The search box is shared but filters one tree at a time; say which. This
+     is the placeholder's only writer, so it always names the active tab — even
+     with categories selected, and even while a query hides it, so it is still
+     right once the box is cleared. */
   const input = document.getElementById('cat-search-input');
-  if (input && !input.value) {
+  if (input) {
     input.placeholder = MULTI_SOURCE
       ? 'Search ' + sourceLabelOf(sourceName) + ' categories…'
       : 'Search categories…';
@@ -300,10 +303,6 @@ function renderTags() {
     tag.appendChild(x);
     tagsEl.appendChild(tag);
   });
-
-  // Update placeholder visibility
-  const input = document.getElementById('cat-search-input');
-  input.placeholder = checked.length > 0 ? '' : 'Search categories…';
 }
 
 /* ── Search/filter ─────────────────────────────────────────── */
