@@ -98,6 +98,14 @@ class TestDownloadRetries:
         # Paper 1 fails (2 tries), paper 2 succeeds, paper 3 still gets 2 tries.
         assert stats["downloaded"] == 1 and get.call_count == 5
 
+    def test_non_retryable_failure_resets_the_failure_streak(self, tmp_path):
+        responses = [_response(403)] * 2 + [_response(404)] + [_response(403)] * 4
+        stats, get, _ = _run(
+            tmp_path, responses, papers=_papers(4), max_retries=2, max_consecutive_failures=2
+        )
+        # The 404 breaks the streak, so papers 3 and 4 both still get 2 tries.
+        assert stats["failed"] == 4 and get.call_count == 7
+
 
 def _row(pid, source_id="10.1/a"):
     return {
@@ -156,13 +164,36 @@ class TestRematch:
         api.get_recommended_paper_ids.assert_awaited_once_with(5, {200, 201})
 
     @pytest.mark.asyncio
-    async def test_lookup_failure_matches_only_this_runs_papers(self):
+    async def test_lookup_failure_matches_every_recovered_paper(self):
         api = AsyncMock()
         api.get_recommended_paper_ids.side_effect = RuntimeError("down")
-        assert await self._candidates(api, {200}) == {100}
+        assert await self._candidates(api, {200}) == {100, 200}
 
     @pytest.mark.asyncio
     async def test_no_rematch_ids_skips_the_lookup(self):
         api = AsyncMock()
         assert await self._candidates(api, set()) == {100}
         api.get_recommended_paper_ids.assert_not_called()
+
+
+class TestRecommendedPaperIdsLookup:
+    @pytest.mark.asyncio
+    async def test_chunks_long_id_lists(self):
+        from preprint_bot.api_client import APIClient, _EMBED_ID_CHUNK
+
+        client = APIClient(base_url="http://api")
+        sent = []
+
+        async def get(url, params):
+            sent.append(params["paper_ids"])
+            resp = MagicMock()
+            resp.json.return_value = [params["paper_ids"][0]]
+            return resp
+
+        client.client.get = get
+        ids = set(range(_EMBED_ID_CHUNK + 5))
+        found = await client.get_recommended_paper_ids(5, ids)
+        await client.close()
+
+        assert [len(c) for c in sent] == [_EMBED_ID_CHUNK, 5]
+        assert found == {0, _EMBED_ID_CHUNK}

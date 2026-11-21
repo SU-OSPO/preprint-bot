@@ -179,8 +179,8 @@ def download_arxiv_pdfs(
         else:
             stats["failed"] += 1
             tqdm.write(f"  Failed: {source_id}")
-            if rejected:
-                consecutive_failures += 1
+            # Only rejected papers count; any other failure breaks the streak
+            consecutive_failures = consecutive_failures + 1 if rejected else 0
             if attempts_per_paper > 1 and consecutive_failures >= max_consecutive_failures:
                 attempts_per_paper = 1
                 tqdm.write(

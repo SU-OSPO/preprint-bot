@@ -376,7 +376,7 @@ preprint_bot --date 2026-05-01
 preprint_bot --skip-download --skip-parse --skip-summarize
 ```
 
-If a server rejects a paper's PDF (bioRxiv and medRxiv rate-limit scripted downloads), the paper is still stored and recommended from its abstract. Each later run retries the PDFs of papers stored in the last 3 days (`FULLTEXT_RETRY_DAYS` in `pipeline.py`) that still have no sections; any that download are parsed, embedded and matched again, skipping profiles they were already recommended to.
+If a server rejects a paper's PDF (bioRxiv and medRxiv rate-limit scripted downloads), the paper is still stored and recommended from its abstract. Each later run (unless it skips downloading, parsing or embedding) retries the PDFs of papers stored in the last 3 days (`FULLTEXT_RETRY_DAYS` in `pipeline.py`) that still have no sections; any that download are parsed, embedded and matched again, skipping profiles they were already recommended to.
 
 ## API Reference
 

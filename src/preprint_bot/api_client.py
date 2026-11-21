@@ -3,8 +3,8 @@ from typing import List, Dict, Optional
 import datetime
 import asyncio
 
-# Chunk size for GET /embeddings/?paper_ids=... so the request URL stays well
-# under the server's request-line length limit when filtering to many papers.
+# Chunk size for GETs that list paper_ids (embeddings, recommended paper ids) so
+# the request URL stays well under the server's request-line length limit.
 _EMBED_ID_CHUNK = 200
 
 
@@ -428,12 +428,16 @@ class APIClient:
 
     async def get_recommended_paper_ids(self, profile_id: int, paper_ids) -> set[int]:
         """Which of *paper_ids* the profile has already been recommended."""
-        response = await self.client.get(
-            f"{self.base_url}/recommendations/profile/{profile_id}/paper-ids",
-            params={"paper_ids": sorted(paper_ids)},
-        )
-        response.raise_for_status()
-        return set(response.json())
+        ids = sorted(paper_ids)
+        found: set[int] = set()
+        for i in range(0, len(ids), _EMBED_ID_CHUNK):
+            response = await self.client.get(
+                f"{self.base_url}/recommendations/profile/{profile_id}/paper-ids",
+                params={"paper_ids": ids[i : i + _EMBED_ID_CHUNK]},
+            )
+            response.raise_for_status()
+            found.update(response.json())
+        return found
 
     async def get_recommendations_with_papers(self, run_id: int, limit: int = 50) -> List[Dict]:
         response = await self.client.get(

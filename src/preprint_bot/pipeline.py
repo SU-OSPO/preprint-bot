@@ -464,7 +464,8 @@ async def generate_recommendations(
 
     *rematch_ids* are earlier runs' papers matched again, e.g. after their
     full text was recovered; each profile skips those it was already
-    recommended.
+    recommended. If that check fails they are all matched: the database
+    keeps one recommendation per (profile, paper), so none is sent twice.
     """
     if not user_corpora:
         print("No user corpora to generate recommendations for")
@@ -485,9 +486,10 @@ async def generate_recommendations(
         if rematch_ids and paper_ids is not None:
             try:
                 already = await api_client.get_recommended_paper_ids(profile["id"], rematch_ids)
-                candidate_ids = paper_ids | (set(rematch_ids) - already)
             except Exception as e:
-                print(f"    Not re-matching recovered papers: {e}")
+                print(f"    Could not check earlier recommendations ({e}); matching all")
+                already = set()
+            candidate_ids = paper_ids | (set(rematch_ids) - already)
 
         try:
             run_id = await run_similarity_matching(
