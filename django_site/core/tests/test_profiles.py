@@ -33,6 +33,60 @@ class ProfileListSourceLabelTests(TestCase):
         self.assertTrue(resp.context["show_source_labels"])
 
 
+class ProfileListDisabledSourceTests(TestCase):
+    """Categories for a disabled source are hidden, as on the edit page, but kept.
+
+    The suite runs with only arXiv enabled, so bioRxiv stands in for a source
+    the deployment has turned off.
+    """
+
+    MIXED = {"arxiv": ["cs.AI"], "biorxiv": ["neuroscience"]}
+
+    def setUp(self):
+        self.user = PBUser.objects.create_user(
+            email="disabled@example.com",
+            password="SecurePass123!",
+        )
+        self.client.login(username="disabled@example.com", password="SecurePass123!")
+
+    def _list(self, source_categories):
+        profile = Profile.objects.create(
+            user=self.user, name="A", source_categories=source_categories
+        )
+        resp = self.client.get("/profiles/")
+        [item] = resp.context["profile_data"]
+        return resp, item["categories_display"], profile
+
+    def test_only_enabled_sources_are_listed(self):
+        resp, display, profile = self._list(self.MIXED)
+        self.assertEqual([g["source"] for g in display], ["arXiv"])
+        self.assertEqual(len(display[0]["labels"]), 1)
+        self.assertIn("cs.AI", display[0]["labels"][0])
+        self.assertNotContains(resp, "neuroscience")
+        profile.refresh_from_db()
+        self.assertEqual(profile.source_categories, self.MIXED)
+
+    def test_listed_again_once_the_source_is_enabled(self):
+        with patch("core.sources.enabled_names", return_value=["arxiv", "biorxiv"]):
+            _, display, _ = self._list(self.MIXED)
+        self.assertEqual([g["source"] for g in display], ["arXiv", "bioRxiv"])
+
+    def test_only_disabled_sources_reads_like_no_categories(self):
+        resp, display, profile = self._list({"biorxiv": ["neuroscience"]})
+        self.assertEqual(display, [])
+        self.assertNotContains(resp, ">Categories<")
+        profile.refresh_from_db()
+        self.assertEqual(profile.source_categories, {"biorxiv": ["neuroscience"]})
+
+    def test_legacy_flat_list_follows_arxiv(self):
+        """Pre-migration rows hold bare arXiv codes, so arXiv's switch governs them."""
+        with patch("core.sources.enabled_names", return_value=["biorxiv"]):
+            _, display, profile = self._list(["cs.AI"])
+        self.assertEqual(display, [])
+        profile.refresh_from_db()
+        self.assertEqual(profile.source_categories, ["cs.AI"])
+
+
 class NextDigestDateTests(SimpleTestCase):
     """Weekly digests go out on Mondays, monthly on the 1st."""
 
@@ -209,6 +263,19 @@ class ProfileCRUDTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         profile.refresh_from_db()
         self.assertEqual(profile.source_categories, {"arxiv": ["cs.LG"], "demo": ["neuro"]})
+
+    def test_edit_page_omits_selections_for_a_disabled_source(self):
+        """The picker is seeded with enabled sources only, matching the list."""
+        self.client.post("/profiles/create/", self._valid_profile_data())
+        profile = Profile.objects.get(user=self.user)
+        profile.source_categories = {"arxiv": ["cs.AI"], "demo": ["neuro"]}
+        profile.save()
+
+        resp = self.client.get(f"/profiles/{profile.pk}/edit/")
+        self.assertEqual(resp.context["initial_categories"], ["arxiv:cs.AI"])
+        self.assertEqual(resp.context["form"]["categories"].value(), "arxiv:cs.AI")
+        profile.refresh_from_db()
+        self.assertEqual(profile.source_categories, {"arxiv": ["cs.AI"], "demo": ["neuro"]})
 
     def test_edit_rerender_does_not_override_submitted_categories(self):
         """A failed POST must not reseed the picker from the stored profile.

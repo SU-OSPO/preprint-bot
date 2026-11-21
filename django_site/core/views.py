@@ -55,6 +55,7 @@ from .sources import (
     category_label,
     category_trees,
     code_to_label_by_source,
+    enabled_selections,
     leaf_codes_by_source,
     multiple_sources_enabled,
     order_source_names,
@@ -71,10 +72,14 @@ SOURCE_ID_SEPARATOR_RE = re.compile(r"[,\n]+")
 
 
 def _category_tokens(profile):
-    """A profile's selections in the picker's "source:code" wire format."""
+    """A profile's selections in the picker's "source:code" wire format.
+
+    Disabled sources are left out, matching the profile list; the edit view
+    merges their stored codes back in on save.
+    """
     return [
         f"{source_name}:{code}"
-        for source_name, codes in profile.categories_by_source.items()
+        for source_name, codes in enabled_selections(profile.categories_by_source).items()
         for code in codes
     ]
 
@@ -800,8 +805,9 @@ def profile_list_view(request):
                         "source": source_label(source_name),
                         "labels": [category_label(source_name, c) for c in codes],
                     }
-                    for source_name, codes in profile.categories_by_source.items()
-                    if codes
+                    for source_name, codes in enabled_selections(
+                        profile.categories_by_source
+                    ).items()
                 ],
             }
         )
