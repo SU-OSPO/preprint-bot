@@ -1373,6 +1373,7 @@ def paper_search_api_view(request, profile_id):
                 title=title_q,
                 author=author_q,
                 max_results=django_settings.SOURCE_SEARCH_MAX_RESULTS,
+                sources=[name for name in provider.sources if enabled_source(name)],
             )
         )
     except Exception as exc:
