@@ -1,11 +1,11 @@
-"""Tests for ArxivSource.search / fetch_one / fetch_many with the API mocked."""
+"""Tests for ArxivSearchProvider.search and ArxivSource.fetch_one / fetch_many with the API mocked."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from preprint_sources import ArxivSource
+from preprint_sources import ArxivSearchProvider, ArxivSource
 
 
 def _mock_async_client():
@@ -40,7 +40,7 @@ class TestSearch:
     async def test_builds_phrase_query_for_both_fields(self, mock_client, mock_fetch):
         mock_client.return_value = _mock_async_client()
         mock_fetch.return_value = []
-        await ArxivSource().search(title="deep learning", author="LeCun", max_results=25)
+        await ArxivSearchProvider().search(title="deep learning", author="LeCun", max_results=25)
 
         query = mock_fetch.call_args.args[1]
         assert "ti:%22deep%20learning%22" in query
@@ -53,7 +53,7 @@ class TestSearch:
     async def test_quotes_in_user_input_cannot_break_the_phrase(self, mock_client, mock_fetch):
         mock_client.return_value = _mock_async_client()
         mock_fetch.return_value = []
-        await ArxivSource().search(title='sneaky" OR all:')
+        await ArxivSearchProvider().search(title='sneaky" OR all:')
 
         query = mock_fetch.call_args.args[1]
         assert query.count("%22") == 2  # exactly the phrase's own quotes
@@ -67,7 +67,7 @@ class TestSearch:
             _api_item("http://arxiv.org/abs/2401.00001v1", title="First again"),
             _api_item("http://arxiv.org/api/errors#bad", title="Error"),
         ]
-        results = await ArxivSource().search(title="x")
+        results = await ArxivSearchProvider().search(title="x")
 
         assert [r.source_id for r in results] == ["2401.00001"]  # deduped, error dropped
         assert results[0].title == "First"
@@ -76,7 +76,7 @@ class TestSearch:
 
     async def test_requires_a_term(self):
         with pytest.raises(ValueError):
-            await ArxivSource().search()
+            await ArxivSearchProvider().search()
 
 
 class TestFetchByIds:

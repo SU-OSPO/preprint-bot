@@ -10,8 +10,8 @@
   <div class="onboarding-hint" style="margin-bottom:.75rem;">
     A few ways to add papers — use whichever is easiest:
     <strong>Upload PDF</strong> for papers on your computer{% if add_sources %},
-    <strong>Add by ID</strong> if you have {% if add_sources|length == 1 %}{{ add_sources.0.label }} {% endif %}IDs or links{% endif %}{% if search_sources %}, or
-    <strong>Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}</strong> to find them by title or author{% endif %}.
+    <strong>Add by ID</strong> if you have {% if add_sources|length == 1 %}{{ add_sources.0.label }} {% endif %}IDs or links{% endif %}{% if search_providers %}, or
+    <strong>Search{% if search_providers|length == 1 %} {{ search_providers.0.label }}{% endif %}</strong> to find them by title or author{% endif %}.
   </div>
 
   {# ── Add-paper tabs (shared with the profiles page) ── #}

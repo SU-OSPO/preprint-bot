@@ -31,7 +31,6 @@ def test_taxonomy_comes_from_the_biorxiv_module():
 
 def test_declared_capabilities():
     src = BiorxivSource()
-    # No search API, and add-by-id is left for a later PR.
-    assert src.supports_search() is False
+    # Add-by-id is left for a later PR.
     assert src.supports_add_by_id() is False
     assert src.request_delay_seconds == 3.0

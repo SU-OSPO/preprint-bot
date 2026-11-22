@@ -31,10 +31,27 @@ function sourceCanAdd(name) {
   return s ? !!s.canAdd : true;
 }
 
-/* Selected source in a panel, or '' to let the server pick the only one. */
-function panelSource(panel) {
-  const el = panel && panel.querySelector('.search-source');
+/* Selected search provider in a panel, or '' to let the server pick the only one. */
+function panelProvider(panel) {
+  const el = panel && panel.querySelector('.search-provider');
   return el ? el.value : '';
+}
+
+/* A provider can cover several sources, so results are keyed by source and id. */
+function resultKey(r) {
+  return r.source + ':' + r.source_id;
+}
+
+function splitResultKey(key) {
+  const i = key.indexOf(':');
+  return { source: key.slice(0, i), id: key.slice(i + 1) };
+}
+
+/* New results that can still be added: their source accepts add-by-ID. */
+function addableCount(box) {
+  const addedIds = box._addedIds || new Set();
+  return (box._newResults || [])
+    .filter(r => sourceCanAdd(r.source) && !addedIds.has(resultKey(r))).length;
 }
 
 document.querySelectorAll('.search-btn').forEach(btn => {
@@ -77,7 +94,7 @@ function doSearch(btn) {
   const url = btn.dataset.url
     + '?title=' + encodeURIComponent(title)
     + '&author=' + encodeURIComponent(author)
-    + '&source=' + encodeURIComponent(panelSource(panel));
+    + '&provider=' + encodeURIComponent(panelProvider(panel));
 
   fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(r => {
@@ -112,9 +129,9 @@ function doSearch(btn) {
       box._page = 1;
       box._selectedIds = new Set();  /* persistent selection across pages */
       box._addedIds = new Set();  /* papers added during this session */
-      box._source = data.source || '';
+      box._multiSource = new Set(data.results.map(r => r.source)).size > 1;
       const addForm = btn.closest('.paper-tabs').querySelector('[action*="add-by-id"]');
-      box._addUrl = addForm && sourceCanAdd(box._source) ? addForm.action : '';
+      box._addUrl = addForm && newResults.some(r => sourceCanAdd(r.source)) ? addForm.action : '';
 
       renderSearchResults(box);
     })
@@ -149,7 +166,7 @@ function renderSearchResults(box) {
     + '<div style="display:flex;gap:.4rem;">'
     + '<button type="button" class="btn btn-sm" onclick="togglePageCb(this,true)">Select Page</button>'
     + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,true)" data-action="select-all">Select All ('
-    + (totalNew - (box._addedIds ? box._addedIds.size : 0)) + ')</button>'
+    + addableCount(box) + ')</button>'
     + '<button type="button" class="btn btn-sm" onclick="toggleAllCb(this,false)">Deselect All</button>'
     + '</div></div>';
 
@@ -158,7 +175,6 @@ function renderSearchResults(box) {
   html += '<form method="post" action="' + esc(addUrl) + '" class="add-by-id-form"'
     + ' data-profile="' + profileId + '">'
     + '<input type="hidden" name="csrfmiddlewaretoken" value="' + getCSRF() + '">'
-    + '<input type="hidden" name="source" value="' + esc(box._source || '') + '">'
     + '<input type="hidden" name="source_ids" class="bulk-ids-field">'
     + '<div class="search-results-scroll">';
 
@@ -168,7 +184,8 @@ function renderSearchResults(box) {
   const selectedIds = box._selectedIds || new Set();
   const addedIds = box._addedIds || new Set();
   pageResults.forEach(r => {
-    html += renderPaperRow(r, false, selectedIds.has(r.source_id), addedIds.has(r.source_id));
+    const key = resultKey(r);
+    html += renderPaperRow(r, false, selectedIds.has(key), addedIds.has(key), box._multiSource);
   });
 
   html += '</div>';  /* close .search-results-scroll */
@@ -186,8 +203,8 @@ function renderSearchResults(box) {
     html += '</div>';
   }
 
-  /* A source can be searchable without being add-by-ID capable; then there
-     is nowhere to post the selection, so offer no add button. */
+  /* A provider can return papers from sources without add-by-ID; with
+     none addable there is nowhere to post the selection, so offer no add button. */
   if (addUrl) {
     html += '<button type="submit" class="btn btn-sm btn-primary" style="margin-top:.75rem;"'
       + ' onclick="return collectBulk(this);">Add Selected to Profile</button>';
@@ -201,7 +218,7 @@ function renderSearchResults(box) {
       + addedResults.length + ' paper' + (addedResults.length !== 1 ? 's' : '') + ' already in profile'
       + '</summary><div class="search-results-scroll" style="margin-top:.25rem; opacity:0.7;">';
     addedResults.forEach(r => {
-      html += renderPaperRow(r, true);
+      html += renderPaperRow(r, true, false, false, box._multiSource);
     });
     html += '</div></details>';
   }
@@ -235,19 +252,17 @@ function updateSelectionCount(box) {
     btn.textContent = 'Add Selected' + (count > 0 ? ' (' + count + ')' : '') + ' to Profile';
   }
   /* update the "Select All" button count */
-  const totalNew = (box._newResults || []).length;
-  const addedCount = box._addedIds ? box._addedIds.size : 0;
   const selectAllBtn = box.querySelector('[data-action="select-all"]');
   if (selectAllBtn) {
-    selectAllBtn.textContent = 'Select All (' + (totalNew - addedCount) + ')';
+    selectAllBtn.textContent = 'Select All (' + addableCount(box) + ')';
   }
 }
 
-function renderPaperRow(r, isAdded, isSelected, isDisabled) {
+function renderPaperRow(r, isAdded, isSelected, isDisabled, showSource) {
   let html = '<div style="padding:.5rem 0; border-bottom:1px solid var(--border);'
     + ' display:flex; gap:.6rem; align-items:flex-start;">';
-  if (!isAdded) {
-    html += '<input type="checkbox" class="paper-cb" value="' + esc(r.source_id) + '"'
+  if (!isAdded && sourceCanAdd(r.source)) {
+    html += '<input type="checkbox" class="paper-cb" value="' + esc(resultKey(r)) + '"'
       + (isSelected || isDisabled ? ' checked' : '')
       + (isDisabled ? ' disabled' : '')
       + ' style="margin-top:.35rem;">';
@@ -257,7 +272,8 @@ function renderPaperRow(r, isAdded, isSelected, isDisabled) {
     + '" target="_blank" rel="noopener noreferrer" style="font-weight:600;">' + esc(r.title) + '</a>'
     + '<div class="text-sm text-dim" style="margin-top:.15rem;">' + esc(r.authors) + '</div>'
     + '<div class="text-sm text-dim">Published ' + esc(r.published)
-    + ' &middot; ' + esc(r.source_id) + '</div>'
+    + ' &middot; ' + (showSource ? esc(r.source_label || sourceLabel(r.source)) + ': ' : '')
+    + esc(r.source_id) + '</div>'
     + '</div></div>';
   return html;
 }
@@ -277,30 +293,35 @@ document.addEventListener('submit', e => {
   if (!form) return;
   e.preventDefault();
 
-  /* collect IDs: from persistent selection set (search) or textarea (Tab 2) */
+  /* collect {source, id} items: from persistent selection set (search) or textarea (Tab 2) */
   const textarea = form.querySelector('textarea[name="source_ids"]');
-  let ids;
+  let items;
   if (textarea) {
-    /* Tab 2: parse IDs from the textarea */
-    ids = textarea.value.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+    /* Tab 2: parse IDs from the textarea; they all belong to the chosen source */
+    const sourceEl = form.querySelector('[name="source"]');
+    const source = sourceEl ? sourceEl.value : '';
+    items = textarea.value.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)
+                    .map(id => ({ source, id }));
+    if (items.length === 0) {
+      alert('Enter at least one ' + sourceLabel(source) + ' ID.');
+      return;
+    }
   } else {
     /* search results: use the persistent selection set */
     const box = form.closest('.search-results');
     const selectedIds = box ? box._selectedIds : null;
+    let keys;
     if (selectedIds && selectedIds.size > 0) {
-      ids = Array.from(selectedIds);
+      keys = Array.from(selectedIds);
     } else {
-      ids = Array.from(form.querySelectorAll('.paper-cb:checked:not([disabled])'))
-                 .map(cb => cb.value);
+      keys = Array.from(form.querySelectorAll('.paper-cb:checked:not([disabled])'))
+                  .map(cb => cb.value);
     }
-  }
-
-  const sourceEl = form.querySelector('[name="source"]');
-  const source = sourceEl ? sourceEl.value : '';
-
-  if (ids.length === 0) {
-    alert('Enter or select at least one ' + sourceLabel(source) + ' ID.');
-    return;
+    items = keys.map(splitResultKey);
+    if (items.length === 0) {
+      alert('Select at least one paper.');
+      return;
+    }
   }
 
   const addUrl = form.action;
@@ -308,15 +329,13 @@ document.addEventListener('submit', e => {
   const progressEl = form.querySelector('.add-progress');
   const submitBtn = form.querySelector('button[type="submit"]');
 
-  addPapersById(ids, source, addUrl, profileId, progressEl, submitBtn, form);
+  addPapersById(items, addUrl, profileId, progressEl, submitBtn, form);
 });
 
-async function addPapersById(ids, source, addUrl, profileId, progressEl, submitBtn, form) {
-  const total = ids.length;
+async function addPapersById(items, addUrl, profileId, progressEl, submitBtn, form) {
+  const total = items.length;
   let successCount = 0;
   let errors = new Set();
-
-  const delayMs = sourceDelayMs(source);
 
   /* get persistent state refs for search-tab checkbox updates */
   const textarea = form.querySelector('textarea[name="source_ids"]');
@@ -342,7 +361,8 @@ async function addPapersById(ids, source, addUrl, profileId, progressEl, submitB
   const logEl  = progressEl.querySelector('.add-progress-log');
 
   for (let i = 0; i < total; i++) {
-    const aid = ids[i];
+    const { source, id: aid } = items[i];
+    const key = source + ':' + aid;
     textEl.textContent = 'Adding ' + (i + 1) + ' of ' + total + ': ' + aid + '...';
 
     try {
@@ -363,9 +383,9 @@ async function addPapersById(ids, source, addUrl, profileId, progressEl, submitB
         logEl.innerHTML += '<div style="color:var(--success);">&#10003; ' + esc(data.paper.title || aid) + '</div>';
         logEl.scrollTop = logEl.scrollHeight;  /* auto-scroll to latest */
         /* immediately disable checkbox and update selection state */
-        if (selectedIds) selectedIds.delete(aid);
-        if (addedIds) addedIds.add(aid);
-        const cb = form.querySelector('.paper-cb[value="' + CSS.escape(aid) + '"]');
+        if (selectedIds) selectedIds.delete(key);
+        if (addedIds) addedIds.add(key);
+        const cb = form.querySelector('.paper-cb[value="' + CSS.escape(key) + '"]');
         if (cb) { cb.checked = true; cb.disabled = true; }
         if (box) updateSelectionCount(box);
       } else {
@@ -383,6 +403,7 @@ async function addPapersById(ids, source, addUrl, profileId, progressEl, submitB
     fillEl.style.width = ((i + 1) / total * 100) + '%';
 
     /* wait between requests to respect the source's rate limit */
+    const delayMs = sourceDelayMs(source);
     if (i < total - 1 && delayMs) {
       textEl.textContent = 'Waiting for ' + sourceLabel(source) + ' rate limit ('
         + (i + 2) + ' of ' + total + ' next)...';
@@ -530,9 +551,10 @@ function toggleAllCb(btn, checked) {
   const selectedIds = box._selectedIds;
   const addedIds = box._addedIds || new Set();
   if (checked) {
-    /* select all results across all pages, skipping already-added */
+    /* select all results across all pages, skipping already-added and unaddable */
     (box._newResults || []).forEach(r => {
-      if (!addedIds.has(r.source_id)) selectedIds.add(r.source_id);
+      const key = resultKey(r);
+      if (sourceCanAdd(r.source) && !addedIds.has(key)) selectedIds.add(key);
     });
   } else {
     selectedIds.clear();

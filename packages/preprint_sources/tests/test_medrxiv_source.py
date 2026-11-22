@@ -31,6 +31,5 @@ def test_taxonomy_comes_from_the_medrxiv_module():
 
 def test_declared_capabilities():
     src = MedrxivSource()
-    assert src.supports_search() is False
     assert src.supports_add_by_id() is False
     assert src.request_delay_seconds == 3.0

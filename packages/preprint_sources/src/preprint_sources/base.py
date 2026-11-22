@@ -38,8 +38,10 @@ class PreprintSource(ABC):
 
     Required: ``name``, ``label``, ``fetch_latest``, ``landing_url``,
     ``category_tree``, ``leaf_codes``. The rest are optional capabilities a
-    source declares support for and implements: ``fetch_by_date``, ``search``,
-    and add-by-id (``normalize_id`` / ``fetch_one`` / ``fetch_many``).
+    source declares support for and implements: ``fetch_by_date`` and
+    add-by-id (``normalize_id`` / ``fetch_one`` / ``fetch_many``). Search
+    lives in :class:`~preprint_sources.search.SearchProvider`, since one
+    search service can cover several sources.
     """
 
     # ── identity ───────────────────────────────────────────────────
@@ -99,17 +101,6 @@ class PreprintSource(ABC):
     def label_for(self, code: str) -> str:
         """Human label for a category code (defaults to the code itself)."""
         return code
-
-    # ── search (optional) ──────────────────────────────────────────
-
-    def supports_search(self) -> bool:
-        return False
-
-    async def search(
-        self, *, title: str = "", author: str = "", max_results: int = 100
-    ) -> List[PaperEntry]:
-        """Find papers by title and/or author, newest first."""
-        raise NotImplementedError(f"{self.name} does not support search")
 
     # ── add by id (optional) ───────────────────────────────────────
 

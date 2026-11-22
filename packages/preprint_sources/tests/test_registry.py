@@ -6,13 +6,18 @@ import sys
 import pytest
 
 from preprint_sources import (
+    ArxivSearchProvider,
     ArxivSource,
     BiorxivSource,
     MedrxivSource,
     PreprintSource,
+    SearchProvider,
+    all_search_provider_names,
     all_source_names,
     enabled_names,
+    enabled_search_providers,
     enabled_sources,
+    get_search_provider,
     get_source,
 )
 
@@ -63,6 +68,35 @@ def test_enabled_dedupes_preserving_order(monkeypatch):
     monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv, arxiv")
     assert enabled_names() == ["arxiv"]
     assert [s.name for s in enabled_sources()] == ["arxiv"]
+
+
+# ── Search providers ───────────────────────────────────────────────
+
+
+def test_get_search_provider_returns_instance():
+    provider = get_search_provider("arxiv")
+    assert isinstance(provider, ArxivSearchProvider)
+    assert isinstance(provider, SearchProvider)
+
+
+def test_get_unknown_search_provider_raises():
+    with pytest.raises(KeyError):
+        get_search_provider("nope")
+
+
+def test_search_providers_only_cover_registered_sources():
+    for name in all_search_provider_names():
+        assert set(get_search_provider(name).sources) <= set(all_source_names())
+
+
+def test_search_provider_enabled_by_its_sources(monkeypatch):
+    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "arxiv,biorxiv")
+    assert [p.name for p in enabled_search_providers()] == ["arxiv"]
+
+
+def test_search_provider_disabled_without_its_sources(monkeypatch):
+    monkeypatch.setenv("PREPRINT_ENABLED_SOURCES", "biorxiv,medrxiv")
+    assert enabled_search_providers() == []
 
 
 # ── The development-only demo source ───────────────────────────────
@@ -119,8 +153,8 @@ def test_demo_source_registers_when_requested(monkeypatch, reimport_registry):
     assert demo.label == "Demo Server"
     # Unsupported on purpose: this is how the add-paper tabs get exercised
     # hiding a capability a source lacks.
-    assert demo.supports_search() is False
     assert demo.supports_add_by_id() is False
+    assert "demo" not in [s for p in ps.enabled_search_providers() for s in p.sources]
 
 
 async def test_demo_source_never_invents_papers(monkeypatch, reimport_registry):

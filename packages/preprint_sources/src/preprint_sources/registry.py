@@ -7,6 +7,10 @@ every consumer resolves the same set.
 The development-only ``demo`` source is the exception: it is added to
 ``_CLASSES`` only when explicitly named in PREPRINT_ENABLED_SOURCES, so it
 stays invisible to normal deployments rather than merely disabled.
+
+Adding a search provider: implement SearchProvider, then add it to
+``_SEARCH_CLASSES``. A provider is enabled whenever it covers at least one
+enabled source, so it needs no setting of its own.
 """
 
 from __future__ import annotations
@@ -14,15 +18,20 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Type
 
-from .arxiv import ArxivSource
+from .arxiv import ArxivSearchProvider, ArxivSource
 from .base import PreprintSource
 from .biorxiv import BiorxivSource
 from .medrxiv import MedrxivSource
+from .search import SearchProvider
 
 _CLASSES: Dict[str, Type[PreprintSource]] = {
     "arxiv": ArxivSource,
     "biorxiv": BiorxivSource,
     "medrxiv": MedrxivSource,
+}
+
+_SEARCH_CLASSES: Dict[str, Type[SearchProvider]] = {
+    "arxiv": ArxivSearchProvider,
 }
 
 _DEMO_NAME = "demo"
@@ -65,3 +74,20 @@ def enabled_names() -> List[str]:
 def enabled_sources() -> List[PreprintSource]:
     """Instantiated sources that are currently enabled."""
     return [_CLASSES[n]() for n in enabled_names()]
+
+
+def all_search_provider_names() -> List[str]:
+    """Every registered search provider name, in registration order."""
+    return list(_SEARCH_CLASSES)
+
+
+def get_search_provider(name: str) -> SearchProvider:
+    """Instantiate a search provider by name. Raises KeyError if unknown."""
+    return _SEARCH_CLASSES[name]()
+
+
+def enabled_search_providers() -> List[SearchProvider]:
+    """Search providers covering at least one enabled source."""
+    enabled = set(enabled_names())
+    providers = [cls() for cls in _SEARCH_CLASSES.values()]
+    return [p for p in providers if enabled.intersection(p.sources)]

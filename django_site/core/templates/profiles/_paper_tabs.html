@@ -1,8 +1,8 @@
 {# Add-paper interface: upload / add-by-id / search / copy from existing profile. #}
-{# Expects `p` (the profile) plus `add_sources` and `search_sources` from #}
+{# Expects `p` (the profile) plus `add_sources` and `search_providers` from #}
 {# core.sources.paper_source_context(). Optional `next_url` makes the #}
 {# non-AJAX upload return there instead of the profiles list (onboarding). #}
-{# Source pickers only appear once more than one source offers the tab. #}
+{# Source and provider pickers only appear once there is more than one to pick. #}
 {# Optional `hide_copy_existing_profile_tab` hides the copy tab (onboarding: no other profile yet). #}
 
 <div class="paper-tabs" data-profile="{{ p.pk }}">
@@ -11,9 +11,9 @@
     {% if add_sources %}
       <button type="button" class="tab-btn" data-tab="byid-{{ p.pk }}">Add by ID</button>
     {% endif %}
-    {% if search_sources %}
+    {% if search_providers %}
       <button type="button" class="tab-btn" data-tab="search-{{ p.pk }}">
-        Search{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}
+        Search{% if search_providers|length == 1 %} {{ search_providers.0.label }}{% endif %}
       </button>
     {% endif %}
     {% if not hide_copy_existing_profile_tab %}
@@ -67,19 +67,19 @@
   {% endif %}
 
   {# ── Tab 3: Search ────────────────── #}
-  {% if search_sources %}
+  {% if search_providers %}
   <div class="tab-panel" id="search-{{ p.pk }}">
-    {% if search_sources|length > 1 %}
+    {% if search_providers|length > 1 %}
       <div class="form-group">
-        <label for="search-source-{{ p.pk }}">Source</label>
-        <select id="search-source-{{ p.pk }}" class="search-source">
-          {% for s in search_sources %}
+        <label for="search-provider-{{ p.pk }}">Search with</label>
+        <select id="search-provider-{{ p.pk }}" class="search-provider">
+          {% for s in search_providers %}
             <option value="{{ s.name }}">{{ s.label }}</option>
           {% endfor %}
         </select>
       </div>
     {% else %}
-      <input type="hidden" class="search-source" value="{{ search_sources.0.name }}">
+      <input type="hidden" class="search-provider" value="{{ search_providers.0.name }}">
     {% endif %}
     <div class="grid-2" style="gap:.75rem;">
       <div class="form-group">
@@ -96,7 +96,7 @@
 
     {# spinner shown while waiting #}
     <div class="search-spinner" style="display:none; margin-top:.75rem;">
-      <span class="spinner"></span> Searching{% if search_sources|length == 1 %} {{ search_sources.0.label }}{% endif %}…
+      <span class="spinner"></span> Searching{% if search_providers|length == 1 %} {{ search_providers.0.label }}{% endif %}…
     </div>
 
     {# results injected here by JS #}

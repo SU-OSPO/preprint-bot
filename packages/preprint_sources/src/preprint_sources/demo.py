@@ -60,9 +60,9 @@ DEMO_LEAF_CODES = {
 class DemoSource(PreprintSource):
     """A fake server with a small taxonomy and no fetching.
 
-    Search and add-by-id are left unsupported (the defaults), which also makes
-    this the only way to see the add-paper tabs hide a capability a source
-    does not have.
+    Add-by-id is left unsupported (the default) and no search provider covers
+    it, which also makes this the only way to see the add-paper tabs hide a
+    capability a source does not have.
     """
 
     @property
