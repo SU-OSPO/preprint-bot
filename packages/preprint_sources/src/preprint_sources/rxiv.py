@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional, Tuple
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -15,6 +17,10 @@ from .settings import USER_AGENT
 _API_ROOT = "https://api.biorxiv.org/details"
 _EASTERN = ZoneInfo("America/New_York")
 
+# A bioRxiv/medRxiv DOI: prefix 10.1101, or 10.64898 for newer papers; the suffix is
+# dated (2024.01.01.578123) or, for older papers, a bare number (339747).
+_DOI_RE = re.compile(r"^10\.(?:1101|64898)/(?:\d{4}\.\d{2}\.\d{2}\.\d+|\d+)$")
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +29,7 @@ class RxivSource(PreprintSource):
 
     _server: str
     _site: str
+    _example_doi: str  # a real DOI on this server, for the add-by-id placeholder
 
     @property
     def request_delay_seconds(self) -> float:
@@ -101,6 +108,63 @@ class RxivSource(PreprintSource):
             if not items or cursor >= total:
                 return records
 
+    # ── Add by id ──────────────────────────────────────────────────
+
+    def supports_add_by_id(self) -> bool:
+        return True
+
+    @property
+    def id_hint(self) -> str:
+        doi = self._example_doi
+        return f"{self._site}/content/{doi}v1, doi:{doi}, or {doi}"
+
+    def normalize_id(self, raw: str) -> Optional[str]:
+        """Parse a user-typed DOI, ``doi:`` reference, or URL into a versionless DOI.
+
+        Accepts bare DOIs (with or without a version suffix), doi.org links,
+        and this server's own content URLs (abstract, full text or PDF).
+        Returns ``None`` for anything else, including the other server's URLs.
+        """
+        token = (raw or "").strip()
+        if not token:
+            return None
+        if token.lower().startswith("doi:"):
+            token = token[len("doi:") :].strip()
+        if re.match(r"^https?://", token, flags=re.IGNORECASE):
+            url = urlparse(token)
+            host = url.netloc.lower().removeprefix("www.")
+            site_host = urlparse(self._site).netloc.removeprefix("www.")
+            if host in ("doi.org", "dx.doi.org"):
+                token = url.path.lstrip("/")
+            elif host == site_host and url.path.startswith("/content/"):
+                token = url.path[len("/content/") :]
+            else:
+                return None
+        # Strip the page suffix (.full, .full.pdf, ...), then the trailing version
+        token = re.sub(
+            r"\.(full\.pdf|full-text|full|abstract|supplementary-material)$",
+            "",
+            token,
+            flags=re.IGNORECASE,
+        )
+        token = re.sub(r"v\d+$", "", token)
+        return token if _DOI_RE.match(token) else None
+
+    async def fetch_one(self, source_id: str) -> Optional[PaperEntry]:
+        """Metadata for a DOI's latest version, or ``None`` if this server has no record."""
+        async with httpx.AsyncClient(timeout=30, headers={"User-Agent": USER_AGENT}) as client:
+            resp = await client.get(f"{_API_ROOT}/{self._server}/{source_id}")
+        resp.raise_for_status()
+        data = resp.json()
+
+        # As for a day's postings, errors arrive with HTTP 200 and a status message.
+        status = data["messages"][0].get("status")
+        if status == "no posts found":
+            return None
+        if status != "ok":
+            raise RuntimeError(f"{self._server} API error for {source_id}: {status}")
+        return _entry_from_versions(data.get("collection", []), self._site, self.name)
+
 
 def _yesterday_et(now: Optional[datetime] = None) -> date:
     """Yesterday's date in Eastern Time; *now* is for tests."""
@@ -127,7 +191,7 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
         abstract=item.get("abstract", "").strip(),
         url=f"{site}/content/{doi}",
         pdf_url=f"{site}/content/{doi}v1.full.pdf",
-        authors=[a.strip() for a in item.get("authors", "").split(";") if a.strip()],
+        authors=_authors(item),
         categories=[item["category"]],
         # The record's own "published" is a journal DOI (or "NA"), not a date.
         published=run_day.isoformat(),
@@ -135,6 +199,38 @@ def _entry_from_item(item: dict, site: str, source: str) -> Optional[PaperEntry]
         # published is shifted to the run day, so keep the server's own posting date too.
         metadata={"posted": item["date"]},
     )
+
+
+def _entry_from_versions(records: list, site: str, source: str) -> Optional[PaperEntry]:
+    """Convert a DOI's version records into one PaperEntry, or None if there are none.
+
+    Metadata and the PDF come from the newest version, as arXiv's add-by-id
+    serves its latest version; published is the first version's posting date.
+    """
+    if not records:
+        return None
+    by_version = sorted(records, key=lambda r: int(str(r["version"])))
+    first, latest = by_version[0], by_version[-1]
+
+    doi = latest["doi"]
+    posted = datetime.combine(date.fromisoformat(first["date"]), time(), _EASTERN)
+    return PaperEntry(
+        source_id=doi,
+        title=latest.get("title", "").strip(),
+        abstract=latest.get("abstract", "").strip(),
+        url=f"{site}/content/{doi}",
+        pdf_url=f"{site}/content/{doi}v{latest['version']}.full.pdf",
+        authors=_authors(latest),
+        categories=[latest["category"]],
+        published=posted.isoformat(),
+        source=source,
+        metadata={"posted": first["date"]},
+    )
+
+
+def _authors(item: dict) -> List[str]:
+    """Author names from a record's semicolon-separated ``authors`` string."""
+    return [a.strip() for a in item.get("authors", "").split(";") if a.strip()]
 
 
 async def _fetch_page(

@@ -21,6 +21,7 @@ class MedrxivSource(RxivSource):
 
     _server = "medrxiv"
     _site = "https://www.medrxiv.org"
+    _example_doi = "10.64898/2026.10.01.26364530"
 
     @property
     def name(self) -> str:
