@@ -35,6 +35,9 @@ from .user_mode_processor import process_unprocessed_papers
 from .db_similarity_matcher import run_similarity_matching
 from preprint_sources import PaperEntry, enabled_names, enabled_sources
 
+# How long a stored paper with no sections keeps getting its PDF retried
+FULLTEXT_RETRY_DAYS = 3
+
 
 async def get_all_profile_categories(api_client: APIClient) -> Dict[str, List[str]]:
     """Union every profile's category selections, keyed by source name."""
@@ -296,9 +299,15 @@ async def _parse_and_store_sections(
     Unlike the old process_folder → _output.txt → store_sections flow,
     this goes straight from GROBID's structured output to the database.
     """
-    parse_start = time.time()
     papers = await api_client.get_papers_by_corpus(corpus_id)
     papers = _papers_matching(papers, entries)
+    await _parse_papers(api_client, papers)
+
+
+async def _parse_papers(api_client: APIClient, papers: List[dict]) -> set[int]:
+    """Run GROBID on each paper row's PDF; return the IDs that got sections."""
+    parse_start = time.time()
+    with_sections: set[int] = set()
 
     # GROBID is CPU-bound per request, so several requests at once use more
     # of its cores; the cap keeps it within its worker pool.
@@ -331,6 +340,7 @@ async def _parse_and_store_sections(
                     pass
 
             if sections_stored > 0:
+                with_sections.add(paper["id"])
                 print(f"  {paper['source_id']}: {sections_stored} sections")
             return True
 
@@ -343,6 +353,47 @@ async def _parse_and_store_sections(
 
     print(f"Parsed {parsed} papers, stored sections to database")
     _end_step(parse_start)
+    return with_sections
+
+
+async def recover_missing_fulltext(
+    api_client: APIClient,
+    corpus_id: int,
+    exclude_ids: set[int],
+    days: int = FULLTEXT_RETRY_DAYS,
+) -> set[int]:
+    """Retry the PDFs of recently stored papers that still have no sections.
+
+    Later runs skip papers that are already stored, so without this a PDF
+    the server rejected leaves its paper abstract-only for good. The age
+    limit stops retrying a PDF that never becomes available. *exclude_ids*
+    (this run's fetched papers) are left to the normal download step.
+    Returns the IDs of papers that now have sections.
+    """
+    papers = await api_client.get_papers_missing_sections(corpus_id, days)
+    papers = [p for p in papers if p["id"] not in exclude_ids]
+    if not papers:
+        print(f"No papers from the last {days} days are missing full text")
+        return set()
+
+    print(f"Retrying PDFs for {len(papers)} papers from the last {days} days without full text")
+    download_arxiv_pdfs(
+        [
+            {
+                "pdf_url": p["metadata"]["pdf_url"],
+                "source_id": p["source_id"],
+                "source": p.get("source", ""),
+                "arxiv_url": p["metadata"].get("arxiv_url", ""),
+            }
+            for p in papers
+        ],
+        output_folder=str(PDF_DIR),
+        use_s3=False,
+        min_delay=3,
+    )
+    recovered = await _parse_papers(api_client, papers)
+    print(f"Recovered full text for {len(recovered)} of {len(papers)} papers")
+    return recovered
 
 
 async def _papers_needing_summary(
@@ -407,7 +458,15 @@ async def generate_recommendations(
     user_corpora: List,
     target_date: datetime,
     paper_ids: set[int] = None,
+    rematch_ids: set[int] = frozenset(),
 ) -> set:
+    """Match each user corpus against *paper_ids*.
+
+    *rematch_ids* are earlier runs' papers matched again, e.g. after their
+    full text was recovered; each profile skips those it was already
+    recommended. If that check fails they are all matched: the database
+    keeps one recommendation per (profile, paper), so none is sent twice.
+    """
     if not user_corpora:
         print("No user corpora to generate recommendations for")
         return set()
@@ -423,6 +482,15 @@ async def generate_recommendations(
 
         print(f"\n  Profile: {profile['name']} (User {user_id})")
 
+        candidate_ids = paper_ids
+        if rematch_ids and paper_ids is not None:
+            try:
+                already = await api_client.get_recommended_paper_ids(profile["id"], rematch_ids)
+            except Exception as e:
+                print(f"    Could not check earlier recommendations ({e}); matching all")
+                already = set()
+            candidate_ids = paper_ids | (set(rematch_ids) - already)
+
         try:
             run_id = await run_similarity_matching(
                 api_client,
@@ -435,7 +503,7 @@ async def generate_recommendations(
                 method="cosine",
                 model_name=DEFAULT_MODEL_NAME,
                 use_sections=True,
-                paper_ids=paper_ids,
+                paper_ids=candidate_ids,
             )
             if run_id is None:
                 print("    ✗ Skipped: no embeddings found")
@@ -664,17 +732,28 @@ async def run_pipeline(args):
                 skip_parse=args.skip_parse,
             )
 
+            recovered_ids: set[int] = set()
+            if not args.skip_download and not args.skip_parse and not args.skip_embed:
+                print("\nRetrying missing full text from earlier runs...")
+                try:
+                    recovered_ids = await recover_missing_fulltext(
+                        api_client, corpus_id, exclude_ids=paper_ids
+                    )
+                except Exception as e:
+                    print(f"  Warning: full-text retry failed: {e}")
+
             print()
             step4_start = _start_step("STEP 4: Generating Embeddings")
-            if not args.skip_embed and pending_ids:
+            embed_ids = pending_ids | recovered_ids
+            if not args.skip_embed and embed_ids:
                 await embed_and_store_papers(
                     api_client,
                     corpus_id=corpus_id,
                     model_name=args.model,
-                    paper_ids=pending_ids,  # only embed papers not yet processed
+                    paper_ids=embed_ids,  # only embed unprocessed papers and those with recovered full text
                 )
                 _end_step(step4_start)
-            elif not pending_ids:
+            elif not embed_ids:
                 print("No new papers — skipping.")
 
             print()
@@ -743,7 +822,12 @@ async def run_pipeline(args):
             print()
             step6_start = _start_step("STEP 6: Generating Recommendations")
             await generate_recommendations(
-                api_client, corpus_id, user_corpora, target_date, paper_ids=paper_ids
+                api_client,
+                corpus_id,
+                user_corpora,
+                target_date,
+                paper_ids=paper_ids,
+                rematch_ids=recovered_ids,
             )
             _end_step(step6_start)
 
