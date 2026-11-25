@@ -126,6 +126,21 @@ def multiple_sources_enabled() -> bool:
     return len(enabled_names()) > 1
 
 
+def enabled_selections(selections: dict) -> dict:
+    """The part of a profile's selections the UI shows: enabled sources only.
+
+    The display-side counterpart of :func:`preserve_disabled_selections`.
+    Codes for a source the deployment has turned off stay stored, so turning
+    it back on restores them, but the profile pages hide them just as the
+    picker does. Sources with no codes are dropped too, so a profile whose
+    only selections are for disabled sources reads as having none.
+    """
+    enabled = set(enabled_names())
+    return {
+        name: list(codes) for name, codes in (selections or {}).items() if name in enabled and codes
+    }
+
+
 def preserve_disabled_selections(previous: dict, selected: dict) -> dict:
     """Carry over selections for sources that are no longer enabled.
 
