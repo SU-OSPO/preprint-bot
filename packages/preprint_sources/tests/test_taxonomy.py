@@ -1,4 +1,7 @@
-"""Tests for arXiv, bioRxiv and medRxiv taxonomy data (well-formedness, not exact contents)."""
+"""Tests for the arXiv, bioRxiv, medRxiv and PsyArXiv taxonomies.
+
+They check well-formedness, not exact contents.
+"""
 
 from preprint_sources.taxonomies.arxiv import (
     ARXIV_CATEGORY_TREE,
@@ -18,6 +21,12 @@ from preprint_sources.taxonomies.medrxiv import (
     MEDRXIV_LEAF_CODES,
 )
 from preprint_sources.taxonomies.medrxiv import label_for as medrxiv_label_for
+from preprint_sources.taxonomies.psyarxiv import (
+    PSYARXIV_CATEGORY_TREE,
+    PSYARXIV_CODE_TO_LABEL,
+    PSYARXIV_LEAF_CODES,
+)
+from preprint_sources.taxonomies.psyarxiv import label_for as psyarxiv_label_for
 
 
 def _iter_nodes(nodes):
@@ -117,3 +126,52 @@ def test_medrxiv_known_codes_present():
 
 def test_medrxiv_label_for_unknown_returns_code():
     assert medrxiv_label_for("zzz.nope") == "zzz.nope"
+
+
+def test_psyarxiv_every_node_has_label_and_value():
+    for node in _iter_nodes(PSYARXIV_CATEGORY_TREE):
+        assert "label" in node and node["label"]
+        assert "value" in node and node["value"]
+
+
+def test_psyarxiv_no_duplicate_leaf_values():
+    leaves = list(_leaf_values(PSYARXIV_CATEGORY_TREE))
+    assert len(leaves) == len(set(leaves))
+
+
+def test_psyarxiv_leaf_codes_nonempty_and_labeled():
+    assert PSYARXIV_LEAF_CODES
+    for code in PSYARXIV_LEAF_CODES:
+        assert code in PSYARXIV_CODE_TO_LABEL
+        assert psyarxiv_label_for(code) == PSYARXIV_CODE_TO_LABEL[code]
+
+
+def test_psyarxiv_label_for_unknown_returns_code():
+    assert psyarxiv_label_for("zzz.nope") == "zzz.nope"
+
+
+def _psyarxiv_parents():
+    return [node for node in _iter_nodes(PSYARXIV_CATEGORY_TREE) if node.get("children")]
+
+
+def test_psyarxiv_every_parent_starts_with_its_all_leaf():
+    """Papers labeled only with a parent are reachable only through its (all) leaf."""
+    parents = _psyarxiv_parents()
+    assert parents
+    for node in parents:
+        first = node["children"][0]
+        assert first == {"label": node["label"] + " (all)", "value": node["value"]}
+
+
+def test_psyarxiv_parent_label_has_no_all_suffix():
+    """A paper's category shows the subject's name; (all) only labels the checkbox."""
+    parents = _psyarxiv_parents()
+    assert parents
+    for node in parents:
+        assert psyarxiv_label_for(node["value"]) == node["label"]
+
+
+def test_psyarxiv_values_have_no_commas():
+    """The profile form splits the selected values on commas."""
+    for node in _iter_nodes(PSYARXIV_CATEGORY_TREE):
+        assert "," not in node["value"]
