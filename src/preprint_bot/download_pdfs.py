@@ -67,8 +67,9 @@ def download_pdfs(
     - Single connection only
     - NO hourly limit enforcement (let the server handle it)
 
-    *use_s3* tries arXiv's S3 bucket first (arXiv papers only, needs the
-    [s3] extra) and falls back to HTTP for what it misses.
+    *use_s3* (arXiv papers only, needs the [s3] extra) is broken: the S3
+    path saves ``{arxiv_id}.pdf``, not the ``safe_filename`` stem the
+    pipeline reads back, so leave it False as the pipeline does.
 
     A rejected or failed request (see RETRYABLE_STATUSES) is tried up to
     *max_retries* times, waiting ``initial_backoff * 2**attempt`` seconds plus

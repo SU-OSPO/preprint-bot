@@ -840,7 +840,7 @@ async def run_pipeline(args):
         # Cleanup always runs
         print()
         step8_start = _start_step("STEP 8: Cleanup")
-        print("Cleaning up temporary arXiv PDF files...")
+        print("Cleaning up downloaded PDF files...")
         try:
             deleted_pdfs = 0
             for pdf in PDF_DIR.glob("*.pdf"):
