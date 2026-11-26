@@ -97,7 +97,7 @@ Tests GROBID text extraction and tokenization.
 
 ### test_pdf_retry.py
 
-Tests retrying rejected PDF downloads (`download_arxiv_pdfs`, `pipeline.recover_missing_fulltext`).
+Tests retrying rejected PDF downloads (`download_pdfs`, `pipeline.recover_missing_fulltext`).
 
 **Test Classes:**
 - `TestRetryAfter`: Parsing `Retry-After` as seconds or an HTTP date

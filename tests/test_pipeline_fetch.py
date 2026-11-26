@@ -179,7 +179,7 @@ class TestSourceScopedMatching:
 
     def test_pdf_stem_is_namespaced_by_source(self):
         """Two servers sharing an id must not write to the same file."""
-        from preprint_bot.download_arxiv_pdfs import safe_filename
+        from preprint_bot.download_pdfs import safe_filename
 
         assert safe_filename("2401.00001", "arxiv") != safe_filename("2401.00001", "biorxiv")
         # DOI-style ids stay filesystem-safe.

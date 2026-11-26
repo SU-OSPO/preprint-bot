@@ -74,7 +74,7 @@ preprint-bot/
 │   ├── pipeline.py                # Main orchestration pipeline
 │   ├── api_client.py              # Async API client
 │   ├── config.py                  # Global configuration constants
-│   ├── download_arxiv_pdfs.py     # PDF downloading with rate limiting
+│   ├── download_pdfs.py           # PDF downloading with rate limiting
 │   ├── extract_grobid.py          # GROBID text extraction
 │   ├── embed_papers.py            # Sentence transformer embeddings
 │   ├── summarization_script.py    # Transformer and LLaMA summarization
@@ -902,11 +902,11 @@ GROBID answers 503 while all its workers are busy; the pipeline retries 5xx resp
 resp = requests.post(GROBID_URL, files=files, timeout=300)
 ```
 
-**arXiv Rate Limiting:**
+**PDF Download Rate Limiting:**
 ```
 Rate limited (HTTP 403/429/503)
 ```
-Solution: System automatically handles this with exponential backoff, and later runs retry PDFs that still failed. If persistent, increase `min_delay` or `max_retries` in `download_arxiv_pdfs`.
+Solution: System automatically handles this with exponential backoff, and later runs retry PDFs that still failed. If persistent, increase `min_delay` or `max_retries` in `download_pdfs`.
 
 ## Development
 
