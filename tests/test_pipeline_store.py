@@ -43,7 +43,7 @@ def _api(existing, sections):
 
 async def _store(api, entries):
     with (
-        patch("preprint_bot.pipeline.download_arxiv_pdfs", return_value={}) as dl,
+        patch("preprint_bot.pipeline.download_pdfs", return_value={}) as dl,
         patch("preprint_bot.pipeline._parse_and_store_sections", new_callable=AsyncMock) as parse,
     ):
         result = await store_fetched_papers(api, entries)

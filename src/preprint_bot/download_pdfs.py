@@ -10,7 +10,7 @@ from tqdm import tqdm
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Optional
-from .config import USER_AGENT
+from .config import PDF_DIR, USER_AGENT
 
 HEADERS = {"User-Agent": USER_AGENT}
 
@@ -50,9 +50,9 @@ def _retry_after_seconds(response) -> Optional[float]:
     return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
-def download_arxiv_pdfs(
+def download_pdfs(
     paper_metadata,
-    output_folder="arxiv_pipeline_data/arxiv_pdfs",
+    output_folder=str(PDF_DIR),
     use_s3=False,
     min_delay=3,  # arXiv requires 3 seconds minimum
     max_retries=5,
@@ -61,10 +61,11 @@ def download_arxiv_pdfs(
     max_consecutive_failures=3,
 ):
     """
-    Downloads PDFs respecting arXiv's ToS:
+    Downloads each paper's ``pdf_url``, whichever source it comes from, at
+    the pace arXiv's ToS sets for all servers:
     - 3 seconds between requests
     - Single connection only
-    - NO hourly limit enforcement (let arXiv handle it)
+    - NO hourly limit enforcement (let the server handle it)
 
     A rejected or failed request (see RETRYABLE_STATUSES) is tried up to
     *max_retries* times, waiting ``initial_backoff * 2**attempt`` seconds plus

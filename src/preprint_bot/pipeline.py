@@ -27,7 +27,7 @@ from .config import (
     REFERENCE_CORPUS_NAME,
 )
 from .api_client import APIClient
-from .download_arxiv_pdfs import download_arxiv_pdfs, safe_filename
+from .download_pdfs import download_pdfs, safe_filename
 from .embed_papers import embed_and_store_papers
 from .extract_grobid import extract_grobid_sections
 from .summarization_script import TransformerSummarizer
@@ -236,7 +236,7 @@ async def store_fetched_papers(
         print(f"Resuming {len(pending) - stored_count} previously stored but unparsed papers")
 
     if not skip_download and pending:
-        stats = download_arxiv_pdfs(
+        stats = download_pdfs(
             [
                 {
                     "pdf_url": p.pdf_url,
@@ -377,7 +377,7 @@ async def recover_missing_fulltext(
         return set()
 
     print(f"Retrying PDFs for {len(papers)} papers from the last {days} days without full text")
-    download_arxiv_pdfs(
+    download_pdfs(
         [
             {
                 "pdf_url": p["metadata"]["pdf_url"],
@@ -840,7 +840,7 @@ async def run_pipeline(args):
         # Cleanup always runs
         print()
         step8_start = _start_step("STEP 8: Cleanup")
-        print("Cleaning up temporary arXiv PDF files...")
+        print("Cleaning up downloaded PDF files...")
         try:
             deleted_pdfs = 0
             for pdf in PDF_DIR.glob("*.pdf"):

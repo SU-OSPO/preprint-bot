@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from preprint_bot import download_arxiv_pdfs as dl
+from preprint_bot import download_pdfs as dl
 from preprint_bot import pipeline
 
 
@@ -33,7 +33,7 @@ def _run(tmp_path, responses, papers=None, **kwargs):
     """Download *papers* against a queue of responses; return (stats, get, backoffs)."""
     get = MagicMock(side_effect=list(responses))
     with patch.object(dl.requests, "get", get), patch.object(dl.time, "sleep") as sleep:
-        stats = dl.download_arxiv_pdfs(
+        stats = dl.download_pdfs(
             papers or _papers(1), output_folder=str(tmp_path), min_delay=0, **kwargs
         )
     # min_delay=0 sleeps are the per-request delay; the rest are backoffs.
@@ -122,7 +122,7 @@ class TestRecoverMissingFulltext:
         api = AsyncMock()
         api.get_papers_missing_sections.return_value = [_row(1), _row(2, "10.1/b")]
         with (
-            patch.object(pipeline, "download_arxiv_pdfs") as download,
+            patch.object(pipeline, "download_pdfs") as download,
             patch.object(pipeline, "_parse_papers", AsyncMock(return_value={2})) as parse,
         ):
             recovered = await pipeline.recover_missing_fulltext(api, 7, exclude_ids={1})
@@ -137,7 +137,7 @@ class TestRecoverMissingFulltext:
     async def test_nothing_to_retry(self):
         api = AsyncMock()
         api.get_papers_missing_sections.return_value = []
-        with patch.object(pipeline, "download_arxiv_pdfs") as download:
+        with patch.object(pipeline, "download_pdfs") as download:
             assert await pipeline.recover_missing_fulltext(api, 7, exclude_ids=set()) == set()
         download.assert_not_called()
 
